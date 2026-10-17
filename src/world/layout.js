@@ -24,19 +24,25 @@ export const WALLS = [
   { x1: -10, z1: -7, x2: -10, z2: 7, mat: "wall", doors: [{ at: 11.5, w: 1.55 }] },
 
   // North room fronts opening onto the shared corridor.
-  { x1: -10, z1: -0.8, x2: 10, z2: -0.8, mat: "wall", doors: [
-    { at: 3.5, w: 1.3 }, // meeting
-    { at: 10, w: 1.3 },  // cafe
-  ] },
+  // Meeting door at x=-6.5, cafe door at x=1.5 (cafe dipindah sedikit ke timur).
+  {
+    x1: -10, z1: -0.8, x2: 10, z2: -0.8, mat: "wall", doors: [
+      { at: 3.5, w: 1.3 },   // meeting
+      { at: 11.5, w: 1.3 },  // cafe
+    ]
+  },
   // South room fronts opening onto the same corridor.
-  { x1: -10, z1: 0.8, x2: 10, z2: 0.8, mat: "wall", doors: [
-    { at: 3.5, w: 1.3 }, // lobby
-    { at: 10, w: 1.3 },  // staff
-    { at: 16.5, w: 1.3 },// CEO
-  ] },
+  {
+    x1: -10, z1: 0.8, x2: 10, z2: 0.8, mat: "wall", doors: [
+      { at: 3.5, w: 1.3 },   // lobby
+      { at: 10, w: 1.3 },    // staff
+      { at: 16.5, w: 1.3 },  // CEO
+    ]
+  },
 
   // Straight partitions separate each room. Each room has its own corridor door.
-  { x1: -3, z1: -7, x2: -3, z2: -0.8, mat: "wallSage" },
+  // North partition meeting/cafe dipindah dari x=-3 ke x=-1 supaya meeting lebih besar.
+  { x1: -1, z1: -7, x2: -1, z2: -0.8, mat: "wallSage" },
   { x1: -3, z1: 0.8, x2: -3, z2: 7, mat: "wallSage" },
   { x1: 3, z1: 0.8, x2: 3, z2: 7, mat: "wallAccent" },
 ];
@@ -44,13 +50,13 @@ export const WALLS = [
 export const ROOMS = [
   {
     id: "meeting", name: "Ruang Meeting",
-    x0: -10, z0: -7, x1: -3, z1: -0.8, floor: "carpet",
-    polygon: [[-10, -7], [-3, -7], [-3, -0.8], [-10, -0.8]],
+    x0: -10, z0: -7, x1: -1, z1: -0.8, floor: "carpet",
+    polygon: [[-10, -7], [-1, -7], [-1, -0.8], [-10, -0.8]],
   },
   {
     id: "cafe", name: "Cafe",
-    x0: -3, z0: -7, x1: 3, z1: -0.8, floor: "tile",
-    polygon: [[-3, -7], [3, -7], [3, -0.8], [-3, -0.8]],
+    x0: -1, z0: -7, x1: 3, z1: -0.8, floor: "tile",
+    polygon: [[-1, -7], [3, -7], [3, -0.8], [-1, -0.8]],
   },
   {
     id: "lobby", name: "Lobby",
@@ -71,12 +77,12 @@ export const ROOMS = [
 
 // Anchor corridor points sit directly in front of their matching doorways.
 export const ROOM_ANCHORS = {
-  lobby:   { inside: { x: -6.7, z: 4.2 },  corridor: { x: -6.5, z: 0 } },
-  meeting:{ inside: { x: -6.5, z: -1.45 }, corridor: { x: -6.5, z: 0 } },
-  cafe:   { inside: { x: 0.0, z: -1.35 }, corridor: { x: 0.0, z: 0 } },
-  staff:  { inside: { x: 0.0, z: 1.45 },  corridor: { x: 0.0, z: 0 } },
-  ceo:    { inside: { x: 6.5, z: 1.45 },  corridor: { x: 6.5, z: 0 } },
-  corridor:{ inside: { x: 0, z: 0 }, corridor: { x: 0, z: 0 } },
+  lobby: { inside: { x: -6.7, z: 4.2 }, corridor: { x: -6.5, z: 0 } },
+  meeting: { inside: { x: -6.5, z: -1.45 }, corridor: { x: -6.5, z: 0 } },
+  cafe: { inside: { x: 1.5, z: -1.35 }, corridor: { x: 1.5, z: 0 } },
+  staff: { inside: { x: 0.0, z: 1.45 }, corridor: { x: 0.0, z: 0 } },
+  ceo: { inside: { x: 6.5, z: 1.45 }, corridor: { x: 6.5, z: 0 } },
+  corridor: { inside: { x: 0, z: 0 }, corridor: { x: 0, z: 0 } },
 };
 
 export const ENTRANCE = { x: -9.15, z: 4.55, yaw: Math.PI / 2 };

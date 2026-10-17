@@ -206,7 +206,7 @@ export class Building {
 
     // Brass inlays align exactly with the five room doors and lobby entrance.
     const thresholdMat = MAT.brass || MAT.steel;
-    for (const x of [-6.5, 0]) {
+    for (const x of [-6.5, 1.5]) {
       const strip = box(1.16, 0.018, 0.075, thresholdMat);
       strip.position.set(x, 0.018, -0.79);
       this.staticGroup.add(strip);
@@ -509,65 +509,126 @@ export class Building {
     /* ================= RUANG MEETING =================
        One compact six-seat meeting table, board, storage and plant.
        The chair geometry remains the project's original office-chair model. */
-    const mcx = -6.55;
-    const mcz = -4.05;
-    this._static(createMeetingTable({ w: 2.55, d: 1.12, h: 0.74 }), mcx, mcz, 0, 0, { w: 2.55, d: 1.12 });
-    const meetingSeats = [
-      [-1.38, -0.98], [0, -0.98], [1.38, -0.98],
-      [-1.38, 0.98], [0, 0.98], [1.38, 0.98],
-    ];
-    for (const [dx, dz] of meetingSeats) {
+    const mcx = -5.5;
+    const mcz = -3.9;
+
+    // Meja rapat panjang 4.8 m × 1.2 m × 0.75 m
+    this._static(
+      createMeetingTable({ w: 4.8, d: 1.2, h: 0.75 }),
+      mcx, mcz, 0, 0, { w: 4.8, d: 1.2 },
+    );
+
+    // 5 kursi × 2 sisi = 10 kursi samping (menghadap meja)
+    const sideSeatXs = [-1.92, -0.96, 0, 0.96, 1.92];
+    for (const dz of [-0.9, 0.9]) {
       const yaw = dz > 0 ? Math.PI : 0;
-      this._static(createOfficeChair({ color: dx < 0 ? "navy" : "charcoal" }), mcx + dx, mcz + dz, yaw);
-      this._seat(mcx + dx, mcz + dz, yaw, "meeting");
+      for (let i = 0; i < sideSeatXs.length; i++) {
+        const dx = sideSeatXs[i];
+        const color = (i + (dz > 0 ? 1 : 0)) % 2 === 0 ? "navy" : "charcoal";
+        this._static(createOfficeChair({ color }), mcx + dx, mcz + dz, yaw);
+        this._seat(mcx + dx, mcz + dz, yaw, "meeting");
+      }
     }
-    const board = createWhiteboard({ w: 1.65, h: 0.94 });
-    this._static(board, -6.55, -6.78, 0, 0.68, { w: 1.7, d: 0.16 });
+
+    // 1 kursi utama (head of table) di ujung timur, menghadap meja (-x)
+    const headX = mcx + 2.4 + 0.65;
+    const headYaw = -Math.PI / 2;
+    this._static(createOfficeChair({ color: "charcoal" }), headX, mcz, headYaw);
+    this._seat(headX, mcz, headYaw, "meeting");
+
+    // Whiteboard di dinding utara, di tengah meja
+    const board = createWhiteboard({ w: 2.4, h: 1.1 });
+    this._static(board, mcx, -6.78, 0, 0.72, { w: 2.5, d: 0.16 });
     this._interactive(board, {
-      id: "board-meeting", label: "Papan agenda meeting", hint: "Klik untuk melihat agenda", radius: 1.1,
+      id: "board-meeting", label: "Papan agenda meeting",
+      hint: "Klik untuk melihat agenda", radius: 1.5,
       onClick: () => "Agenda: prioritas sprint · desain produk · evaluasi rilis",
     });
-    this._static(createStorageCabinet({ w: 0.9, h: 0.9, d: 0.36, color: "wood" }), -9.35, -5.45, Math.PI / 2);
-    this._plant(-9.15, -1.65, 0, { variant: 1, scale: 0.68, seed: 31 });
-    this._static(createBin(), -8.9, -2.2, 0);
-    this._static(createWallArt({ w: 0.62, h: 0.72, variant: 2 }), -4.05, -6.78, 0, 0.64, { w: 0.1, d: 0.72 });
 
-    /* ================= CAFE =================
-       Service counter against the outside wall, two small tables and
-       compact utilities; an open central route keeps the door usable. */
+    // Wall art di kiri-kanan whiteboard
+    this._static(createWallArt({ w: 0.7, h: 0.9, variant: 2 }), -8.6, -6.78, 0, 0.7, { w: 0.8, d: 0.1 });
+    this._static(createWallArt({ w: 0.7, h: 0.9, variant: 4 }), -2.4, -6.78, 0, 0.7, { w: 0.8, d: 0.1 });
+
+    // Storage cabinets di dinding barat
+    this._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "wood" }), -9.4, -5.8, Math.PI / 2);
+    this._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "light" }), -9.4, -2.0, Math.PI / 2);
+
+    // Tanaman sudut + bin
+    this._plant(-9.2, -1.5, 0, { variant: 1, scale: 0.7, seed: 31 });
+    this._static(createBin(), -8.6, -3.9, 0);
+
+    // 3 lampu gantung di atas meja
+    const pendantA = createPendantLamp();
+    const pendantB = createPendantLamp();
+    const pendantC = createPendantLamp();
+    this._static(pendantA, mcx - 1.5, mcz, 0, 2.15);
+    this._static(pendantB, mcx, mcz, 0, 2.15);
+    this._static(pendantC, mcx + 1.5, mcz, 0, 2.15);
+    this._interactive(pendantA, { id: "pendant-meeting-a", label: "Lampu rapat A", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu A nyala" : "Lampu A mati" });
+    this._interactive(pendantB, { id: "pendant-meeting-b", label: "Lampu rapat B", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu B nyala" : "Lampu B mati" });
+    this._interactive(pendantC, { id: "pendant-meeting-c", label: "Lampu rapat C", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu C nyala" : "Lampu C mati" });
+
+    /* ================= CAFE (lebih sempit + lounge/gaming) =================
+       Kitchen counter + TV + PS + L-sofa + carpet. Pintu cafe sekarang di
+       x = 1.5 supaya sofa bisa memenuhi sudut barat-daya. */
+
+    // Counter + kulkas di dinding utara
     const counter = this._kitchenCounter();
-    this._static(counter, -0.05, -6.08, 0);
+    this._static(counter, 0.5, -6.35, 0);
     this._splitLive(counter, [counter.userData.parts.machine]);
-    const fridge = createFridge({ w: 0.58, h: 1.42, d: 0.56 });
-    this._static(fridge, -2.42, -6.05, 0);
+
+    const fridge = createFridge({ w: 0.55, h: 1.4, d: 0.55 });
+    this._static(fridge, -0.6, -6.35, 0);
     this._interactive(fridge, {
-      id: "cafe-fridge", label: "Kulkas cafe", hint: "Klik untuk membuka / menutup", radius: 0.75,
+      id: "cafe-fridge", label: "Kulkas cafe",
+      hint: "Klik untuk membuka / menutup", radius: 0.7,
       onClick: (self) => self.userData.api.toggle() ? "Kulkas dibuka" : "Kulkas ditutup",
     });
-    const cooler = createWaterCooler();
-    this._static(cooler, 2.35, -5.85, 0);
-    this._interactive(cooler, {
-      id: "cooler", label: "Dispenser air cafe", hint: "Klik untuk mengambil air", radius: 0.75,
-      onClick: () => "Air minum siap — jangan lupa hidrasi.",
+
+    // TV lebar di dinding utara bagian timur
+    const tv = createTV({ w: 1.4, h: 0.85 });
+    this._static(tv, 2.2, -6.85, 0, 1.15, { w: 1.5, d: 0.2 });
+    this._interactive(tv, {
+      id: "cafe-tv", label: "TV lounge",
+      hint: "Klik untuk ganti channel", radius: 1.2,
+      onClick: () => "Channel: gameplay tournament · 4K 60 fps",
     });
 
-    const cafeTableA = createTable(1.28, 0.78, 0.73);
-    this._static(cafeTableA, -1.22, -4.22, 0, 0, { w: 1.28, d: 0.78 });
-    for (const [dz, yaw] of [[-0.76, 0], [0.76, Math.PI]]) {
-      this._static(createOfficeChair({ color: "navy" }), -1.22, -4.22 + dz, yaw);
-      this._seat(-1.22, -4.22 + dz, yaw, "lunch");
-    }
-    const cafeTableB = createTable(1.12, 0.74, 0.73);
-    this._static(cafeTableB, 1.1, -2.25, 0, 0, { w: 1.12, d: 0.74 });
-    for (const [dx, yaw] of [[-0.78, Math.PI / 2], [0.78, -Math.PI / 2]]) {
-      this._static(createOfficeChair({ color: dx < 0 ? "navy" : "charcoal" }), 1.1 + dx, -2.25, yaw);
-      this._seat(1.1 + dx, -2.25, yaw, "lunch");
-    }
-    this._static(createMug({ color: 0xe8e3d8 }), -1.38, -4.22, 0, 0.75);
-    this._static(createMug({ color: 0xc9d6c7 }), 1.0, -2.25, 0, 0.75);
-    this._static(createWallShelf({ w: 0.82, d: 0.22, shelves: 2 }), 1.7, -6.76, 0, 1.1, { w: 0.82, d: 0.18 });
-    this._plant(2.45, -1.28, 0, { variant: 0, scale: 0.65, seed: 32 });
-    this._static(createBin(), -2.5, -2.05, 0);
+    // PlayStation di bawah TV
+    const ps = createPlayStation();
+    this._static(ps, 2.2, -6.65, 0, 0.55, { w: 0.4, d: 0.25 });
+    this._interactive(ps, {
+      id: "cafe-ps", label: "PlayStation",
+      hint: "Klik untuk menyalakan", radius: 0.7,
+      onClick: () => "PS: game siap dimainkan",
+    });
+
+    // Carpet di bawah area sofa
+    const carpet = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.2, 3.4),
+      MAT.rug,
+    );
+    carpet.rotation.x = -Math.PI / 2;
+    carpet.position.set(0.5, 0.012, -2.2);
+    carpet.receiveShadow = true;
+    this.staticGroup.add(carpet);
+
+    // L-sofa — Section A di dinding selatan, menghadap utara
+    const sofaA = createSofa({ width: 2.0, depth: 0.85 });
+    this._static(sofaA, 0.0, -1.15, Math.PI, 0, { w: 2.1, d: 0.95 });
+    this._seat(0.0, -1.15, Math.PI, "lounge");
+
+    // L-sofa — Section B di dinding barat, menghadap timur
+    const sofaB = createSofa({ width: 2.4, depth: 0.85 });
+    this._static(sofaB, -0.55, -2.35, Math.PI / 2, 0, { w: 0.95, d: 2.5 });
+    this._seat(-0.55, -2.35, Math.PI / 2, "lounge");
+
+    // Coffee table di dalam lekuk L
+    this._static(createCoffeeTable({ r: 0.38 }), 0.5, -2.1, 0);
+
+    // Tanaman sudut + bin
+    this._plant(2.6, -1.3, 0, { variant: 0, scale: 0.7, seed: 32 });
+    this._static(createBin(), 2.6, -4.6, 0);
 
     /* ================= LOBBY =================
        Reception plus a modest waiting nook: furniture stays out of the
@@ -1084,6 +1145,64 @@ function createTable(w, d, h) {
   }
   shade(g);
   g.userData.footprint = { w, d };
+  return g;
+}
+
+/** Wall-mount TV (wide) — dipakai di lounge cafe. */
+function createTV({ w = 1.4, h = 0.85 } = {}) {
+  const g = new THREE.Group();
+  g.name = "TV";
+  g.userData.interactionLabel = "TV";
+
+  const bezel = rbox(w + 0.05, h + 0.05, 0.06, 0.015, MAT.blackMetal, 0.005);
+  g.add(bezel);
+
+  const screenMat = new THREE.MeshStandardMaterial({
+    color: 0x081020,
+    roughness: 0.15,
+    metalness: 0.4,
+    emissive: 0x2a6d9a,
+    emissiveIntensity: 0.18,
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), screenMat);
+  screen.position.z = 0.031;
+  g.add(screen);
+
+  const stand = rbox(0.24, 0.02, 0.16, 0.008, MAT.blackMetal, 0.003);
+  stand.position.y = -h / 2 - 0.04;
+  g.add(stand);
+
+  shade(g);
+  g.userData.parts = { screen: screenMat };
+  g.userData.api = {
+    toggle() {
+      screenMat.emissiveIntensity = screenMat.emissiveIntensity > 0 ? 0 : 0.18;
+      return screenMat.emissiveIntensity > 0;
+    },
+  };
+  return g;
+}
+
+/** PS console (flat, PS4-style) — dipakai di bawah TV cafe. */
+function createPlayStation() {
+  const g = new THREE.Group();
+  g.name = "PlayStation";
+  g.userData.interactionLabel = "PlayStation";
+
+  const body = rbox(0.32, 0.055, 0.24, 0.012, MAT.plasticDark, 0.005);
+  body.position.y = 0.0275;
+  g.add(body);
+
+  const stripe = rbox(0.30, 0.008, 0.22, 0.004, MAT.plasticWhite, 0.002);
+  stripe.position.y = 0.028;
+  g.add(stripe);
+
+  const led = box(0.06, 0.004, 0.002, MAT.ledStrip);
+  led.position.set(-0.06, 0.03, 0.122);
+  g.add(led);
+
+  shade(g);
+  g.userData.footprint = { w: 0.35, d: 0.28 };
   return g;
 }
 
