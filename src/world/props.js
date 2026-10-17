@@ -444,68 +444,78 @@ export function createDeskLamp({ color = 0xd8663c } = {}) {
   const g = new THREE.Group();
   g.name = "Lampu meja";
   g.userData.interactionLabel = "Lampu meja";
-  const shell = new THREE.MeshStandardMaterial({ color, roughness: 0.32, metalness: 0.35, envMapIntensity: 1 });
+
+  const shell = new THREE.MeshStandardMaterial({
+    color, roughness: 0.32, metalness: 0.35, envMapIntensity: 1,
+  });
+
+  // Base
   const base = cyl(0.085, 0.1, 0.016, shell, 28);
   put(base, 0, 0.008, 0);
   g.add(base);
 
-  const lower = cyl(0.012, 0.012, 0.34, shell, 12);
-  put(lower, 0, 0.18, 0);
-  lower.rotation.z = -0.16;
+  // Lower arm — vertical, dari base ke elbow. Menyentuh base tepat.
+  const lowerLen = 0.28;
+  const lower = cyl(0.012, 0.012, lowerLen, shell, 12);
+  put(lower, 0, 0.016 + lowerLen / 2, 0);   // top di y = 0.296
   g.add(lower);
 
+  // Elbow joint (silinder horizontal) — menyentuh ujung lower arm.
   const joint = cylinderJoint();
-  put(joint, -0.055, 0.35, 0);
+  put(joint, 0, 0.296, 0);
   g.add(joint);
 
+  // Upper arm — dimulai tepat di elbow, mengarah ke depan.
+  const upperLen = 0.24;
+  const armAngle = -0.75;
   const upper = new THREE.Group();
-  const arm = cyl(0.011, 0.011, 0.3, shell, 12);
-  arm.position.set(0.15, 0, 0);
-  upper.rotation.z = Math.PI / 2 - 0.5;
-  const armPivot = new THREE.Group();
-  armPivot.add(arm);
-  const shadeMesh = cyl(0.055, 0.095, 0.13, shell, 24, true);
-  shadeMesh.rotation.z = Math.PI / 2;
-  put(shadeMesh, 0.31, 0, 0);
-  armPivot.add(shadeMesh);
-  const bulb = sphere(0.045, MAT.bulb, 16, 12);
-  bulb.scale.set(1, 0.7, 1);
-  put(bulb, 0.35, 0, 0);
-  armPivot.add(bulb);
-  upper.add(armPivot);
-  put(upper, -0.05, 0.36, 0);
+  upper.position.set(0, 0.296, 0);
+  upper.rotation.z = armAngle;
   g.add(upper);
 
+  const upperArm = cyl(0.011, 0.011, upperLen, shell, 12);
+  put(upperArm, 0, upperLen / 2, 0);
+  upper.add(upperArm);
+
+  // Shade — dipasang di ujung upper arm, tetap tegak di world.
+  const shadeGroup = new THREE.Group();
+  shadeGroup.position.set(0, upperLen, 0);
+  shadeGroup.rotation.z = -armAngle;   // membatalkan rotasi parent
+  upper.add(shadeGroup);
+
+  const shadeMesh = cyl(0.055, 0.095, 0.13, shell, 24, true);
+  put(shadeMesh, 0, -0.065, 0);
+  shadeGroup.add(shadeMesh);
+
+  const bulb = sphere(0.042, MAT.bulb, 16, 12);
+  bulb.scale.set(1, 0.7, 1);
+  put(bulb, 0, -0.09, 0);
+  shadeGroup.add(bulb);
+
   const light = new THREE.PointLight(0xffc98a, 0, 4.2, 2);
-  light.position.set(0.34, -0.1, 0);
-  light.castShadow = false;
-  upper.add(light);
+  put(light, 0, -0.14, 0);
+  shadeGroup.add(light);
 
   shade(g);
+
   let on = false;
   const pupil = () => {
     light.intensity = on ? 6.5 : 0;
     bulb.visible = on;
   };
   pupil();
+
   g.userData.parts = { light, bulb, shade: shadeMesh };
   g.userData.api = {
-    get isOn() {
-      return on;
-    },
-    toggle() {
-      on = !on;
-      pupil();
-      return on;
-    },
-    set(v) {
-      on = v;
-      pupil();
-    },
+    get isOn() { return on; },
+    toggle() { on = !on; pupil(); return on; },
+    set(v) { on = v; pupil(); },
   };
+
   g.userData.update = (dt, t) => {
     if (on) light.intensity = 6.5 + Math.sin(t * 30) * 0.08;
   };
+
   return g;
 }
 

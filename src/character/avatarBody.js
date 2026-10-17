@@ -56,7 +56,9 @@ function makeIdCard(c, accent) {
 export function buildBody(c) {
   const paletteIndex = (c.variant * 2 + Math.max(0, c.spec.palette || 0)) % CLOTHING.length;
   const outfitHex = c.spec.outfit ?? CLOTHING[paletteIndex];
-  const pantsHex = TROUSERS[(c.variant + Math.max(0, c.spec.palette || 0)) % TROUSERS.length];
+  // ← BARU: mendukung celana kustom (staff pakai celana hitam).
+  const pantsHex = c.spec.pants
+    ?? TROUSERS[(c.variant + Math.max(0, c.spec.palette || 0)) % TROUSERS.length];
   const skinHex = c.spec.skin ?? 0xe9b998;
   const accentHex = c.tieColor ?? 0x547da4;
   c.outfitHex = outfitHex;
@@ -92,8 +94,6 @@ export function buildBody(c) {
     body.add(hip);
     add(hip, SPH(), pants, 0, 0, 0, 0.056, 0.058, 0.060);
     add(hip, cap("thigh", 0.054, 0.155), pants, 0, -0.115, 0, 1, 1, 0.96);
-
-    // Saku cargo: di samping luar (bukan depan)
     add(hip, new RoundedBoxGeometry(0.048, 0.058, 0.008, 3, 0.004), pantsDark,
       side * 0.052, -0.110, 0.010, 1, 1, 1, 0, side * Math.PI / 2, 0);
 
@@ -109,11 +109,8 @@ export function buildBody(c) {
     ankle.position.y = -0.207;
     knee.add(ankle);
 
-    // Sneaker utama (tanpa sol bawah)
     add(ankle, new RoundedBoxGeometry(0.100, 0.048, 0.165, 5, 0.025), sneaker, 0, -0.005, 0.035);
-    // Bagian tumit
     add(ankle, new RoundedBoxGeometry(0.062, 0.036, 0.052, 4, 0.014), sneaker, 0, 0.008, -0.045);
-    // Tali sepatu
     for (let n = 0; n < 3; n++) {
       add(ankle, new RoundedBoxGeometry(0.048, 0.004, 0.006, 2, 0.0015), metal,
         0, 0.022 + n * 0.001, 0.020 + n * 0.018);
@@ -141,7 +138,6 @@ export function buildBody(c) {
   /* ── NECK ── */
   add(spine, cap("neck-v2", 0.034, 0.030), skin, 0, 0.270, 0.002);
 
-  /* Drawstrings, kangaroo pocket, brand patch */
   for (const side of [-1, 1]) {
     seg(spine, V(side * 0.020, 0.250, 0.070), V(side * 0.024, 0.170, 0.078), 0.004, 0.003, topLight);
     add(spine, SPH(), topLight, side * 0.024, 0.167, 0.078, 0.004, 0.006, 0.004);
@@ -190,10 +186,7 @@ export function buildBody(c) {
   add(leftArm.elbow, new RoundedBoxGeometry(0.002, 0.026, 0.022, 3, 0.001), MB(0x9ed9ed),
     0.031, -0.140, 0);
 
-  /* ── LANYARD + ID CARD (tanpa clip) ──
-   *  Connector dihapus. Card top (0.1445) menyentuh ujung tali (0.145)
-   *  langsung, jadi card menggantung bebas tanpa penjepit.
-   */
+  /* ── LANYARD + ID CARD ── */
   const lanyard = M(shade(accentHex, 0.78));
   const lanyardGroup = new THREE.Group();
   lanyardGroup.name = "Lanyard";

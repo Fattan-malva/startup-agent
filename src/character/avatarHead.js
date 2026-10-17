@@ -21,46 +21,36 @@ export function buildHead(c) {
 
   const head = new THREE.Group();
   head.name = "Head rig";
-  // Diturunkan dari 0.328 → 0.300 supaya leher tidak terlihat panjang.
   head.position.set(0, 0.300, 0.004);
   head.scale.setScalar(0.86);
   c.spine.add(head);
   c.headGroup = head;
 
   /* ── KEPALA ── */
-  add(head, SPH(), skin, 0, 0.066, 0.004, 0.075, 0.087, 0.079);  // skull
-  add(head, SPH(), skin, 0, 0.030, 0.014, 0.055, 0.040, 0.058);  // chin
+  add(head, SPH(), skin, 0, 0.066, 0.004, 0.075, 0.087, 0.079);
+  add(head, SPH(), skin, 0, 0.030, 0.014, 0.055, 0.040, 0.058);
   for (const side of [-1, 1]) {
     add(head, SPH(), skin, side * 0.073, 0.052, 0.002, 0.010, 0.018, 0.013);
   }
 
-  /* ── HAIR ──
-   * Skull top = y 0.066 + 0.087 = 0.153 (head-local).
-   * Skull cap sebelumnya top y=0.136 → 17mm botak di atas. Sekarang:
-   *   skull cap: center y=0.110, ry=0.065 → top y=0.175 (menutupi 22mm).
-   *   back fill: menutupi occipital belakang dengan overlap tebal.
-   */
-  add(head, SPH(), hair, 0, 0.110, -0.005, 0.086, 0.065, 0.082);   // skull cap
-  add(head, SPH(), hair, 0, 0.075, -0.048, 0.076, 0.076, 0.048);   // back fill
+  /* ── HAIR ── */
+  add(head, SPH(), hair, 0, 0.110, -0.005, 0.086, 0.065, 0.082);
+  add(head, SPH(), hair, 0, 0.075, -0.048, 0.076, 0.076, 0.048);
 
   const style = (c.variant + (c.spec.palette || 0)) % 5;
 
   if (style === 0) {
-    // Side-swept fringe — satu helai menyapu ke samping di atas alis.
     add(head, SPH(), hairLight, -0.032, 0.115, 0.068, 0.042, 0.022, 0.020, 0, 0, -0.25);
   } else if (style === 1) {
-    // Tousled top — 3 gumpalan di crown, jauh di atas alis.
     add(head, SPH(), hair, -0.040, 0.155, 0.005, 0.032, 0.020, 0.030);
     add(head, SPH(), hairLight, 0.038, 0.158, -0.010, 0.028, 0.018, 0.028);
     add(head, SPH(), hair, 0.000, 0.170, -0.015, 0.028, 0.018, 0.026);
   } else if (style === 2) {
-    // Centre-parted — dua helai kecil di kiri-kanan dahi.
     add(head, SPH(), hairLight, -0.028, 0.115, 0.065, 0.032, 0.020, 0.018, 0, 0, -0.20);
     add(head, SPH(), hair, 0.028, 0.115, 0.065, 0.032, 0.020, 0.018, 0, 0, 0.20);
   } else if (style === 3) {
-    // Buzz cut — hanya base cap, tanpa volume tambahan. Sangat rapi.
+    // buzz cut
   } else {
-    // Long / tied-back — bun rendah di belakang kepala.
     add(head, SPH(), hair, 0, 0.070, -0.108, 0.040, 0.044, 0.040);
     add(head, SPH(), hairLight, 0, 0.092, -0.105, 0.032, 0.022, 0.030);
   }
@@ -91,10 +81,8 @@ export function buildHead(c) {
     face[side > 0 ? "browL" : "browR"] = brow;
   }
 
-  // Nose — sphere tipis, tidak protrude.
   add(head, SPH(), skinShadow, 0, 0.045, 0.080, 0.010, 0.007, 0.005);
 
-  // Mouth.
   const mouth = new THREE.Group();
   mouth.position.set(0, 0.024, 0.079);
   head.add(mouth);
@@ -149,6 +137,32 @@ export function buildHead(c) {
   headphones.visible = c.variant % 4 === 1 || c.spec.headphones === true;
   head.add(headphones);
   c.headphonesProp = headphones;
+
+  /* ── HAT (staff uniform) ────────────────────────────────────────── *
+   *  Barista & resepsionis memakai topi hitam (cap dengan brim).
+   *  Topi menutupi hair-cap dan mempertegas status "staff khusus".
+   */
+  if (c.spec.hat) {
+    const hatMat = M(0x181a20, { roughness: 0.74, metalness: 0.06 });
+    const brimMat = M(0x0a0b10, { roughness: 0.68, metalness: 0.10 });
+    const buttonMat = M(c.tieColor ?? 0x2a2d33, { roughness: 0.5, metalness: 0.2 });
+
+    const hatGroup = new THREE.Group();
+    hatGroup.name = "Staff cap";
+
+    // Crown — dome lembut di atas kepala
+    add(hatGroup, SPH(), hatMat, 0, 0.160, -0.008, 0.092, 0.055, 0.088);
+
+    // Brim — menjorok ke depan (arah +z), dimiringkan sedikit ke bawah
+    add(hatGroup, new RoundedBoxGeometry(0.155, 0.012, 0.085, 3, 0.006),
+      brimMat, 0, 0.128, 0.068, 1, 1, 1, -0.14, 0, 0);
+
+    // Tombol atas — pakai warna aksen (barista=green, receptionist=blue)
+    add(hatGroup, SPH(), buttonMat, 0, 0.214, -0.008, 0.013, 0.009, 0.013);
+
+    head.add(hatGroup);
+    c.hatGroup = hatGroup;
+  }
 
   c.eyeY = 0.485 + 0.035 + head.position.y + 0.064 * head.scale.y;
   return head;
