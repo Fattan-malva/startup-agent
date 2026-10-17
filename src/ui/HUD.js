@@ -1,0 +1,390 @@
+import { SPECIES } from "../character/species.js";
+
+function byId(id) {
+  return document.getElementById(id);
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[c]);
+}
+
+const l1 = new Intl.NumberFormat("en-US");
+
+export class HUD {
+  constructor({ onAction = () => { } } = {}) {
+    this.onAction = onAction;
+    this.dom = {
+      root: byId("hud"),
+      canvas: byId("gl"),
+      card: byId("card"),
+      cardTitle: byId("card-title"),
+      cardHint: byId("card-hint"),
+      cardMsg: byId("card-msg"),
+      cardActions: byId("card-actions"),
+      tooltip: byId("tooltip"),
+      tooltipTitle: byId("tooltip-title"),
+      tooltipHint: byId("tooltip-hint"),
+      hint: byId("hint-text"),
+      crosshair: byId("crosshair"),
+      toast: byId("toast"),
+      help: byId("help"),
+      spawn: byId("spawn"),
+      speciesGrid: byId("species-grid"),
+      spawnName: byId("spawn-name"),
+      viewchar: byId("viewchar"),
+      viewcharCanvas: byId("viewchar-canvas"),
+      viewcharSpecies: byId("viewchar-species"),
+      roster: byId("roster"),
+      rosterList: byId("roster-list"),
+      controlInfo: byId("control-info"),
+      btnRelease: byId("btn-release"),
+      loader: byId("loader"),
+      loaderBar: byId("loader-bar"),
+      loaderLabel: byId("loader-label"),
+      loaderPct: byId("loader-pct"),
+      loaderError: byId("loader-error"),
+      stats: {
+        fps: byId("st-fps"),
+        pop: byId("st-pop"),
+        calls: byId("st-calls"),
+        tris: byId("st-tris"),
+      },
+    };
+
+    this._toastTimer = 0;
+    this._helpOpen = false;
+    this._spawnOpen = false;
+    this._rosterOpen = true;
+    this._selectedSpecies = SPECIES[0].id;
+    this._lastMsg = null;
+    this._fps = false;
+    this._modalOpen = false;
+    this._viewcharOpen = false;
+
+    this._buildSpeciesGrid();
+    this._bind();
+  }
+
+  /* -------------------------------------------------------------- binding */
+  _bind() {
+    document.addEventListener("click", (e) => {
+      const node = e.target.closest?.("[data-action]");
+      if (!node) return;
+      const { action, value } = node.dataset;
+      e.preventDefault();
+      this.onAction(action, value ?? "", node);
+    });
+
+    for (const el of document.querySelectorAll("#hud .panel, .modal")) {
+      el.addEventListener("pointerdown", (e) => e.stopPropagation());
+    }
+
+    const nameInput = this.dom.spawnName;
+    if (nameInput) {
+      nameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") this.onAction("spawn-confirm", "", nameInput);
+      });
+    }
+  }
+
+  _buildSpeciesGrid() {
+    const t = this.dom.speciesGrid;
+    if (!t) return;
+    t.innerHTML = "";
+    for (const sp of SPECIES) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "species-btn" + (sp.id === this._selectedSpecies ? " is-active" : "");
+      btn.dataset.action = "spawn-species";
+      btn.dataset.value = sp.id;
+      btn.innerHTML = `<span class="species-emoji">${sp.emoji}</span><span class="species-name">${esc(sp.name)}</span>`;
+      t.appendChild(btn);
+    }
+  }
+
+  setSpeciesSelected(id) {
+    this._selectedSpecies = id;
+    for (const el of this.dom.speciesGrid?.children || []) {
+      el.classList.toggle("is-active", el.dataset.value === id);
+    }
+  }
+
+  get speciesSelected() {
+    return this._selectedSpecies;
+  }
+
+  get spawnName() {
+    return this.dom.spawnName?.value?.trim() || "";
+  }
+
+  get modalOpen() {
+    return this._spawnOpen || this._helpOpen || this._viewcharOpen;
+  }
+
+  /* --------------------------------------------------------------- stats */
+  setStats(s = {}) {
+    const e = this.dom.stats;
+    const set = (el, val) => {
+      if (el && el.textContent !== val) el.textContent = val;
+    };
+    if (s.fps != null) set(e.fps, s.fps.toFixed(0));
+    if (s.pop != null) set(e.pop, String(s.pop));
+    if (s.calls != null) set(e.calls, l1.format(s.calls));
+    if (s.triangles != null)
+      set(e.tris, `${(s.triangles / 1000).toFixed(1)}k`);
+  }
+
+  setCursor(c) {
+    if (this.dom.canvas) this.dom.canvas.style.cursor = c;
+  }
+
+  /* -------------------------------------------------------- first person */
+  setFirstPerson(on) {
+    this._fps = !!on;
+    this.dom.root?.classList.toggle("is-fps", this._fps);
+    this.dom.crosshair?.classList.remove("is-hot");
+    this.setHint(
+      this._fps
+        ? "Klik untuk mouse-look · WASD jalan · Shift lari · E sapa/pakai · Esc keluar"
+        : "Drag untuk geser · scroll untuk zoom · klik pegawai untuk detail",
+    );
+  }
+
+  get firstPerson() {
+    return !!this._fps;
+  }
+
+  setCrosshairHot(on) {
+    this.dom.crosshair?.classList.toggle("is-hot", !!on);
+  }
+
+  setHint(text) {
+    if (!this.dom.hint || typeof text !== "string") return;
+    if (this.dom.hint.textContent !== text) this.dom.hint.textContent = text;
+  }
+
+  setActive(action, value) {
+    const nodes = document.querySelectorAll(`[data-action="${action}"]`);
+    for (const n of nodes) {
+      n.classList.toggle("is-active", n.dataset.value === String(value));
+    }
+  }
+
+  setControlling(c) {
+    if (c) {
+      this.dom.controlInfo.textContent = `${c.emoji} ${c.name}`;
+      this.dom.controlInfo.classList.add("is-live");
+      if (this.dom.btnRelease) this.dom.btnRelease.hidden = false;
+    } else {
+      this.dom.controlInfo.textContent = "Penonton";
+      this.dom.controlInfo.classList.remove("is-live");
+      if (this.dom.btnRelease) this.dom.btnRelease.hidden = true;
+    }
+  }
+
+  /* --------------------------------------------------------------- roster */
+  toggleRoster(force) {
+    const open =
+      typeof force === "boolean" ? force : !this._rosterOpen;
+    this._rosterOpen = open;
+    this.dom.roster?.classList.toggle("is-open", open);
+    return open;
+  }
+
+  renderRoster(list) {
+    const ul = this.dom.rosterList;
+    if (!ul || !this._rosterOpen) return;
+    ul.innerHTML = "";
+    for (const c of list) {
+      const li = document.createElement("li");
+      li.className = "roster-item" + (c.controlled ? " is-you" : "");
+      li.dataset.action = "select-critter";
+      li.dataset.value = c.id;
+      li.innerHTML = `
+        <span class="roster-emoji">${c.emoji}</span>
+        <span class="roster-body">
+          <span class="roster-name">${esc(c.name)}${c.controlled ? " · kamu" : ""}</span>
+          <span class="roster-status">${esc(c.status)}</span>
+        </span>
+        <span class="roster-tie" style="background:#${(c.tie >>> 0)
+          .toString(16)
+          .padStart(6, "0")}"></span>`;
+      ul.appendChild(li);
+    }
+  }
+
+  /* ----------------------------------------------------------- info card */
+  openCard(meta, message = null) {
+    if (!meta) return;
+    this.dom.cardTitle.textContent = meta.label || "Benda";
+    this.dom.cardHint.textContent = meta.hint || "";
+    this._setActions([]);
+    this._setMessage(message);
+    this.dom.root?.classList.add("has-card");
+  }
+
+  openCritter(entry) {
+    this.dom.cardTitle.textContent = `${entry.emoji} ${entry.name}`;
+    this.dom.cardHint.textContent = `${entry.species}${entry.dept ? " · " + entry.dept : ""
+      }`;
+    this._setMessage(entry.status, true);
+    const actions = [];
+    if (!entry.controlled) {
+      actions.push({
+        action: "possess",
+        value: entry.id,
+        label: "Kendalikan",
+        accent: true,
+      });
+    }
+    actions.push({ action: "focus", value: entry.id, label: "Ikuti kamera" });
+    this._setActions(actions);
+    this.dom.root?.classList.add("has-card");
+  }
+
+  closeCard() {
+    this.dom.root?.classList.remove("has-card");
+    this.dom.cardTitle.textContent = "Belum ada yang dipilih";
+    this.dom.cardHint.textContent = "Klik pegawai atau benda untuk melihat detailnya.";
+    this.dom.cardMsg?.classList.add("is-empty");
+    if (this.dom.cardMsg) this.dom.cardMsg.textContent = "";
+    this._setActions([]);
+  }
+
+  _setActions(actions) {
+    const wrap = this.dom.cardActions;
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    for (const a of actions) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn" + (a.accent ? " is-accent" : "");
+      b.textContent = a.label;
+      b.dataset.action = a.action;
+      b.dataset.value = a.value;
+      wrap.appendChild(b);
+    }
+  }
+
+  _setMessage(msg, live = false) {
+    const el = this.dom.cardMsg;
+    if (!el) return;
+    if (!msg) {
+      el.textContent = "";
+      el.classList.add("is-empty");
+      return;
+    }
+    el.textContent = msg;
+    el.classList.toggle("is-empty", false);
+    el.classList.toggle("is-live", !!live);
+  }
+
+  /* -------------------------------------------------------------- spawn */
+  toggleSpawn(force) {
+    const open =
+      typeof force === "boolean" ? force : !this._spawnOpen;
+    this._spawnOpen = open;
+    this.dom.spawn?.classList.toggle("is-open", open);
+    this._modalOpen = this._spawnOpen || this._helpOpen;
+    return open;
+  }
+
+  /* --------------------------------------------------------------- help */
+  toggleHelp(force) {
+    const open =
+      typeof force === "boolean" ? force : !this._helpOpen;
+    this._helpOpen = open;
+    this.dom.help?.classList.toggle("is-open", open);
+    this._modalOpen = this._spawnOpen || this._helpOpen;
+    return open;
+  }
+
+  /* ----------------------------------------------------------- viewchar */
+  toggleViewChar(force) {
+    const open =
+      typeof force === "boolean" ? force : !this._viewcharOpen;
+    this._viewcharOpen = open;
+    this.dom.viewchar?.classList.toggle("is-open", open);
+    this._modalOpen = this._spawnOpen || this._helpOpen || this._viewcharOpen;
+    return open;
+  }
+
+  renderViewCharSpecies(selectedId) {
+    const t = this.dom.viewcharSpecies;
+    if (!t) return;
+    t.innerHTML = "";
+    for (const sp of SPECIES) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "species-btn" + (sp.id === selectedId ? " is-active" : "");
+      btn.dataset.action = "viewchar-species";
+      btn.dataset.value = sp.id;
+      btn.innerHTML = `<span class="species-emoji">${sp.emoji}</span><span class="species-name">${esc(sp.name)}</span>`;
+      t.appendChild(btn);
+    }
+  }
+  toast(msg, duration = 2200) {
+    const el = this.dom.toast;
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add("is-show");
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => el.classList.remove("is-show"), duration);
+  }
+
+  /* ----------------------------------------------------------- tooltip */
+  showTooltip(meta) {
+    const t = this.dom.tooltip;
+    if (!t) return;
+    this.dom.tooltipTitle.textContent = meta?.label || "";
+    this.dom.tooltipHint.textContent = meta?.hint || "";
+    t.classList.add("is-show");
+  }
+
+  hideTooltip() {
+    this.dom.tooltip?.classList.remove("is-show");
+  }
+
+  placeTooltip(ndc, meta) {
+    const t = this.dom.tooltip;
+    if (!t) return;
+    const rect = this.dom.canvas?.getBoundingClientRect();
+    if (!rect) return;
+    const x = rect.left + (ndc.x * 0.5 + 0.5) * rect.width;
+    const y = rect.top + (-ndc.y * 0.5 + 0.5) * rect.height;
+    t.style.left = `${x}px`;
+    t.style.top = `${y}px`;
+  }
+
+  /* ------------------------------------------------------------- loader */
+  setProgress(pct, label) {
+    if (this.dom.loaderBar) {
+      this.dom.loaderBar.style.width = `${Math.round(pct * 100)}%`;
+    }
+    if (this.dom.loaderLabel && label) this.dom.loaderLabel.textContent = label;
+    if (this.dom.loaderPct) {
+      this.dom.loaderPct.textContent = `${Math.round(pct * 100)}%`;
+    }
+  }
+
+  hideLoader(delay = 0) {
+    setTimeout(() => {
+      this.dom.loader?.classList.add("is-done");
+    }, delay);
+  }
+
+  showError(msg) {
+    if (this.dom.loaderError) {
+      this.dom.loaderError.hidden = false;
+      this.dom.loaderError.textContent = msg;
+    }
+  }
+}

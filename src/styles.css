@@ -1,0 +1,1144 @@
+/* ===================================================================== *
+ *  Atelier — interface skin
+ *  Dark glass panels over the render, hairline borders, one warm accent.
+ * ===================================================================== */
+
+:root {
+  --bg: #0b0d10;
+  --ink: #f4f1ea;
+  --ink-soft: #b9bdc4;
+  --ink-mute: #7e858f;
+  --panel: rgba(13, 16, 20, 0.62);
+  --panel-solid: rgba(11, 13, 17, 0.9);
+  --hair: rgba(255, 255, 255, 0.09);
+  --hair-strong: rgba(255, 255, 255, 0.16);
+  --warm: #e2b077;
+  --warm-dim: rgba(226, 176, 119, 0.18);
+  --cool: #63d8ff;
+  --radius: 14px;
+  --radius-sm: 9px;
+  --pad: 14px;
+  --shadow: 0 18px 50px -22px rgba(0, 0, 0, 0.85), 0 2px 10px -4px rgba(0, 0, 0, 0.6);
+  --ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--ui);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+}
+
+#gl {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- hud shell */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.hud button,
+.hud .panel {
+  pointer-events: auto;
+}
+
+.panel {
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  margin-right: 2px;
+  border-radius: 5px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --------------------------------------------------------------- brand card */
+
+.brand {
+  top: 18px;
+  left: 18px;
+  width: min(310px, calc(100vw - 36px));
+  padding: var(--pad) var(--pad) 16px;
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.brand-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warm);
+  box-shadow: 0 0 0 4px var(--warm-dim);
+  animation: pulse 3.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px var(--warm-dim);
+  }
+
+  50% {
+    box-shadow: 0 0 0 7px rgba(226, 176, 119, 0.06);
+  }
+}
+
+.brand-name {
+  font-family: var(--serif);
+  font-size: 21px;
+  letter-spacing: 0.045em;
+}
+
+.brand-sub {
+  margin: 4px 0 12px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.viewchar-card {
+  width: min(560px, 100%);
+}
+
+.viewchar-canvas-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 52vh;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--hair);
+  background: #1a2028;
+  margin: 12px 0 14px;
+}
+
+.viewchar-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewchar-canvas:active {
+  cursor: grabbing;
+}
+
+.viewchar-species {
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.viewchar-species::-webkit-scrollbar {
+  display: none;
+}
+
+.brand-viewchar {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.card-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.18s, background 0.18s, border-color 0.18s;
+}
+
+.card-close:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--hair);
+}
+
+.card {
+  border-top: 1px solid var(--hair);
+  padding-top: 11px;
+}
+
+.card-kicker {
+  margin: 0 0 5px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--warm);
+}
+
+.card-title {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.card-hint {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+.card-msg {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--warm);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 12.5px;
+  color: var(--ink);
+  animation: cardIn 0.34s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.card-msg.is-empty {
+  display: none;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* ------------------------------------------------------------------- stats */
+
+.stats {
+  top: 18px;
+  right: 18px;
+  padding: 11px 13px;
+  display: grid;
+  gap: 5px;
+  min-width: 156px;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stat-k {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.stat-v {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* --------------------------------------------------------------- stack */
+
+/* everything that lives at the bottom of the screen is stacked in one
+   column so the hint, the toast and the dock can never overlap. */
+.stack {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 36px);
+}
+
+/* -------------------------------------------------------------------- dock */
+
+.dock {
+  position: relative;
+  /* .panel is absolute — the dock must stay in flow */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 11px 16px;
+  border-radius: 18px;
+  max-width: min(880px, calc(100vw - 36px));
+}
+
+.dock-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 18px;
+  border-right: 1px solid var(--hair);
+}
+
+.dock-group--end {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.dock-group--end:last-child {
+  gap: 6px;
+}
+
+.dock-label {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+/* segmented control */
+.seg {
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--hair);
+}
+
+.seg-item,
+.chip,
+.btn {
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: color 0.16s, background 0.16s, border-color 0.16s, transform 0.16s;
+  white-space: nowrap;
+}
+
+.seg-item:hover,
+.chip:hover,
+.btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--hair);
+}
+
+.seg-item:active,
+.chip:active,
+.btn:active {
+  transform: translateY(1px);
+}
+
+.seg-item.is-active {
+  color: #14100a;
+  background: linear-gradient(180deg, #f0c68d, var(--warm));
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 2px 10px -3px rgba(226, 176, 119, 0.6);
+}
+
+.chips {
+  display: flex;
+  gap: 4px;
+}
+
+.chip {
+  border-color: var(--hair);
+  padding: 4px 9px;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+}
+
+.chip.is-active {
+  color: var(--cool);
+  border-color: rgba(99, 216, 255, 0.5);
+  background: rgba(99, 216, 255, 0.12);
+}
+
+.btn {
+  border-color: var(--hair);
+  padding: 5px 13px;
+}
+
+.btn:hover {
+  border-color: var(--hair-strong);
+}
+
+/* swatches */
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.sw {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--c, #556);
+  transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+}
+
+.sw:hover {
+  transform: translateY(-1px) scale(1.06);
+}
+
+.sw.is-active {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.13);
+}
+
+.sw[data-value="teal"] {
+  --c: #3d6f79;
+}
+
+.sw[data-value="rust"] {
+  --c: #a8543a;
+}
+
+.sw[data-value="slate"] {
+  --c: #46506b;
+}
+
+.sw[data-value="olive"] {
+  --c: #6b7150;
+}
+
+.sw[data-value="mono"] {
+  --c: #e8e4dc;
+}
+
+/* --------------------------------------------------------------- tooltip */
+
+.tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: var(--panel-solid);
+  border: 1px solid var(--hair-strong);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translate(-50%, calc(-100% - 14px));
+  transition: opacity 0.16s;
+  pointer-events: none;
+  max-width: 240px;
+}
+
+.tooltip.is-visible {
+  opacity: 1;
+}
+
+.tooltip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tooltip-hint {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+/* ------------------------------------------------------------------ hints */
+
+.hint-bar {
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(11, 13, 17, 0.55);
+  border: 1px solid var(--hair);
+  backdrop-filter: blur(10px);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+
+/* the crosshair itself is defined further down, with the first-person HUD */
+
+/* ------------------------------------------------------------------ toast */
+
+.toast {
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: var(--panel-solid);
+  border: 1px solid var(--hair-strong);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--ink);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  white-space: nowrap;
+}
+
+.toast.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+/* ------------------------------------------------------------------ modal */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 8, 11, 0.62);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.28s, visibility 0.28s;
+}
+
+.modal.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal-card {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: 86vh;
+  overflow: auto;
+  padding: 28px 30px 24px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(20, 23, 28, 0.96), rgba(11, 13, 17, 0.97));
+  border: 1px solid var(--hair-strong);
+  box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.9);
+  transform: translateY(10px) scale(0.99);
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.modal.is-open .modal-card {
+  transform: none;
+}
+
+.modal-title {
+  margin: 0 0 10px;
+  font-family: var(--serif);
+  font-size: 27px;
+  font-weight: 500;
+}
+
+.modal-lead {
+  margin: 0 0 22px;
+  max-width: 58ch;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
+.modal-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 22px;
+}
+
+.modal-cols h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--warm);
+}
+
+.modal-cols ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.modal-foot {
+  margin: 24px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--hair);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-mute);
+}
+
+/* ----------------------------------------------------------------- loader */
+
+
+/* Loading awal menutupi seluruh HUD dan kontrol */
+#loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #0b0d10;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+#loader.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #loader {
+    transition: none;
+  }
+}
+
+
+.loader-inner {
+  width: min(360px, 82vw);
+  text-align: center;
+}
+
+.loader-dot {
+  display: block;
+  width: 9px;
+  height: 9px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: var(--warm);
+  animation: pulse 2.6s ease-in-out infinite;
+}
+
+.loader-name {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 40px;
+  font-weight: 400;
+  letter-spacing: 0.07em;
+}
+
+.loader-tag {
+  margin: 8px 0 26px;
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.loader-track {
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.loader-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #8c6b43, var(--warm));
+  transition: width 0.45s cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+
+.loader-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.loader-pct {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.loader-error {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 120, 100, 0.4);
+  background: rgba(255, 90, 70, 0.1);
+  color: #ffc9be;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 900px) {
+  .stats {
+    display: none;
+  }
+
+  .dock {
+    gap: 6px 12px;
+    padding: 9px 12px;
+  }
+
+  .dock-group {
+    padding-right: 12px;
+  }
+
+  .stack {
+    bottom: 12px;
+    gap: 8px;
+  }
+
+  .brand {
+    width: min(260px, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 620px) {
+  .dock-label {
+    display: none;
+  }
+
+  .seg-item,
+  .btn {
+    padding: 4px 9px;
+  }
+
+  .hint-bar {
+    font-size: 10.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ===================================================================== *
+ *  Critter Corp — additions
+ * ===================================================================== */
+
+/* accent button */
+.btn.is-accent {
+  background: linear-gradient(180deg, rgba(226, 176, 119, 0.9), rgba(206, 150, 92, 0.92));
+  color: #241704;
+  border-color: rgba(255, 255, 255, 0.22);
+  font-weight: 600;
+}
+
+.btn.is-accent:hover {
+  filter: brightness(1.06);
+}
+
+.card-close.is-static {
+  position: static;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* "you" control readout */
+.control-info {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink-mute);
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--hair-strong);
+}
+
+.control-info.is-live {
+  color: #241704;
+  background: var(--warm);
+  border-style: solid;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- roster */
+.roster {
+  top: 132px;
+  right: 18px;
+  width: 244px;
+  max-height: min(56vh, 460px);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 10px 8px;
+  opacity: 0;
+  transform: translateX(16px);
+  pointer-events: none;
+  transition: opacity 0.24s ease, transform 0.28s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+.roster.is-open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.roster-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 2px 8px 6px;
+}
+
+.roster-title {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.roster-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.roster-list::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.roster-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.16s, border-color 0.16s;
+}
+
+.roster-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--hair);
+}
+
+.roster-item.is-you {
+  background: var(--warm-dim);
+  border-color: rgba(226, 176, 119, 0.4);
+}
+
+.roster-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.roster-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.roster-name {
+  font-size: 12.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roster-status {
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.roster-tie {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.28);
+}
+
+/* --------------------------------------------------------------- spawn */
+.species-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 16px 0 14px;
+}
+
+.species-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 11px;
+  border: 1px solid var(--hair);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: transform 0.14s, border-color 0.16s, background 0.16s;
+}
+
+.species-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--hair-strong);
+}
+
+.species-btn.is-active {
+  border-color: var(--warm);
+  background: var(--warm-dim);
+  color: var(--ink);
+}
+
+.species-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.species-name {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.field span {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.field input {
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: var(--warm);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 820px) {
+  .roster {
+    display: none;
+  }
+
+  .species-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ===================================================================== *
+ *  First-person mode
+ *
+ *  While you are inside a critter the HUD steps back: the crosshair comes
+ *  up, the isometric camera controls go dim, and the panels fade a little
+ *  so the room in front of you stays readable.
+ * ===================================================================== */
+
+.crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  z-index: 6;
+}
+
+.hud.is-fps .crosshair {
+  opacity: 0.85;
+}
+
+.crosshair span {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.65);
+  border-radius: 1px;
+  transition:
+    transform 0.14s ease,
+    background 0.14s ease;
+}
+
+.crosshair span:nth-child(1),
+.crosshair span:nth-child(2) {
+  left: 50%;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+}
+
+.crosshair span:nth-child(1) {
+  top: 0;
+}
+
+.crosshair span:nth-child(2) {
+  bottom: 0;
+}
+
+.crosshair span:nth-child(3),
+.crosshair span:nth-child(4) {
+  top: 50%;
+  height: 2px;
+  width: 7px;
+  margin-top: -1px;
+}
+
+.crosshair span:nth-child(3) {
+  left: 0;
+}
+
+.crosshair span:nth-child(4) {
+  right: 0;
+}
+
+.crosshair-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* something is under the crosshair */
+.crosshair.is-hot span {
+  background: var(--warm);
+}
+
+.crosshair.is-hot span:nth-child(1) {
+  transform: translateY(-3px);
+}
+
+.crosshair.is-hot span:nth-child(2) {
+  transform: translateY(3px);
+}
+
+.crosshair.is-hot span:nth-child(3) {
+  transform: translateX(-3px);
+}
+
+.crosshair.is-hot span:nth-child(4) {
+  transform: translateX(3px);
+}
+
+.crosshair.is-hot .crosshair-dot {
+  background: var(--warm);
+}
+
+.hud.is-fps .dock-group--cam,
+.hud.is-fps .stats {
+  opacity: 0.4;
+}
+
+.hud.is-fps .dock-group--cam {
+  pointer-events: none;
+}
+
+.hud.is-fps .brand,
+.hud.is-fps .roster {
+  opacity: 0.72;
+}
+
+.hud.is-fps .brand:hover,
+.hud.is-fps .roster:hover {
+  opacity: 1;
+}

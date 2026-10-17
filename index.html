@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#12161c" />
+  <title>Critter Corp — Startup Miniatur</title>
+  <meta name="description"
+    content="Kantor startup 3D miniatur dengan pegawai yang bekerja mandiri. Buat karaktermu atau ambil alih pegawai mana pun." />
+</head>
+
+<body>
+  <!-- ---------------------------------------------------------------- gl -->
+  <canvas id="gl" aria-label="Dunia kantor 3D dari atas"></canvas>
+
+  <!-- -------------------------------------------------------------- hud -->
+  <div id="hud" class="hud">
+    <!-- brand + object card -->
+    <header class="panel brand">
+      <div class="brand-mark">
+        <span class="brand-dot"></span>
+        <span class="brand-name">Critter Corp</span>
+      </div>
+      <p class="brand-sub">Startup Miniatur · Lantai 12</p>
+      <button id="btn-viewchar" class="btn btn-ghost brand-viewchar" type="button" data-action="viewchar-open"
+        aria-label="Lihat karakter 3D">
+        Lihat karakter
+      </button>
+      <button id="card-close" class="card-close" type="button" aria-label="Tutup kartu" data-action="close-card">
+        &times;
+      </button>
+
+      <section id="card" class="card" aria-live="polite">
+        <p class="card-kicker">Pilihan</p>
+        <h2 id="card-title" class="card-title">Belum ada yang dipilih</h2>
+        <p id="card-hint" class="card-hint">Klik pegawai atau benda untuk melihat detailnya.</p>
+        <p id="card-msg" class="card-msg is-empty"></p>
+        <div id="card-actions" class="card-actions"></div>
+      </section>
+    </header>
+
+    <!-- live stats -->
+    <aside class="panel stats" aria-label="Statistik scene">
+      <div class="stat"><span class="stat-k">fps</span><span id="st-fps" class="stat-v">—</span></div>
+      <div class="stat"><span class="stat-k">populasi</span><span id="st-pop" class="stat-v">0</span></div>
+      <div class="stat"><span class="stat-k">calls</span><span id="st-calls" class="stat-v">0</span></div>
+      <div class="stat"><span class="stat-k">tris</span><span id="st-tris" class="stat-v">0</span></div>
+    </aside>
+
+    <!-- roster / team panel -->
+    <aside id="roster" class="panel roster" aria-label="Daftar pegawai">
+      <div class="roster-head">
+        <span class="roster-title">Tim</span>
+        <button class="card-close is-static" type="button" aria-label="Tutup daftar" data-action="roster">
+          &times;
+        </button>
+      </div>
+      <ul id="roster-list" class="roster-list"></ul>
+    </aside>
+
+    <!-- first-person crosshair (only visible while controlling a character) -->
+    <div id="crosshair" class="crosshair" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+      <i class="crosshair-dot"></i>
+    </div>
+
+    <!-- tooltip -->
+    <div id="tooltip" class="tooltip" role="tooltip">
+      <span id="tooltip-title" class="tooltip-title">Pegawai</span>
+      <span id="tooltip-hint" class="tooltip-hint"></span>
+    </div>
+
+    <!-- bottom stack: message, hint, dock -->
+    <div class="stack">
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <div id="hint" class="hint-bar"><span id="hint-text">Drag untuk geser · scroll untuk zoom · klik pegawai untuk
+          detail</span></div>
+
+      <nav id="dock" class="panel dock" aria-label="Kontrol">
+        <div class="dock-group">
+          <span class="dock-label">Kamu</span>
+          <span id="control-info" class="control-info">Penonton</span>
+          <button class="btn is-accent" type="button" data-action="spawn-open">Buat karakter</button>
+          <button class="btn" type="button" data-action="release" hidden id="btn-release">Lepas</button>
+        </div>
+
+        <div class="dock-group dock-group--cam">
+          <span class="dock-label">Kamera</span>
+          <div class="chips">
+            <button class="chip" type="button" data-action="zoom" data-value="in">+</button>
+            <button class="chip" type="button" data-action="zoom" data-value="out">−</button>
+            <button class="chip" type="button" data-action="rotate" data-value="left">⟲</button>
+            <button class="chip" type="button" data-action="rotate" data-value="right">⟳</button>
+            <button class="chip" type="button" data-action="zoom" data-value="overview">Lantai</button>
+          </div>
+        </div>
+
+        <div class="dock-group">
+          <span class="dock-label">Suasana</span>
+          <div class="seg" role="group" aria-label="Cahaya">
+            <button class="seg-item is-active" type="button" data-action="time" data-value="0">Pagi</button>
+            <button class="seg-item" type="button" data-action="time" data-value="0.5">Sore</button>
+            <button class="seg-item" type="button" data-action="time" data-value="1">Malam</button>
+          </div>
+        </div>
+
+        <div class="dock-group dock-group--end">
+          <button class="btn" type="button" data-action="roster">Tim</button>
+          <button class="btn" type="button" data-action="reset">Reset</button>
+          <button class="btn" type="button" data-action="photo">Foto</button>
+          <button class="btn" type="button" data-action="help">Bantuan</button>
+        </div>
+      </nav>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------ spawn -->
+  <div id="spawn" class="modal" role="dialog" aria-modal="true" aria-label="Buat karaktermu">
+    <div class="modal-card">
+      <button class="card-close" type="button" aria-label="Tutup" data-action="spawn-close">&times;</button>
+      <p class="card-kicker">Karakter baru</p>
+      <h2 class="modal-title">Bikin avatarmu sendiri</h2>
+      <p class="modal-lead">Pilih gaya karakter, beri nama, lalu masuk ke kantor dan ikut bekerja.</p>
+      <div id="species-grid" class="species-grid" role="radiogroup" aria-label="Gaya karakter"></div>
+      <label class="field">
+        <span>Nama</span>
+        <input id="spawn-name" type="text" maxlength="16" placeholder="mis. Nova" autocomplete="off" />
+      </label>
+      <div class="modal-actions">
+        <button class="btn is-accent" type="button" data-action="spawn-confirm">Masuk kantor</button>
+        <button class="btn" type="button" data-action="spawn-close">Batal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------------- help -->
+  <div id="help" class="modal" role="dialog" aria-modal="true" aria-label="Cara bermain">
+    <div class="modal-card">
+      <button id="help-close" class="card-close" type="button" aria-label="Tutup bantuan" data-action="help-close">
+        &times;
+      </button>
+      <p class="card-kicker">Panduan</p>
+      <h2 class="modal-title">Kantor miniatur yang hidup</h2>
+      <p class="modal-lead">
+        Semua pegawai punya agendanya sendiri: kerja, ngopi, menyiram tanaman, ngobrol, dan rapat.
+        Tonton kantor dari atas, atau klik seorang pegawai untuk mengendalikan karakternya dan melihat
+        kantor dari matanya sendiri.
+      </p>
+      <div class="modal-cols">
+        <div>
+          <h3>Menonton</h3>
+          <ul>
+            <li><kbd>Drag</kbd> — geser peta</li>
+            <li><kbd>Wheel</kbd> — zoom</li>
+            <li><kbd>Q</kbd> <kbd>E</kbd> — putar kamera</li>
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — geser kamera</li>
+            <li><kbd>Klik pegawai</kbd> — lihat status &amp; kendalikan</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Ikut main (POV orang pertama)</h3>
+          <ul>
+            <li><kbd>Klik pegawai → Kendalikan</kbd> — masuk ke badannya</li>
+            <li><kbd>Klik layar</kbd> — mouse-look (kunci kursor)</li>
+            <li><kbd>Drag</kbd> — lihat sekeliling tanpa kunci</li>
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> — jalan (Shift lari)</li>
+            <li><kbd>E</kbd> / <kbd>Klik</kbd> — sapa / pakai benda di depan</li>
+            <li><kbd>Esc</kbd> — lepas &amp; balik ke kamera atas</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Lain-lain</h3>
+          <ul>
+            <li><kbd>N</kbd> — ganti suasana (pagi/sore/malam)</li>
+            <li><kbd>P</kbd> — simpan foto</li>
+            <li><kbd>R</kbd> — reset kamera</li>
+            <li><kbd>H</kbd> — panel ini</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- -------------------------------------------------------- viewchar -->
+  <div id="viewchar" class="modal" role="dialog" aria-modal="true" aria-label="Lihat karakter 3D">
+    <div class="modal-card viewchar-card">
+      <button class="card-close" type="button" aria-label="Tutup" data-action="viewchar-close">&times;</button>
+      <p class="card-kicker">Pratinjau 3D</p>
+      <h2 class="modal-title">Lihat karakter</h2>
+      <p class="modal-lead">Putar dengan drag, zoom dengan scroll. Pilih gaya karakter di bawah.</p>
+      <div class="viewchar-canvas-wrap">
+        <canvas id="viewchar-canvas" class="viewchar-canvas" aria-label="Pratinjau karakter 3D"></canvas>
+      </div>
+      <div id="viewchar-species" class="species-grid viewchar-species" role="radiogroup" aria-label="Gaya karakter">
+      </div>
+    </div>
+  </div>
+
+  <!-- Initial full-screen loading -->
+  <div id="loader" class="loader" role="status" aria-live="polite">
+    <div class="loader-inner">
+      <span class="loader-dot"></span>
+      <h1 class="loader-name">Critter Corp</h1>
+      <p class="loader-tag">Membangun kantor…</p>
+
+      <div class="loader-track">
+        <div id="loader-bar" class="loader-bar"></div>
+      </div>
+
+      <p class="loader-row">
+        <span id="loader-label">Boot</span>
+        <span id="loader-pct" class="loader-pct">0%</span>
+      </p>
+
+      <p id="loader-error" class="loader-error" hidden></p>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
