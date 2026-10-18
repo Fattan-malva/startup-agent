@@ -95,7 +95,7 @@ export class Brain {
         this.stage = "travel";
         this.c.status = "Mencari akses ke kursi";
         this.c.pose("stand");
-        this.c.followPath(path, false);
+        this.c.followPath(path, false, true);
         return;
       }
       this._finish();
@@ -128,7 +128,8 @@ export class Brain {
     }
     this.goal = null;
     this.stage = "idle";
-    this.c.pose("stand");
+    if (this.c.sitting || this.c._seating) this.c.standUp();
+    else this.c.pose("stand");
     this.c.lookAt(null, null);
   }
 
@@ -286,6 +287,8 @@ export class Brain {
 
   update(dt) {
     if (this.paused) return;
+    // Sedang melangkah keluar kursi (fase aman) → jangan pilih tujuan dulu.
+    if (this.c._exiting || this.c._exitPending) return;
 
     if (!this.goal) {
       this._chooseGoal();
@@ -507,7 +510,7 @@ export class StaffBrain {
         this.stage = "travel";
         this.c.status = "Mencari akses ke kursi";
         this.c.pose("stand");
-        this.c.followPath(path, false);
+        this.c.followPath(path, false, true);
         return;
       }
       this._finish();
@@ -521,13 +524,15 @@ export class StaffBrain {
     this._releaseSeat();
     this.goal = null;
     this.stage = "idle";
-    this.c.pose("stand");
+    if (this.c.sitting || this.c._seating) this.c.standUp();
+    else this.c.pose("stand");
     this.c.lookAt(null, null);
     this.cool = 3 + Math.random() * 5;
   }
 
   update(dt) {
     if (this.paused) return;
+    if (this.c._exiting || this.c._exitPending) return;
     if (this.stage === "act") {
       this.actTime -= dt;
       if (this.actTime <= 0) this._finish();
@@ -606,29 +611,34 @@ export class Meeting {
     // kursi tipe "meeting") → yang dapat duduk, sisanya berdiri di ruangan
     this.parts = [];
     const standers = [];
+    const claimed = [];
     for (const c of participants) {
       let seat = null;
       for (let i = 0; i < 6; i++) {
-        const s = this.b.claimSeat("meeting", c, "meeting");
+        const s = this.b.claimSeat("meeting", c, "meeting", c.position);
         if (!s) break;
         if (this.b.approachTo(s)) { seat = s; break; }
         this.b.releaseSeat(s, c);
       }
       if (seat) {
+        claimed.push(seat);
         this.parts.push({
-          c, mode: "sit", stage: "travel", seat, retries: 0,
+          c, mode: "sit", stage: "travel", seat, retries: 0, cooldown: 0,
+          // berangkat bergiliran supaya tidak berdesakan di pintu
+          delay: 0.15 + claimed.length * 0.32,
           homeYaw: null, chat: 0, pal: null,
         });
       }
       else standers.push(c);
     }
 
-    const spots = this._standSpots(standers.length);
+    const spots = this._standSpots(standers.length, claimed);
     standers.forEach((c, i) => {
       this.parts.push({
         c, mode: "stand", stage: "travel",
         spot: spots[i % Math.max(1, spots.length)] || null,
         started: false,
+        delay: 1.4 + i * 0.4,
         homeYaw: null, chat: 0, pal: null,
       });
     });
@@ -673,11 +683,28 @@ export class Meeting {
 
     for (const p of this.parts) {
       const c = p.c;
+      if (c._exiting || c._exitPending) continue;   // sedang keluar kursi
       if (c.sitting || c._seating) {
+        // Duduk di kursi rapat yang benar? Kalau ternyata masih duduk di
+        // kursi lain (mis. meja kerja), berdiri lalu ikut rapat.
+        const onRightSeat = !p.seat || (
+          Math.hypot(c.position.x - (p.seat.sit?.x ?? p.seat.x),
+            c.position.z - (p.seat.sit?.z ?? p.seat.z)) < 0.6
+        );
+        if (c.sitting && !onRightSeat) {
+          c.standUp();
+          continue;
+        }
         // sudah (proses) duduk → settle; tetap boleh ngobrol sambil duduk
         p.stage = "settled";
         if (p.homeYaw == null) p.homeYaw = p.seat?.yaw ?? c.targetYaw;
         this._chatStep(p, dt);
+        continue;
+      }
+
+      if ((p.delay || 0) > 0) {
+        p.delay -= dt;
+        c.status = "Menuju rapat 🧑‍💼";
         continue;
       }
 
@@ -688,7 +715,9 @@ export class Meeting {
         const clearToSeat = this.b._lineFree(
           c.position.x, c.position.z, spot.x, spot.z, 0.24, ign,
         ) && this.b.isFree(spot.x, spot.z, 0.24, ign);
-        if (dist <= 0.3 && clearToSeat) {
+        // Duduk begitu jalur ke pad duduk bersih (sama seperti Brain AI).
+        // Jarak dibatasi supaya tidak "meluncur" dari seberang ruangan.
+        if (clearToSeat && dist <= 1.5) {
           p.homeYaw = p.seat.yaw;
           c.seatInto(spot.x, spot.z, p.seat.yaw, p.seat);
           c.status = "Duduk rapat 🪑";
@@ -696,13 +725,23 @@ export class Meeting {
           continue;
         }
         if (c.pathDone && !c.path) {
+          // Jangan langsung menyerah: beri jeda, lalu coba pendekatan lagi.
+          p.cooldown = Math.max(0, (p.cooldown || 0) - dt);
+          if (p.cooldown > 0) continue;
           p.retries++;
-          if (p.retries > 3) {
-            // If no safe approach exists, remain standing instead of clipping.
+          if (p.retries > 14) {
+            // If no safe approach exists, stand at a spot that does NOT
+            // block the seat aisle (bukan berhenti di tengah lorong kursi).
             this.b.releaseSeat(p.seat, c);
             p.seat = null;
             p.mode = "stand";
-            p.stage = "settled";
+            p.stage = "travel";
+            p.started = false;
+            p.cooldown = 0;
+            const keep = this.b.seats.filter(
+              (s) => s.type === "meeting" && this.b.roomAt(s.x, s.z) === "meeting",
+            );
+            p.spot = this._standSpots(1, keep)[0] || null;
             c.status = "Berdiri — kursi terhalang";
             continue;
           }
@@ -710,12 +749,11 @@ export class Meeting {
           const path = approach ? this.b.route(c.position, approach, c) : [];
           if (path.length) {
             p.approach = approach;
-            c.followPath(path, false);
+            c.followPath(path, false, true);   // presisi: berhenti tepat di titik pendekat
             p.stage = "travel";
+            p.cooldown = 0.4;
           } else {
-            p.mode = "stand";
-            p.stage = "settled";
-            c.status = "Berdiri — kursi terhalang";
+            p.cooldown = 1.2;
           }
         }
         continue;
@@ -724,8 +762,27 @@ export class Meeting {
       if (p.mode === "stand") {
         if (!p.started && p.spot) {
           p.started = true;
-          c.followPath(this.b.route(c.position, p.spot, c), false);
+          const path = this.b.route(c.position, p.spot, c);
+          if (path.length) c.followPath(path, false);
           continue;
+        }
+        // Gagal di tengah jalan → jangan berhenti di lorong kursi; ulangi
+        // rute ke titik berdiri yang sudah dipilih.
+        if (p.spot && c.pathDone && !c.path) {
+          const dSpot = Math.hypot(p.spot.x - c.position.x, p.spot.z - c.position.z);
+          if (dSpot > 0.5) {
+            p.cooldown = Math.max(0, (p.cooldown || 0) - dt);
+            if (p.cooldown <= 0) {
+              const path = this.b.route(c.position, p.spot, c);
+              if (path.length) {
+                c.followPath(path, false);
+                p.cooldown = 0.5;
+              } else {
+                p.cooldown = 1.2;
+              }
+            }
+            continue;
+          }
         }
         if (c.pathDone && !c.path) {
           p.stage = "settled";
@@ -799,14 +856,20 @@ export class Meeting {
     }
   }
 
-  /** Titik berdiri: sel bebas di dalam ruang meeting, berjarak pas antar orang. */
-  _standSpots(count) {
+  /** Titik berdiri: sel bebas di dalam ruang meeting, berjarak pas antar orang.
+   *  Penting: jangan berdiri di zona masuk kursi (belakang/samping kursi)
+   *  supaya peserta yang mau duduk tidak terhalang badan. */
+  _standSpots(count, seats = []) {
     if (count <= 0) return [];
     const room = this.b.room("meeting");
     if (!room) return [];
+    const keep = seats.map((s) => (s.sit ? { x: s.sit.x, z: s.sit.z } : { x: s.x, z: s.z }));
+    const door = this.b.anchors?.meeting?.inside || null;
     const spots = [];
     for (let z = room.z0 + 0.9; z <= room.z1 - 0.85; z += 0.75) {
       for (let x = room.x0 + 0.9; x <= room.x1 - 0.85; x += 0.75) {
+        if (keep.some((k) => Math.hypot(k.x - x, k.z - z) < 1.25)) continue;
+        if (door && Math.hypot(door.x - x, door.z - z) < 1.1) continue;
         if (this.b.isFree(x, z, 0.4)) spots.push({ x, z });
       }
     }

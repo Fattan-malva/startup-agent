@@ -28,7 +28,7 @@ export function build(b) {
   const ws = createWorkstation({ desk: { width: 1.85 } });
   b._place(ws, 9.6, -1.6, Math.PI / 2, 0, { w: 2.05, d: 1.25 });
   b._deskParts(ws, "hr-desk");
-  b._deskChair(9.6, -1.6, Math.PI / 2, { color: "charcoal", type: "desk" });
+  b._deskChair(9.6, -1.6, Math.PI / 2, { color: "charcoal", type: "desk", desk: ws });
 
   /* ── Papan kebijakan di dinding masuk (x = 7.1) ──────────────────── *
    *  Lebar 1.4 + digeser ke z = 0.2 supaya pintu HR (1.8 m, z -2.4..-0.6)

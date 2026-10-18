@@ -35,11 +35,16 @@ globalThis.document = {
 const THREE = await import("three");
 const { Building } = await import("../src/world/Building.js");
 const { Crew } = await import("../src/systems/Crew.js");
+const { DEFAULT_EDITS } = await import("../src/world/defaultEdits.js");
 
 const SECONDS = Number(process.argv[2] || 180);
 const scene = new THREE.Scene();
 const building = new Building(scene);
 building.build();
+// sama seperti boot aplikasi: pakai tata ruang final yang sudah di-bake
+building.applyEdits(DEFAULT_EDITS);
+building.bakeHome();
+building.refreshNav();
 const crew = new Crew({ scene, building });
 crew.populate(14);
 

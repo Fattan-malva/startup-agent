@@ -16,7 +16,7 @@ import { G, shadowMaterial } from "./critterShared.js";
  *   1.20 = jelas lebih besar
  *   1.25 = raksasa mungil (bisa clipping di lorong sempit)
  */
-export const AVATAR_SCALE = 1.2;
+export const AVATAR_SCALE = 1.6;
 
 export const WALK_SPEED = 1.25;
 export const RUN_SPEED = 2.7;
@@ -36,7 +36,7 @@ const FADE = 0.25;
  * tuning terlihat bokong MELAYANG di atas pad → kurangi jadi 0 atau -0.01.
  * Kalau bokong MENEMBUS pad → naikkan ke 0.02 atau 0.03.
  */
-const SIT_LIFT = 0.001;
+const SIT_LIFT = -0.1;
 
 function dampAngle(a, b, lambda, dt) {
   let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
@@ -86,6 +86,14 @@ export class Critter {
     this._seatIgnore = null;      // kursi + meja yang menyelip saat duduk
     this._seatIgnoreT = 0;        // batas waktu "menyelip" setelah berdiri
     this._seatStuck = 0;
+    this._seatCenter = null;      // pusat kursi (untuk mencari jalan keluar)
+    this._seatYaw = 0;
+    this._exiting = false;        // sedang melangkah keluar dari kursi
+    this._exitPending = false;
+    this._exitSpot = null;
+    this._exitT = 0;
+    this._exitStuck = 0;
+    this._exitTry = 0;
     this.running = false;
     this.onFootstep = null;
     this._stepSign = 1;
@@ -182,6 +190,8 @@ export class Critter {
   eyeLevel() { return this.position.y + this.eyeY; }
 
   moveDir(dx, dz, running = false) {
+    this._cancelExit();
+    this._precisePath = false;
     this.path = null;
     this.pathDone = true;
     this.pathFailed = false;
@@ -209,9 +219,11 @@ export class Critter {
     this.running = running;
   }
 
-  followPath(points, running = false) {
+  followPath(points, running = false, precise = false) {
+    this._cancelExit();
     this._yield = 0;
     this._blockTries = 0;
+    this._precisePath = !!precise;
     if (!points || !points.length) {
       this.path = null;
       this.pathDone = true;
@@ -248,10 +260,14 @@ export class Critter {
 
   seatInto(x, z, yaw = null, seat = null) {
     this.pose("stand");
+    this._cancelExit();
+    this._precisePath = false;
     this._oneShot = null;
     this._yield = 0;
     this._blockTries = 0;
     this._seatObstacle = seat?.obstacle || null;
+    this._seatCenter = seat ? { x: seat.x, z: seat.z } : { x, z };
+    this._seatYaw = yaw ?? this.yaw;
     // Collider yang boleh "diselipi" badan saat duduk: kursinya sendiri +
     // perabot yang memang ditutup kursi (meja kerja/meja rapat). Dinding
     // tidak pernah masuk daftar ini.
@@ -273,6 +289,8 @@ export class Critter {
 
   /** Berdiri dari posisi duduk saat ini (tanpa memindahkan posisi). */
   standUp() {
+    const wasOnSeat = this.sitting || this._seating || !!this._seatTarget;
+    this._precisePath = false;
     this.sitting = false;
     this._seating = false;
     this._seatTarget = null;
@@ -280,9 +298,138 @@ export class Critter {
     this._seatStartDist = 1;
     // Preserve the own-seat collider exception until the body has stepped clear.
     this._seatStuck = 0;
-    this._seatIgnoreT = 1.5;      // izin menyelip sebentar untuk berdiri
+    this._seatIgnoreT = 6;        // izin menyelip sampai benar-benar keluar
     this._noCollide = 0.6; // biar mulus lepas dari zona kursi
     this.pose("stand");
+    // Langkah keluar yang aman: cari titik kosong di luar kursi + meja,
+    // lalu berjalan ke sana sebelum AI memilih tujuan baru. Tanpa ini,
+    // badan bisa berhenti di dalam collider meja dan tidak bisa bergerak.
+    this._exiting = false;
+    this._exitSpot = null;
+    this._exitT = 0;
+    this._exitStuck = 0;
+    this._exitTry = 0;
+    this._exitPending = wasOnSeat && !!this._seatIgnore;
+  }
+
+  /** Batalkan fase keluar (mis. pemain langsung menekan WASD). */
+  _cancelExit() {
+    this._exiting = false;
+    this._exitPending = false;
+    this._exitSpot = null;
+    this._exitT = 0;
+    this._exitStuck = 0;
+    this._exitTry = 0;
+  }
+
+  /**
+   * Cari titik berdiri yang benar-benar bebas di sekitar kursi. Prioritas
+   * arah BELAKANG kursi (menjauhi meja), lalu sisi kiri/kanan bila kursi
+   * menempel dinding. Titik harus bebas, tersambung jalur utama, dan garis
+   * dari posisi duduk ke titik itu tidak menembus dinding/perabot lain.
+   */
+  _findExitSpot(building) {
+    if (!building) return null;
+    const c = this._seatCenter || { x: this.position.x, z: this.position.z };
+    const base = (this._seatYaw ?? this.yaw) + Math.PI;
+    const ign = this._seatIgnore;
+    const angles = [0, 0.5, -0.5, 1.0, -1.0, 1.55, -1.55, 2.1, -2.1, Math.PI];
+    for (const r of [0.55, 0.7, 0.85, 1.0, 1.2, 1.45]) {
+      for (const a of angles) {
+        const x = c.x + Math.sin(base + a) * r;
+        const z = c.z + Math.cos(base + a) * r;
+        if (!building.isFree(x, z, 0.30)) continue;
+        if (!building.walkableAt(x, z, 0.22, true)) continue;
+        if (!building._lineFree(this.position.x, this.position.z, x, z, 0.26, ign)) continue;
+        return { x, z };
+      }
+    }
+    // Cadangan: titik bebas terdekat ke segala arah (tetap tanpa menembus).
+    for (const r of [0.45, 0.6, 0.8, 1.0, 1.25]) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const x = c.x + Math.sin(a) * r;
+        const z = c.z + Math.cos(a) * r;
+        if (building.isFree(x, z, 0.30) && building.walkableAt(x, z, 0.22, true)) return { x, z };
+      }
+    }
+    return null;
+  }
+
+  _finishExit() {
+    this._exiting = false;
+    this._exitPending = false;
+    this._exitSpot = null;
+    this._exitT = 0;
+    this._exitStuck = 0;
+    this._wish.set(0, 0);
+    this._wishLen = 0;
+    this.speed = 0;
+    this.path = null;
+    this.pathDone = true;
+    this._seatIgnore = null;
+    this._seatObstacle = null;
+    this._seatIgnoreT = 0;
+  }
+
+  _updateExit(dt, elapsed, building) {
+    this._exitPending = false;
+    this._exiting = true;
+    if (!building || !this._seatIgnore) {
+      this._finishExit();
+      this._animate(dt, elapsed);
+      return;
+    }
+    if (!this._exitSpot) {
+      this._exitSpot = this._findExitSpot(building);
+      this._exitT = 0;
+      this._exitStuck = 0;
+      if (!this._exitSpot) {
+        // tidak ada titik keluar yang aman → serahkan ke AI, izin menyelip
+        // tetap aktif sampai badan benar-benar keluar dari collider.
+        this._exiting = false;
+        this._animate(dt, elapsed);
+        return;
+      }
+    }
+    const spot = this._exitSpot;
+    const dx = spot.x - this.position.x;
+    const dz = spot.z - this.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.07) {
+      this.position.x = spot.x;
+      this.position.z = spot.z;
+      this._finishExit();
+      this._animate(dt, elapsed);
+      return;
+    }
+    const cruise = Math.min(1.0, 0.4 + dist * 0.8);
+    const step = Math.min(dist, cruise * dt);
+    const bx = this.position.x;
+    const bz = this.position.z;
+    building.moveSafely(this.position, (dx / dist) * step, (dz / dist) * step, 0.29, this._seatIgnore, this);
+    const moved = Math.hypot(this.position.x - bx, this.position.z - bz);
+    if (moved < step * 0.4) this._exitStuck += dt;
+    else this._exitStuck = 0;
+    this._exitT += dt;
+    this.speed = moved / Math.max(dt, 1e-4);
+    this.targetYaw = Math.atan2(dx, dz);
+    this.yaw = dampAngle(this.yaw, this.targetYaw, 10, dt);
+    this.root.rotation.y = this.yaw;
+    this._wish.set(dx / dist, dz / dist);
+    this._wishLen = 1;
+    if (this._exitStuck > 0.5 || this._exitT > 2.4) {
+      this._exitTry++;
+      this._exitSpot = null;
+      this._exitT = 0;
+      this._exitStuck = 0;
+      if (this._exitTry > 3) {
+        // gagal total: jangan bikin AI menunggu selamanya
+        this._exiting = false;
+        this._exitSpot = null;
+      }
+    }
+    this._animate(dt, elapsed);
   }
 
   teleport(x, z, yaw = 0) {
@@ -307,6 +454,10 @@ export class Critter {
     this._seatIgnore = null;
     this._seatIgnoreT = 0;
     this._seatStuck = 0;
+    this._seatCenter = null;
+    this._seatYaw = 0;
+    this._precisePath = false;
+    this._cancelExit();
     this._noCollide = 0;
     this._forced = null;
     this.motion.rotation.set(0, 0, 0);
@@ -394,6 +545,7 @@ export class Critter {
   }
 
   update(dt, elapsed, building) {
+    if (this._exiting || this._exitPending) { this._updateExit(dt, elapsed, building); return; }
     if (this._seating) { this._updateSeating(dt, elapsed, building); return; }
     if (this.path) {
       if (this._yield > 0) {
@@ -439,13 +591,19 @@ export class Critter {
       // Swept collision checks happen before each step; never push the
       // character through a neighbouring obstacle during post-correction.
       if (this._seatIgnore && !this.sitting && !this._seating) {
-        // Izin "menyelip" hanya berlaku sebentar setelah berdiri, dan
-        // langsung dicabut begitu badan sudah benar-benar keluar dari
-        // semua collider kursi/meja. Jadi tidak ada celah untuk menembus.
+        // Izin "menyelip" hanya dicabut setelah badan benar-benar keluar
+        // dari SEMUA collider kursi + meja (bukan cuma kursinya). Dulu
+        // collider meja aktif kembali saat badan masih di dalamnya →
+        // karakter beku. Sekarang aman.
         this._seatIgnoreT -= dt;
-        const o = this._seatObstacle;
-        const outside = !o || this.position.x < o.minX - 0.31 || this.position.x > o.maxX + 0.31 ||
-          this.position.z < o.minZ - 0.31 || this.position.z > o.maxZ + 0.31;
+        let outside = true;
+        for (const o of this._seatIgnore) {
+          const cx = THREE.MathUtils.clamp(this.position.x, o.minX, o.maxX);
+          const cz = THREE.MathUtils.clamp(this.position.z, o.minZ, o.maxZ);
+          const ddx = this.position.x - cx;
+          const ddz = this.position.z - cz;
+          if (ddx * ddx + ddz * ddz < 0.29 * 0.29) { outside = false; break; }
+        }
         if (outside || this._seatIgnoreT <= 0) {
           this._seatIgnore = null;
           this._seatObstacle = null;
@@ -494,7 +652,17 @@ export class Critter {
       this._recover(building);
       return;
     }
-    if (dist < (last ? ARRIVE_RADIUS : REACH)) {
+    if (dist < (last ? (this._precisePath ? 0.16 : ARRIVE_RADIUS) : REACH)) {
+      // Tujuan presisi (titik pendekat kursi): tempelkan badan tepat di titik
+      // itu supaya garis masuk ke pad duduk benar-benar bersih.
+      if (last && this._precisePath && building && dist > 0.02) {
+        building.moveSafely(
+          this.position,
+          waypoint.x - this.position.x,
+          waypoint.z - this.position.z,
+          0.29, this._seatIgnore, this,
+        );
+      }
       this.pathIndex++;
       if (this.pathIndex >= this.path.length) {
         this.path = null;

@@ -66,10 +66,9 @@ export class Player {
 
   release() {
     if (!this.controlled) return;
-    if (this._sitSeat) {
-      this.building.releaseSeat(this._sitSeat, this.controlled);
-      this._sitSeat = null;
-    }
+    const seat = this._sitSeat || this.building.seatOf(this.controlled);
+    if (seat) this.building.releaseSeat(seat, this.controlled);
+    this._sitSeat = null;
     this.crew.release(this.controlled);
     this.controlled.status = "Balik kerja";
     this.controlled.walkScale = 1;

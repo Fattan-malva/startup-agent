@@ -32,7 +32,7 @@ export function build(b) {
     const ws = createWorkstation({ desk: { width: 1.5 } });
     b._place(ws, x, 6.15, 0, 0, { w: 1.5, d: 1.2 });
     b._deskParts(ws, `dev-${String.fromCharCode(97 + i)}`);
-    b._deskChair(x, 6.15, 0, { color: i % 2 === 0 ? "navy" : "charcoal", type: "desk" });
+    b._deskChair(x, 6.15, 0, { color: i % 2 === 0 ? "navy" : "charcoal", type: "desk", desk: ws });
   });
 
   /* ── Meja tinggi berdiri + rak server ────────────────────────────── */

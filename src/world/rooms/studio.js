@@ -34,14 +34,16 @@ export function build(b) {
     { x: 13.4, w: 2.6 },
   ];
   for (const t of tables) {
-    b._static(
+    const table = b._static(
       createMeetingTable({ w: t.w, d: 1.2, h: 0.75 }),
       t.x, 2.9, 0, 0, { w: t.w, d: 1.2 },
     );
-    b._static(createOfficeChair({ color: "navy" }), t.x, 2.38, 0);
+    const chairN = b._static(createOfficeChair({ color: "navy" }), t.x, 2.38, 0);
     b._seat(t.x, 2.38, 0, "meeting");
-    b._static(createOfficeChair({ color: "charcoal" }), t.x, 3.42, Math.PI);
+    const chairS = b._static(createOfficeChair({ color: "charcoal" }), t.x, 3.42, Math.PI);
     b._seat(t.x, 3.42, Math.PI, "meeting");
+    // meja + 2 kursinya = SATU unit edit
+    b.linkAll([table, chairN, chairS]);
   }
 
   /* ── Karpet NAVY di bawah meja ───────────────────────────────────── */

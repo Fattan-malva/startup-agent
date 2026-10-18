@@ -69,7 +69,7 @@ export function build(b) {
   });
 
   // Kursi resepsionis di sisi utara meja, menghadap tamu (yaw 0 = +z).
-  b._deskChair(0, -7.5, Math.PI, { color: "navy", type: "reception" });
+  b._deskChair(0, -7.5, Math.PI, { color: "navy", type: "reception", desk: reception });
 
   /* Dinding brand di belakang resepsionis. */
   b._static(

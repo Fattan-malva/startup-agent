@@ -35,7 +35,7 @@ export function build(b) {
   const desk = createWorkstation({ desk: { width: 2.4 } });
   b._place(desk, -14.15, 6.0, -Math.PI / 2, 0, { w: 2.5, d: 1.3 });
   b._deskParts(desk, "ceo-desk");
-  b._deskChair(-14.15, 6.0, -Math.PI / 2, { color: "charcoal", type: "ceo" });
+  b._deskChair(-14.15, 6.0, -Math.PI / 2, { color: "charcoal", type: "ceo", desk });
 
   // Kursi tamu menghadap meja/CEO (dan jendela kaca barat) — jauh dari
   // jalur pintu (x -7.85..-6.35).

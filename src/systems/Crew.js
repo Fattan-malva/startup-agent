@@ -128,7 +128,9 @@ export class Crew {
     const brain = this.brains.get(critter);
     if (brain) brain.paused = true;
     critter.controlled = true;
-    critter.pose("stand"); // stand up if you sat in someone's chair
+    // kalau tadi sedang duduk, berdiri dengan langkah keluar yang aman
+    if (critter.sitting || critter._seating) critter.standUp();
+    else critter.pose("stand");
   }
 
   release(critter) {

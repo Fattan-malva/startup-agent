@@ -37,7 +37,7 @@ export function build(b) {
       const ws = createWorkstation({ desk: { width: 1.55 } });
       b._place(ws, x, row.z, row.ry, 0, { w: 1.8, d: 1.2 });
       b._deskParts(ws, `staff-${String.fromCharCode(97 + idx)}`);
-      b._deskChair(x, row.z, row.ry, { color: row.color, type: "desk" });
+      b._deskChair(x, row.z, row.ry, { color: row.color, type: "desk", desk: ws });
       idx++;
     }
   }

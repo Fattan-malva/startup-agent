@@ -132,6 +132,9 @@ export class Building {
     this._editById = new Map();        // id → item (termasuk yang dihapus)
     this._copies = [];                 // perabot hasil Duplikat
     this._copySeq = 0;                 // penomoran id duplikat (c1, c2, ...)
+    this._editGroups = new Map();      // gid → [item] (unit edit, mis. meja+kursi)
+    this._groupOf = new Map();         // item → gid
+    this._grpSeq = 0;
     // pasangan critter + StaffBrain yang berkeliling dalam ruangannya
     this.staffRoster = [];
     // true saat rapat berjalan: staf dipas-lepas dari kunci pos ruangan
@@ -710,12 +713,15 @@ export class Building {
     return list.length ? list : null;
   }
 
-  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = DESK_CHAIR_GAP, type = "desk" } = {}) {
+  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = DESK_CHAIR_GAP, type = "desk", desk = null } = {}) {
     const x = deskX + Math.sin(deskRy) * gap;
     const z = deskZ + Math.cos(deskRy) * gap;
     const yaw = deskRy + Math.PI;
     this._static(createOfficeChair({ color }), x, z, yaw);
-    return this._seat(x, z, yaw, type);
+    const seat = this._seat(x, z, yaw, type);
+    // meja + kursi ergonomis = SATU unit edit (geser/putar/hapus/duplikat)
+    if (desk) this.pairProps(desk, seat);
+    return seat;
   }
 
   _interactive(obj, meta) {
@@ -1114,6 +1120,192 @@ export class Building {
     o.rotation.y += d;
   }
 
+  /* --------------------------------------- grup edit (meja + kursi = 1) */
+
+  /**
+   * Tautkan perabot supaya bergerak / berputar / diduplikat / dihapus
+   * sebagai SATU unit (mis. meja kerja + kursi ergonomisnya). Tiap anggota
+   * tetap punya record, collider, dan kursinya sendiri — jadi NPC tetap
+   * bisa menyelip & duduk dengan presisi.
+   */
+  linkProps(a, b) {
+    const x = a?.userData?.editItem || a;
+    const y = b?.userData?.editItem || b;
+    if (!x || !y || x === y) return null;
+    const ga = this._groupOf.get(x) || null;
+    const gb = this._groupOf.get(y) || null;
+    if (ga && ga === gb) return ga;
+    const gid = ga || gb || `g${++this._grpSeq}`;
+    const set = new Set();
+    for (const g of [ga, gb]) {
+      if (!g) continue;
+      for (const it of this._editGroups.get(g) || []) set.add(it);
+      this._editGroups.delete(g);
+    }
+    set.add(x);
+    set.add(y);
+    const arr = [...set];
+    for (const it of arr) this._groupOf.set(it, gid);
+    this._editGroups.set(gid, arr);
+    return gid;
+  }
+
+  /** Tautkan beberapa perabot sebagai satu grup baru. */
+  linkAll(items) {
+    const list = [...new Set((items || []).filter(Boolean))];
+    if (list.length < 2) return null;
+    for (const it of list) this.unlinkProp(it);
+    const gid = `g${++this._grpSeq}`;
+    for (const it of list) this._groupOf.set(it, gid);
+    this._editGroups.set(gid, list);
+    return gid;
+  }
+
+  unlinkProp(item) {
+    const gid = this._groupOf.get(item);
+    if (!gid) return;
+    this._groupOf.delete(item);
+    const arr = this._editGroups.get(gid);
+    if (!arr) return;
+    const i = arr.indexOf(item);
+    if (i >= 0) arr.splice(i, 1);
+    if (arr.length < 2) {
+      for (const it of arr) this._groupOf.delete(it);
+      this._editGroups.delete(gid);
+    }
+  }
+
+  /** Semua anggota unit edit (atau [item] kalau berdiri sendiri). */
+  groupOf(item) {
+    if (!item) return [];
+    const gid = this._groupOf.get(item);
+    if (!gid) return [item];
+    const arr = this._editGroups.get(gid);
+    return arr && arr.length ? arr : [item];
+  }
+
+  /** Pasangkan kursi (seat) dengan perabot meja pemiliknya. */
+  pairProps(deskRef, seatRef) {
+    const desk = deskRef?.userData?.editItem || deskRef;
+    const chair = seatRef?.obstacle?.owner?.userData?.editItem
+      || seatRef?.userData?.editItem || seatRef;
+    return this.linkProps(desk, chair);
+  }
+
+  /** Geser seluruh unit; anchor menentukan delta. */
+  moveGroup(item, x, z) {
+    const g = this.groupOf(item);
+    if (g.length <= 1) { this.moveProp(item, x, z); return; }
+    const dx = x - item.x;
+    const dz = z - item.z;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dz) < 1e-9) return;
+    for (const m of g) this.moveProp(m, m.x + dx, m.z + dz);
+    this._nav = null;
+  }
+
+  /** Putar seluruh unit mengelilingi anchor (posisi + orientasi). */
+  rotateGroup(item, ry) {
+    const g = this.groupOf(item);
+    if (g.length <= 1) { this.rotateProp(item, ry); return; }
+    const d = ry - item.ry;
+    if (Math.abs(d) < 1e-9) return;
+    const ax = item.x;
+    const az = item.z;
+    const cos = Math.cos(d);
+    const sin = Math.sin(d);
+    const moves = g.map((m) => {
+      if (m === item) return { m, x: ax, z: az, ry };
+      const dx = m.x - ax;
+      const dz = m.z - az;
+      return {
+        m,
+        x: ax + dx * cos - dz * sin,
+        z: az + dx * sin + dz * cos,
+        ry: m.ry + d,
+      };
+    });
+    for (const t of moves) {
+      this.rotateProp(t.m, t.ry);
+      this.moveProp(t.m, t.x, t.z);
+    }
+    this._nav = null;
+  }
+
+  /**
+   * Duplikat satu unit. `validate(dx, dz, member)` dipanggil untuk tiap
+   * anggota pada offset kandidat; harus true kalau seluruh unit aman.
+   */
+  copyGroup(item, validate = null, confirm = null) {
+    const g = this.groupOf(item);
+    if (g.length <= 1) {
+      return this.copyProp(
+        item,
+        validate ? (src, x, z) => validate(x - src.x, z - src.z, src) : null,
+        confirm ? (copy) => confirm(copy, 0, 0, [copy]) : null,
+      );
+    }
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const m of g) {
+      const f = m.fp || { w: 0.7, d: 0.7 };
+      const hw = Math.max(f.w || 0.7, f.d || 0.7) / 2;
+      minX = Math.min(minX, m.x - hw);
+      maxX = Math.max(maxX, m.x + hw);
+      minZ = Math.min(minZ, m.z - hw);
+      maxZ = Math.max(maxZ, m.z + hw);
+    }
+    const reach = Math.max(maxX - minX, maxZ - minZ) / 2 + 0.5;
+    const b = this.bounds;
+    // kandidat spiral: makin jauh makin jarang, supaya duplikat tetap dekat
+    // dengan aslinya tapi tidak memaksakan satu jarak saja.
+    const cands = [];
+    for (const mult of [0.7, 0.9, 1.1, 1.4, 1.8, 2.3]) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        cands.push([Math.sin(a) * reach * mult, Math.cos(a) * reach * mult]);
+      }
+    }
+    cands.sort((p, q) => (p[0] * p[0] + p[1] * p[1]) - (q[0] * q[0] + q[1] * q[1]));
+    // fallback: pindai seluruh lantai (0.5 m) — selalu ada tempat bila
+    // memang ada ruang kosong di mana pun di gedung.
+    for (let gx = b.x0 + 0.8; gx <= b.x1 - 0.8; gx += 0.5) {
+      for (let gz = b.z0 + 0.8; gz <= b.z1 - 0.8; gz += 0.5) {
+        cands.push([gx - item.x, gz - item.z]);
+      }
+    }
+    cands.sort((p, q) => (p[0] * p[0] + p[1] * p[1]) - (q[0] * q[0] + q[1] * q[1]));
+    for (const [dx, dz] of cands) {
+      let ok = true;
+      for (const m of g) {
+        const nx = m.x + dx;
+        const nz = m.z + dz;
+        if (nx < b.x0 + 0.5 || nx > b.x1 - 0.5 || nz < b.z0 + 0.5 || nz > b.z1 - 0.5) {
+          ok = false;
+          break;
+        }
+        if (validate && !validate(dx, dz, m)) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const made = [];
+      for (const m of g) {
+        const c = this._makeCopy(m, m.x + dx, m.z + dz, m.ry, null);
+        if (c) made.push(c);
+      }
+      if (!made.length) continue;
+      this.linkAll(made);
+      const anchorCopy = made[g.indexOf(item)] || made[0];
+      // konfirmasi di dunia nyata (setelah salinan benar-benar ada)
+      if (confirm && !confirm(anchorCopy, dx, dz, made)) {
+        for (const c of made) {
+          this.unlinkProp(c);
+          this.deleteProp(c);
+        }
+        continue;
+      }
+      return anchorCopy;
+    }
+    return null;
+  }
+
   /* ----------------------------------------------------- duplikat & hapus */
 
   /** Aktif/nonaktif collider sebuah perabot tanpa membuang recordnya. */
@@ -1231,9 +1423,14 @@ export class Building {
     const clone = this._cloneVisual(base.obj);
     clone.visible = true; // kalau sumbernya sedang dihapus, klon tetap tampil
     const finalId = id || this._nextCopyId();
-    const item = this._register(
+    // `_register` mengembalikan objek THREE; record edit-nya ada di
+    // userData.editItem. (Dulu yang dipakai objeknya → duplikat tidak
+    // tercatat sebagai salinan, hilang setelah reload.)
+    const obj = this._register(
       clone, x, z, ry, srcItem.y, srcItem.fp, this.holder, this.placedProps, finalId,
     );
+    const item = obj.userData.editItem;
+    if (!item) return null;
     item.isCopy = true;
     item.srcId = base.id;
     item.label = srcItem.label;
@@ -1261,13 +1458,43 @@ export class Building {
     // kursi ikut tersalin → NPC boleh duduk di duplikatnya juga
     if (srcItem.seats) {
       item.seats = [];
+      const roomName = this.room(this.roomAt(x, z))?.name || "Studio";
+      const seatLabel = item.label || "Kursi";
       for (const s of srcItem.seats) {
+        const sit = { x: x + Math.sin(ry) * SIT_FWD, z: z + Math.cos(ry) * SIT_FWD };
         const ns = {
           id: `${s.type}-${this.seats.length}`,
-          x, z, yaw: ry, type: s.type, taken: null,
+          x, z, yaw: ry, type: s.type, taken: null, takenAt: 0, uses: 0,
           obstacle: item.obstacle,
-          sit: { x: x + Math.sin(ry) * SIT_FWD, z: z + Math.cos(ry) * SIT_FWD },
+          sit,
+          overlaps: [],
+          height: s.height ?? 0.505,
+          seatable: true,
+          blocked: true,
         };
+        // meja yang menutupi titik duduk ikut boleh "diselipi" saat duduk
+        for (const b of this.obstacles) {
+          if (b === item.obstacle || b.kind === "wall") continue;
+          const cx = THREE.MathUtils.clamp(sit.x, b.minX, b.maxX);
+          const cz = THREE.MathUtils.clamp(sit.z, b.minZ, b.maxZ);
+          if ((sit.x - cx) ** 2 + (sit.z - cz) ** 2 < 0.34 * 0.34) ns.overlaps.push(b);
+        }
+        if (item.obstacle) {
+          item.obstacle.seatable = true;
+          item.obstacle.type = "dudukan";
+          item.obstacle.seatType = s.type;
+        }
+        // duplikat kursi tetap bisa diklik untuk diduduki (pemain)
+        if (!obj.userData.interactive) {
+          this._interactive(obj, {
+            id: `seat-${ns.id}`,
+            label: `${seatLabel} · ${roomName}`,
+            hint: "Klik untuk duduk di sini",
+            radius: 1.0,
+            seat: ns,
+            onClick: () => `Kursi ${seatLabel} bebas — siap diduduki.`,
+          });
+        }
         item.seats.push(ns);
         this.seats.push(ns);
       }
@@ -1314,7 +1541,7 @@ export class Building {
   }
 
   /** Duplikat dengan mencari tempat kosong di sekeliling perabot asalnya. */
-  copyProp(item) {
+  copyProp(item, validate = null, confirm = null) {
     if (!item) return null;
     const f = item.fp || { w: 0.7, d: 0.7 };
     const reach = Math.max(f.w || 0.7, f.d || 0.7) / 2 + 0.5;
@@ -1327,23 +1554,34 @@ export class Building {
       ? (q % 2 === 0 ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]])
       : [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
 
-    let spot = null;
+    const attempt = (x, z) => {
+      if (validate && !validate(item, x, z, item.ry)) return null;
+      const copy = this._makeCopy(item, x, z, item.ry, null);
+      if (!copy) return null;
+      if (confirm && !confirm(copy, x, z)) {
+        this.deleteProp(copy);
+        return null;
+      }
+      return copy;
+    };
+
     for (const [ox, oz] of OFFS) {
       const x = THREE.MathUtils.clamp(item.x + ox * reach, b.x0 + 0.6, b.x1 - 0.6);
       const z = THREE.MathUtils.clamp(item.z + oz * reach, b.z0 + 0.6, b.z1 - 0.6);
       if (Math.hypot(x - item.x, z - item.z) < 0.3) continue;
       const ok = onWall ? this._spotFree(x, z, 0.3) : this.isFree(x, z, 0.34);
       if (!ok) continue;
-      spot = { x, z };
-      break;
+      const copy = attempt(x, z);
+      if (copy) return copy;
     }
-    if (!spot) {
-      spot = {
-        x: THREE.MathUtils.clamp(item.x + reach, b.x0 + 0.6, b.x1 - 0.6),
-        z: item.z,
-      };
+    for (const [ox, oz] of OFFS) {
+      const x = THREE.MathUtils.clamp(item.x + ox * reach, b.x0 + 0.6, b.x1 - 0.6);
+      const z = THREE.MathUtils.clamp(item.z + oz * reach, b.z0 + 0.6, b.z1 - 0.6);
+      if (!this.isFree(x, z, 0.28)) continue;
+      const copy = attempt(x, z);
+      if (copy) return copy;
     }
-    return this._makeCopy(item, spot.x, spot.z, item.ry, null);
+    return null;
   }
 
   /** Buang satu duplikat dari dunia (geometry-nya dipakai bersama). */
@@ -1450,6 +1688,17 @@ export class Building {
     this._clearCopies();
   }
 
+  /**
+   * Jadikan posisi sekarang sebagai "rumah" baru semua perabot.
+   * Dipakai setelah layout bawaan diterapkan: Reset & simpanan berikutnya
+   * memakai layout itu sebagai titik awal (bukan denah asli builder).
+   */
+  bakeHome() {
+    for (const item of this.editList()) {
+      item.home = { x: item.x, z: item.z, ry: item.ry };
+    }
+  }
+
   /** Ringkasan perubahan untuk disimpan (hanya perabot yang berubah). */
   serializeEdits() {
     const items = {};
@@ -1461,13 +1710,16 @@ export class Building {
         continue;
       }
       if (item.isCopy) {
-        add.push({
+        const a = {
           id: item.id,
           src: item.srcId,
           x: +item.home.x.toFixed(4),
           z: +item.home.z.toFixed(4),
           ry: +item.home.ry.toFixed(4),
-        });
+        };
+        const gid = this._groupOf.get(item);
+        if (gid && (this._editGroups.get(gid) || []).length > 1) a.grp = gid;
+        add.push(a);
       }
       const h = item.home;
       const moved = Math.abs(item.x - h.x) > 1e-4 || Math.abs(item.z - h.z) > 1e-4;
@@ -1483,6 +1735,46 @@ export class Building {
     return out;
   }
 
+  /**
+   * Snapshot LENGKAP tata ruang (semua perabot, bukan hanya yang berubah).
+   * Dipakai untuk menulis src/world/layout.default.json dari Mode Edit:
+   * siapa pun yang pull repo langsung memakai tata ruang ini.
+   */
+  serializeLayout() {
+    const items = {};
+    const add = [];
+    const del = [];
+    for (const item of this.editList()) {
+      if (item.removed) {
+        if (!item.isCopy) del.push(item.id);
+        continue;
+      }
+      if (item.isCopy) {
+        const a = {
+          id: item.id,
+          src: item.srcId,
+          x: +item.x.toFixed(4),
+          z: +item.z.toFixed(4),
+          ry: +item.ry.toFixed(4),
+        };
+        const gid = this._groupOf.get(item);
+        if (gid && (this._editGroups.get(gid) || []).length > 1) a.grp = gid;
+        add.push(a);
+      }
+      const e = {
+        x: +item.x.toFixed(4),
+        z: +item.z.toFixed(4),
+        ry: +item.ry.toFixed(4),
+      };
+      if (item.matKey) e.mat = item.matKey;
+      items[item.id] = e;
+    }
+    const out = { v: 1, full: true, items };
+    if (add.length) out.add = add;
+    if (del.length) out.del = del;
+    return out;
+  }
+
   _angleDiff(a, b) {
     let d = (a - b) % (Math.PI * 2);
     if (d > Math.PI) d -= Math.PI * 2;
@@ -1490,11 +1782,15 @@ export class Building {
     return d;
   }
 
-  /** Terapkan hasil simpanan ke dunia (dipakai saat boot). */
-  applyEdits(data) {
+  /**
+   * Terapkan hasil simpanan ke dunia.
+   * `reset = false` dipakai saat menumpuk layout tersimpan di atas layout
+   * bawaan (jangan mengembalikan perabot ke denah asli builder).
+   */
+  applyEdits(data, reset = true) {
     if (!data) return 0;
     // mulai dari kondisi bersih: pulihkan yang dihapus, buang semua duplikat
-    this.resetAllEdits();
+    if (reset) this.resetAllEdits();
     let n = 0;
 
     // 1) hapus perabot yang sebelumnya dihapus
@@ -1506,6 +1802,7 @@ export class Building {
     }
 
     // 2) bangun ulang duplikat (dari perabot aslinya)
+    const groups = new Map();
     if (Array.isArray(data.add)) {
       for (const a of data.add) {
         if (!a || typeof a.id !== "string" || typeof a.src !== "string") continue;
@@ -1514,8 +1811,18 @@ export class Building {
         const x = Number(a.x) || 0;
         const z = Number(a.z) || 0;
         const ry = Number(a.ry) || 0;
-        if (this._makeCopy(src, x, z, ry, a.id)) n++;
+        const made = this._makeCopy(src, x, z, ry, a.id);
+        if (!made) continue;
+        n++;
+        if (a.grp) {
+          if (!groups.has(a.grp)) groups.set(a.grp, []);
+          groups.get(a.grp).push(made);
+        }
       }
+    }
+    // tautkan lagi unit hasil duplikat (meja+kursi)
+    for (const list of groups.values()) {
+      if (list.length > 1) this.linkAll(list);
     }
 
     // 3) posisi/rotasi/material
@@ -1702,6 +2009,56 @@ export class Building {
     return false;
   }
 
+  /**
+   * Saat karakter BERHENTI, badan tidak boleh saling tembus. Yang berjalan
+   * boleh lewat (biar AI tidak macet), tapi begitu dua badan sama-sama diam
+   * dan bertumpuk, yang berdiri digeser menjauh dengan aman (tetap tidak
+   * menembus dinding/perabot). Badan yang sedang duduk tidak pernah digeser.
+   */
+  separateIdleBodies() {
+    const bodies = this.dynamicBodies;
+    if (!bodies || bodies.length < 2) return;
+    const minD = 0.29 * 2;
+    const idle = (o) => !!o && !o._seating && !o._exiting && !o.path
+      && (!o.speed || o.speed <= 0.06);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < bodies.length; i++) {
+        const a = bodies[i];
+        if (!a || !idle(a)) continue;
+        for (let j = i + 1; j < bodies.length; j++) {
+          const b = bodies[j];
+          if (!b) continue;
+          // salah satu masih berjalan → biarkan saling lewat
+          if (!idle(b) && !b.sitting) continue;
+          const dx = b.position.x - a.position.x;
+          const dz = b.position.z - a.position.z;
+          const d2 = dx * dx + dz * dz;
+          if (d2 >= minD * minD) continue;
+          const d = Math.sqrt(d2);
+          let nx = 1;
+          let nz = 0;
+          if (d > 1e-4) { nx = dx / d; nz = dz / d; }
+          else {
+            const ang = this.rng() * Math.PI * 2;
+            nx = Math.cos(ang);
+            nz = Math.sin(ang);
+          }
+          const gap = minD - d + 0.005;
+          if (a.sitting && b.sitting) continue;
+          if (a.sitting) {
+            this.moveSafely(b.position, nx * gap, nz * gap, 0.29, b._seatIgnore, b);
+          } else if (b.sitting) {
+            this.moveSafely(a.position, -nx * gap, -nz * gap, 0.29, a._seatIgnore, a);
+          } else {
+            const half = gap / 2;
+            this.moveSafely(a.position, -nx * half, -nz * half, 0.29, a._seatIgnore, a);
+            this.moveSafely(b.position, nx * half, nz * half, 0.29, b._seatIgnore, b);
+          }
+        }
+      }
+    }
+  }
+
   /** Titik ini bebas dari karakter lain? (dipakai saat memilih tujuan) */
   _bodyFree(x, z, gap = 0.9, mover = null) {
     const bodies = this.dynamicBodies;
@@ -1733,22 +2090,31 @@ export class Building {
     const sz = dz / steps;
     const ign = ignoreList(ignoreObstacle);
 
-    // Kalau badan sudah berada DI DALAM sebuah collider (mis. perabotnya
-    // dipindah saat Mode Edit), biarkan keluar dari collider itu saja —
-    // bukan lalu menembus collider lain.
-    let escape = null;
-    if (!this.isFree(v3.x, v3.z, Math.min(radius, 0.2), ignoreObstacle)) {
-      for (const b of this.obstacles) {
+    // Kedalaman tumpang-tindih badan dengan collider. 0 = bebas. Nilai
+    // negatif-jarak (titik di DALAM kotak) dihitung makin besar, sehingga
+    // "keluar dari dalam perabot" selalu memperkecil angka ini.
+    const penetration = (x, z) => {
+      let pen = 0;
+      for (let i = 0; i < this.obstacles.length; i++) {
+        const b = this.obstacles[i];
         if (isIgnored(b, ign)) continue;
-        if (v3.x > b.minX && v3.x < b.maxX && v3.z > b.minZ && v3.z < b.maxZ) { escape = b; break; }
+        const cx = x > b.maxX ? b.maxX : (x < b.minX ? b.minX : x);
+        const cz = z > b.maxZ ? b.maxZ : (z < b.minZ ? b.minZ : z);
+        let d = Math.hypot(x - cx, z - cz);
+        if (d < 1e-9) {
+          // titik berada di dalam kotak → jarak "negatif" ke sisi terdekat
+          d = -Math.min(x - b.minX, b.maxX - x, z - b.minZ, b.maxZ - z);
+        }
+        if (d < radius) pen += radius - d;
       }
-    }
+      return pen;
+    };
 
     const r2 = radius * radius;
     const freeOf = (x, z) => {
       for (let i = 0; i < this.obstacles.length; i++) {
         const b = this.obstacles[i];
-        if (b === escape || isIgnored(b, ign)) continue;
+        if (isIgnored(b, ign)) continue;
         const cx = x > b.maxX ? b.maxX : (x < b.minX ? b.minX : x);
         const cz = z > b.maxZ ? b.maxZ : (z < b.minZ ? b.minZ : z);
         const ddx = x - cx;
@@ -1757,11 +2123,21 @@ export class Building {
       }
       return true;
     };
+
+    // Kalau badan terjepit (mis. kursi berdiri lalu collider meja aktif
+    // kembali, atau perabot dipindah menimpa orang), izinkan HANYA langkah
+    // yang mengurangi tumpang-tindih — jadi tetap tidak bisa menembus,
+    // tapi tidak pernah beku selamanya di dalam perabot.
+    let penNow = penetration(v3.x, v3.z);
+
     const canOccupy = (x, z) => {
       if (x < this.bounds.x0 + radius || x > this.bounds.x1 - radius ||
           z < this.bounds.z0 + radius || z > this.bounds.z1 - radius) return false;
-      if (!freeOf(x, z)) return false;
-      return !this._bodyBlocked(x, z, radius, mover);
+      // Karakter lain TIDAK memblokir saat berjalan (bisa saling lewat).
+      // Saat berhenti, `separateIdleBodies()` yang merenggangkan badan.
+      if (freeOf(x, z)) return true;
+      if (penNow <= 1e-9) return false;          // kondisi normal: tidak boleh
+      return penetration(x, z) < penNow - 1e-9;  // hanya boleh keluar
     };
 
     const fromX = v3.x;
@@ -1772,6 +2148,7 @@ export class Building {
       if (canOccupy(nx, nz)) {
         v3.x = nx;
         v3.z = nz;
+        penNow = penetration(v3.x, v3.z);
         continue;
       }
       const axes = Math.abs(sx) >= Math.abs(sz)
@@ -1783,6 +2160,7 @@ export class Building {
         if (!canOccupy(cx, cz)) continue;
         v3.x = cx;
         v3.z = cz;
+        penNow = penetration(v3.x, v3.z);
       }
     }
     return Math.hypot(v3.x - fromX, v3.z - fromZ);
@@ -2256,7 +2634,7 @@ export class Building {
    * Klaim satu kursi. Kursi yang paling jarang dipakai didahulukan supaya
    * SEMUA kursi (semua tipe) kebagian diduduki — bukan cuma yang dekat.
    */
-  claimSeat(type, who, roomId) {
+  claimSeat(type, who, roomId, near = null) {
     const free = this.seats.filter((s) =>
       s.type === type
       // opsional: batasi ke kursi yang ADA DI DALAM satu ruangan
@@ -2264,6 +2642,20 @@ export class Building {
       && (!roomId || this.roomAt(s.x, s.z) === roomId)
       && (!s.taken || s.taken === who));
     if (!free.length) return null;
+    // Rapat: pilih kursi TERDEKAT dari posisi peserta supaya lalu lintas
+    // tidak silang dan kursi cepat terisi.
+    if (near && typeof near.x === "number" && typeof near.z === "number") {
+      let best = free[0];
+      let bestD = Infinity;
+      for (const s of free) {
+        const d = (s.x - near.x) ** 2 + (s.z - near.z) ** 2;
+        if (d < bestD) { bestD = d; best = s; }
+      }
+      best.taken = who;
+      best.takenAt = this._clock;
+      best.uses = (best.uses || 0) + 1;
+      return best;
+    }
     let min = Infinity;
     for (const s of free) min = Math.min(min, s.uses || 0);
     const pool = free.filter((s) => (s.uses || 0) === min);
@@ -2382,6 +2774,8 @@ export class Building {
         this.clampToStaffPost(s.postId, s.critter.position, 0.35, s.critter);
       }
     }
+    // badan yang sudah diam tidak boleh bertumpuk
+    this.separateIdleBodies();
   }
 }
 
