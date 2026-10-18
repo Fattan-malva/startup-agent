@@ -487,7 +487,8 @@ kbd {
   max-width: 240px;
 }
 
-.tooltip.is-visible {
+.tooltip.is-visible,
+.tooltip.is-show {
   opacity: 1;
 }
 
@@ -536,6 +537,7 @@ kbd {
   white-space: nowrap;
 }
 
+.toast.is-show,
 .toast.is-open {
   opacity: 1;
   transform: none;

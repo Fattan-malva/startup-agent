@@ -18,8 +18,8 @@ import { G, shadowMaterial } from "./critterShared.js";
  */
 export const AVATAR_SCALE = 1.2;
 
-export const WALK_SPEED = 1.85;
-export const RUN_SPEED = 4.0;
+export const WALK_SPEED = 1.25;
+export const RUN_SPEED = 2.7;
 export const STATES = ["Idle", "Walking", "Running", "Dance", "Death", "Sitting", "Standing"];
 export const EMOTES = ["Jump", "Yes", "No", "Wave", "Punch", "ThumbsUp"];
 export const EXPRESSIONS = ["Angry", "Surprised", "Sad"];
@@ -60,6 +60,7 @@ export class Critter {
     this.speed = 0;
     this.walkScale = 1;
     this._stuck = 0;
+    this._dodge = null;
     this.yaw = 0;
     this.targetYaw = 0;
     this.sitting = false;
@@ -225,6 +226,7 @@ export class Critter {
     this._wish.set(0, 0);
     this._wishLen = 0;
     this._stuck = 0;
+    this._dodge = null;
     this.sitting = false;
     this._seatTarget = null;
     this._seating = false;
@@ -240,12 +242,12 @@ export class Critter {
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
     const dist = Math.hypot(dx, dz);
-    const stepSpeed = 0.84;
-    if (dist < 0.08) {
+    if (dist < 0.07) {
       this.position.x = target.x;
       this.position.z = target.z;
-      if (target.yaw != null) this.yaw = target.yaw;
-      this.targetYaw = this.yaw;
+      // baru sekarang menghadap arah kursi/meja — jadi tidak ada
+      // "jalan mundur pelan-pelan" ke kursi
+      if (target.yaw != null) this.yaw = this.targetYaw = target.yaw;
       this.root.rotation.y = this.yaw;
       this._seatTarget = null;
       this._seating = false;
@@ -257,16 +259,20 @@ export class Critter {
       this._animate(dt, elapsed);
       return;
     }
-    const k = 1 - Math.exp(-9 * dt);
-    this.speed += (stepSpeed - this.speed) * k;
+    const k = 1 - Math.exp(-10 * dt);
+    // langkah masuk kursi: jalan normal dulu; pelan hanya untuk langkah
+    // terakhir, ketika sudah benar-benar mepet kursi (sisa < 0.28 m)
+    const cruise = dist < 0.28 ? 0.5 : WALK_SPEED;
+    this.speed += (cruise - this.speed) * k;
     const step = this.speed * dt;
     this.position.x += (dx / dist) * step;
     this.position.z += (dz / dist) * step;
     this._seatProgress = THREE.MathUtils.clamp(1 - dist / this._seatStartDist, 0, 1);
-    this.targetYaw = target.yaw != null ? target.yaw : Math.atan2(dx, dz);
+    // selama melangkah: hadap ke arah kursi (arah gerak), bukan yaw akhir
+    this.targetYaw = Math.atan2(dx, dz);
     this._wish.set(dx / dist, dz / dist);
     this._wishLen = 1;
-    this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
+    this.yaw = dampAngle(this.yaw, this.targetYaw, 10, dt);
     this.root.rotation.y = this.yaw;
     this._animate(dt, elapsed);
   }
@@ -281,10 +287,32 @@ export class Critter {
       const dist = Math.hypot(dx, dz);
       if (this._stuck > STUCK_LIMIT) {
         this._stuck = 0;
-        this.pathIndex++;
-        if (this.pathIndex >= this.path.length) {
-          this.path = null; this.pathDone = true;
-          this._wish.set(0, 0); this._wishLen = 0;
+        // bedakan penghalang: tembok/perabot vs karakter lain
+        const aheadFree = !building || building.isFree(
+          this.position.x + this._wish.x * 0.5,
+          this.position.z + this._wish.y * 0.5, 0.3);
+        let dodged = false;
+        if (aheadFree) {
+          // di depan bebas = yang menghalangi karakter lain → menghindar:
+          // cari sisi kosong (kiri/kanan) lalu melesat kesamping sejenak
+          const b = building;
+          const px = this._wish.y, pz = -this._wish.x;
+          const pref = ((this.variant + (this.name?.length ?? 0)) % 2) ? 1 : -1;
+          if (b.isFree(this.position.x + px * 0.55 * pref, this.position.z + pz * 0.55 * pref, 0.3)) {
+            this._dodge = { t: 0.55, x: px * pref, z: pz * pref };
+            dodged = true;
+          } else if (b.isFree(this.position.x - px * 0.55 * pref, this.position.z - pz * 0.55 * pref, 0.3)) {
+            this._dodge = { t: 0.55, x: -px * pref, z: -pz * pref };
+            dodged = true;
+          }
+        }
+        if (!dodged) {
+          // tembok/perabot → lanjutkan seperti biasa: lewati titik jalur ini
+          this.pathIndex++;
+          if (this.pathIndex >= this.path.length) {
+            this.path = null; this.pathDone = true;
+            this._wish.set(0, 0); this._wishLen = 0;
+          }
         }
       } else if (dist < (last ? ARRIVE_RADIUS : REACH)) {
         this.pathIndex++;
@@ -299,6 +327,13 @@ export class Critter {
     }
 
     const dead = this._forced === "Death";
+    // hindaran aktif: sesaat melangkah ke sisi kosong sebelum melanjutkan
+    // jalur, supaya tidak terus-menerus mendorong karakter di depannya
+    if (this._dodge) {
+      this._dodge.t -= dt;
+      if (this._dodge.t <= 0) this._dodge = null;
+      else this._wish.set(this._dodge.x, this._dodge.z);
+    }
     const wishMax = this._wishLen > 0 && !dead && !this.sitting
       ? (this.running ? RUN_SPEED : WALK_SPEED * this.walkScale) : 0;
     const k = 1 - Math.exp(-9 * dt);
@@ -333,7 +368,9 @@ export class Critter {
   _animate(dt, elapsed) {
     const speed = this.speed;
     const moving = speed > 0.06 && !this.sitting;
-    this.phase += dt * speed * (this.running ? 3.8 : 3.0);
+    // langkah per detik disesuaikan agar kaki tidak terasa slow-mo sementara
+    // badan meluncur cepat: lantakan tiap ~0.5 m saat jalan, ~0.8 m saat lari
+    this.phase += dt * speed * (this.running ? 4.2 : 6.2);
     const stepWave = Math.sin(this.phase);
     if (moving && Math.sign(stepWave) !== this._stepSign) {
       this._stepSign = Math.sign(stepWave);

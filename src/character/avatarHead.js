@@ -84,7 +84,11 @@ export function buildHead(c) {
   add(head, SPH(), skinShadow, 0, 0.045, 0.080, 0.010, 0.007, 0.005);
 
   const mouth = new THREE.Group();
-  mouth.position.set(0, 0.024, 0.079);
+  // menempel di permukaan wajah: permukaan muka di ketinggian mulut ada di
+  // z ≈ 0.070, jadi mulut tidak boleh dipasang lebih maju dari itu
+  // (sedikit miring mengikuti lengkungan bawah hidung)
+  mouth.position.set(0, 0.024, 0.070);
+  mouth.rotation.x = 0.18;
   head.add(mouth);
   face.mouth = mouth;
   face.mArc = add(mouth,

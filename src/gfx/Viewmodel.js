@@ -65,8 +65,10 @@ export class Viewmodel {
       return pivot;
     };
 
-    /* ---- left hand: coffee mug ---- */
-    this.leftArm = arm(-1, HAND_Y, HAND_Z);
+    /* ---- tangan kanan: cangkir kopi ---- */
+    // catatan: kanan/kiri mengikuti tangan si karakter (cangkir memang
+    // digantung di holdR), tanpa ini tampilan first-person kebalik
+    this.rightArm = arm(1, HAND_Y, HAND_Z);
     const mug = new THREE.Group();
     const cup = new THREE.Mesh(
       new THREE.CylinderGeometry(0.034, 0.029, 0.072, 16),
@@ -80,17 +82,17 @@ export class Viewmodel {
     brew.position.y = 0.034;
     mug.add(brew);
     const handle = new THREE.Mesh(new THREE.TorusGeometry(0.021, 0.007, 8, 14), this.ceramicMat);
-    handle.position.set(-0.038, 0, 0);
+    handle.position.set(0.038, 0, 0);
     handle.rotation.y = Math.PI / 2;
     mug.add(handle);
     // sits in the fist: base just above the palm
-    mug.position.set(HAND_X * -1 - 0.012, HAND_Y + 0.055, HAND_Z - 0.03);
-    mug.rotation.set(0.12, 0, 0.08);
+    mug.position.set(HAND_X - 0.012, HAND_Y + 0.055, HAND_Z - 0.03);
+    mug.rotation.set(0.12, 0, -0.08);
     g.add(mug);
     this.mug = mug;
 
-    /* ---- right hand: phone, screen lit ---- */
-    this.rightArm = arm(1, HAND_Y - 0.01, HAND_Z - 0.02);
+    /* ---- tangan kiri: ponsel, layar menyala ---- */
+    this.leftArm = arm(-1, HAND_Y - 0.01, HAND_Z - 0.02);
     const phone = new THREE.Group();
     const shell = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.132, 0.011), this.darkMat);
     phone.add(shell);
@@ -101,8 +103,8 @@ export class Viewmodel {
     const grip = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.05, 4, 8), this.skinMat);
     grip.position.set(0, -0.005, -0.02);
     phone.add(grip);
-    phone.position.set(HAND_X + 0.015, HAND_Y + 0.05, HAND_Z - 0.035);
-    phone.rotation.set(-0.42, 0.16, 0.06);
+    phone.position.set(-(HAND_X + 0.015), HAND_Y + 0.05, HAND_Z - 0.035);
+    phone.rotation.set(-0.42, -0.16, -0.06);
     g.add(phone);
     this.phone = phone;
   }

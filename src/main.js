@@ -310,6 +310,21 @@ async function boot() {
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
 
+    // Ctrl/Cmd + scroll harus memperbesar DUNIA saja, bukan seluruh halaman —
+    // panel HUD (dock, roster, kartu) tetap pada ukurannya.
+    const onCtrlWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      // modal & daftar masih boleh scroll biasa; sisanya zoom dunia
+      const t = e.target;
+      if (t && t.closest && t.closest(".modal, .roster, input, textarea")) return;
+      if (rig.firstPerson) return;
+      e.preventDefault();
+      input.wheel = 0; // cegah zoom ganda dari handler wheel kanvas
+      const factor = Math.exp(THREE.MathUtils.clamp(e.deltaY, -240, 240) * 0.0016);
+      rig.zoomBy(factor);
+    };
+    window.addEventListener("wheel", onCtrlWheel, { passive: false });
+
     /* ------------------------------------------------------------- photo */
 
     function savePhoto() {

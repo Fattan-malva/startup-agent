@@ -378,6 +378,10 @@ export class HUD {
   hideLoader(delay = 0) {
     setTimeout(() => {
       this.dom.loader?.classList.add("is-done");
+      // tampilkan HUD + canvas hanya setelah loader mulai memudar,
+      // supaya tidak ada kedipan HTML/CSS yang belum terpasang
+      this.dom.root?.classList.add("is-ready");
+      this.dom.canvas?.classList.add("is-ready");
     }, delay);
   }
 

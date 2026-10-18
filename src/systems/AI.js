@@ -33,10 +33,10 @@ export class Brain {
   }
 
   _walkTo(target, running, via = null) {
-    const from = this._roomOf(this.c.position);
-    const to = this._roomOf(target);
-    const path = this.b.path(from, to, target);
-    if (via) path.splice(path.length - 1, 0, via);
+    // A* routing menangani pendekatan + menghindari tembok/perabot;
+    // titik via lama tidak diperlukan lagi.
+    void via;
+    const path = this.b.route(this.c.position, target);
     this.c.pose("stand");
     this.c.followPath(path, running);
   }
@@ -60,13 +60,33 @@ export class Brain {
     this.actTime = duration;
     this.c.status = status;
     if (pose === "sit" && this.goal && this.goal.seat) {
-      // don't snap into the chair: shuffle the last stretch onto the pad and
-      // let the critter sit when it gets there
-      this.c.seatInto(this.goal.target.x, this.goal.target.z, this.goal.yaw);
-      return;
+      return this._approachAndSit(this.goal.seat);
     }
+    pose = pose === "sit" ? "stand" : pose;
     this.c.pose(pose);
     if (this.goal && this.goal.yaw != null) this.c.targetYaw = this.goal.yaw;
+  }
+
+  /**
+   * Duduk yang wajar: kalau masih jauh dari kursi, JALAN NORMAL lewat rute
+   * A* sampai samping kursi (sel terjalan terdekat — tidak menembus
+   * perabot/tembok), baru melangkah pendek masuk ke pad duduk lalu berhenti.
+   */
+  _approachAndSit(seat) {
+    const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+    const dist = Math.hypot(spot.x - this.c.position.x, spot.z - this.c.position.z);
+    if (dist > 0.3 && !this.goal.sitNear) {
+      // fase pendekatan: ikuti rute sampai dekat kursi dulu
+      this.goal.sitNear = true;
+      this.stage = "travel";
+      this.c.status = "Menuju kursi";
+      const path = this.b.route(this.c.position, spot);
+      this.c.pose("stand");
+      this.c.followPath(path, false);
+      return;
+    }
+    // sudah dekat → langkah pendek masuk ke kursi lalu duduk
+    this.c.seatInto(spot.x, spot.z, this.goal.yaw);
   }
 
   /**
@@ -221,10 +241,10 @@ export class Brain {
         // arrived
         switch (this.goal.type) {
           case "work":
-            this._beginAct(18 + Math.random() * 24, pick(TYPING), "sit");
+            this._beginAct(18 + Math.random() * 24, pick(TYPING), this.goal.seat ? "sit" : "stand");
             break;
           case "meeting":
-            this._beginAct(24 + Math.random() * 24, "Rapat all-hands", "sit");
+            this._beginAct(24 + Math.random() * 24, "Rapat all-hands", this.goal.seat ? "sit" : "stand");
             break;
           case "wander":
             this._beginAct(2 + Math.random() * 4, pick(STROLL));
@@ -239,7 +259,9 @@ export class Brain {
             this._beginAct(5 + Math.random() * 5, "Menyiram tanaman 🌿", "stand");
             break;
           case "break":
-            this._beginAct(8 + Math.random() * 8, pick(BREAK), "sit");
+            // duduk hanya kalau benar-benar dapat kursi/sofa —
+            // jangan duduk melayang di tengah ruangan
+            this._beginAct(8 + Math.random() * 8, pick(BREAK), this.goal.seat ? "sit" : "stand");
             break;
           case "chat": {
             const p = this.partner;
@@ -275,4 +297,160 @@ export class Brain {
 
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/* ===================================================================== *
+ *  StaffBrain — otak ringan untuk NPC staf (barista cafe, resepsionis
+ *  lobby). Semua aktivitas dikunci di ruangannya sendiri: keliling
+ *  ruangan, duduk di sofa ruangan itu, dan sering kembali ke posnya.
+ *  Resepsionis punya seatType "reception" sehingga dia duduk di kursi
+ *  meja receptionis.
+ * ===================================================================== */
+export class StaffBrain {
+  constructor(critter, building, post, opts = {}) {
+    this.c = critter;
+    this.b = building;
+    this.post = post;
+    this.seatType = opts.seatType || null;
+    this.stage = "idle"; // idle | travel | act
+    this.goal = null;
+    this.seat = null;
+    this.actTime = 0;
+    this.cool = 2 + Math.random() * 3;
+    this.c.status = opts.homeStatus || "Siap melayani";
+  }
+
+  _inRoom(seat) {
+    return this.b.roomAt(seat.x, seat.z) === this.post.room;
+  }
+
+  _freeSeatInRoom(type = null) {
+    let pool = this.b.seats.filter((s) =>
+      this._inRoom(s) && (!type || s.type === type) && (!s.taken || s.taken === this.c));
+    if (!pool.length && type) {
+      // kursi utama (mis. meja receptionis) dipakai orang → cari sofa di ruangan ini
+      pool = this.b.seats.filter((s) =>
+        this._inRoom(s) && (s.type === "lounge" || s.type === "lunch") && !s.taken);
+    }
+    if (!pool.length) return null;
+    const seat = pool[Math.floor(Math.random() * pool.length)];
+    seat.taken = this.c;
+    return seat;
+  }
+
+  _releaseSeat() {
+    if (this.seat) {
+      this.b.releaseSeat(this.seat, this.c);
+      this.seat = null;
+    }
+  }
+
+  _travel(target, status, { seat = null, yaw = null, type = null } = {}) {
+    this.goal = { target, seat, yaw, type };
+    this.stage = "travel";
+    this.c.status = status;
+    const t = seat ? (seat.sit || seat) : target;
+    const path = this.b.route(this.c.position, t);
+    this.c.pose("stand");
+    this.c.followPath(path, false);
+  }
+
+  _choose() {
+    const roll = Math.random();
+    if (roll < 0.5) {
+      // kembali ke posnya; duduk di kursi utama bila masih kosong
+      const postSeat = this.seatType ? this._freeSeatInRoom(this.seatType) : null;
+      if (postSeat) {
+        this.seat = postSeat;
+        this._travel(
+          { x: this.post.x, z: this.post.z },
+          this.post.homeStatus || "Kembali ke pos",
+          { seat: postSeat },
+        );
+      } else {
+        this._travel(
+          { x: this.post.x, z: this.post.z },
+          this.post.homeStatus || "Balik ke pos",
+          { yaw: this.post.yaw },
+        );
+      }
+    } else if (roll < 0.78) {
+      // keliling DI DALAM ruangannya sendiri
+      const spot = this.b.randomSpot(this.post.room, { x: 0, z: 0 });
+      if (Math.abs(spot.x) < 0.01 && Math.abs(spot.z) < 0.01) {
+        return this._startAct(3, "Standby", "stand");
+      }
+      this._travel(spot, "Keliling ruangan", { type: "wander" });
+    } else {
+      // duduk santai di sofa/kursi ruangan ini
+      const seat = this._freeSeatInRoom();
+      if (seat) {
+        this.seat = seat;
+        this._travel(seat.sit || seat, "Istirahat bentar", { seat });
+      } else {
+        this._travel(
+          { x: this.post.x, z: this.post.z },
+          this.post.homeStatus || "Balik ke pos",
+          { yaw: this.post.yaw },
+        );
+      }
+    }
+  }
+
+  _startAct(duration, status, pose = "stand") {
+    this.stage = "act";
+    this.actTime = duration;
+    this.c.status = status;
+    if (pose === "sit" && this.goal?.seat) {
+      this._approachAndSit(this.goal.seat);
+      return;
+    }
+    this.c.pose("stand");
+    const yaw = this.goal?.yaw;
+    if (yaw != null) this.c.targetYaw = yaw;
+  }
+
+  /** Sama seperti Brain: dekati kursi lewat rute normal dulu, baru duduk. */
+  _approachAndSit(seat) {
+    const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+    const dist = Math.hypot(spot.x - this.c.position.x, spot.z - this.c.position.z);
+    if (dist > 0.3 && !this.goal.sitNear) {
+      this.goal.sitNear = true;
+      this.stage = "travel";
+      this.c.status = "Menuju kursi";
+      const path = this.b.route(this.c.position, spot);
+      this.c.pose("stand");
+      this.c.followPath(path, false);
+      return;
+    }
+    this.c.seatInto(spot.x, spot.z, seat.yaw);
+  }
+
+  _finish() {
+    this._releaseSeat();
+    this.goal = null;
+    this.stage = "idle";
+    this.c.pose("stand");
+    this.c.lookAt(null, null);
+    this.cool = 3 + Math.random() * 5;
+  }
+
+  update(dt) {
+    if (this.stage === "act") {
+      this.actTime -= dt;
+      if (this.actTime <= 0) this._finish();
+      return;
+    }
+    if (this.stage === "travel") {
+      if (this.c.pathDone) {
+        const g = this.goal;
+        if (g?.seat) this._startAct(10 + Math.random() * 16, "Duduk santai", "sit");
+        else if (g?.type === "wander") this._startAct(3 + Math.random() * 5, "Jalan-jalan bentar", "stand");
+        else this._startAct(4 + Math.random() * 6, this.post.homeStatus || "Standby", "stand");
+      }
+      return;
+    }
+    this.cool -= dt;
+    if (this.cool <= 0) this._choose();
+  }
 }

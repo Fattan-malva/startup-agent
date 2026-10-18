@@ -20,8 +20,10 @@ export function buildProps(c) {
   phone.name = "Smartphone";
   c.holdL.add(phone);
   const device = new THREE.Group();
-  device.position.set(0, 0.02, 0.002);
-  device.rotation.y = Math.PI;
+  // digeser ke bagian dalam (menuju tengah badan) supaya pas di telapak,
+  // tidak melayang di sisi luar tangan
+  device.position.set(-0.016, 0.02, 0.004);
+  device.rotation.set(0, Math.PI, -0.12);
   phone.add(device);
   add(device, new RoundedBoxGeometry(0.039, 0.075, 0.006, 3, 0.004), M(0x1d2128));
   add(device, new RoundedBoxGeometry(0.033, 0.066, 0.002, 2, 0.002), MB(0x8fb8d7), 0, 0, 0.004);

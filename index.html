@@ -3,12 +3,113 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <meta name="theme-color" content="#12161c" />
   <title>Critter Corp — Startup Miniatur</title>
   <meta name="description"
     content="Kantor startup 3D miniatur dengan pegawai yang bekerja mandiri. Buat karaktermu atau ambil alih pegawai mana pun." />
+  <!-- Critical inline CSS: mencegah kedipan HTML polos sebelum styles.css termuat.
+       Hanya menata loader + menyembunyikan HUD sampai aplikasi siap. -->
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0d10;
+      color: #f4f1ea;
+      font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* HUD + canvas disembunyikan sampai scene benar-benar siap */
+    #gl,
+    #hud {
+      visibility: hidden;
+    }
+
+    #gl.is-ready,
+    #hud.is-ready {
+      visibility: visible;
+    }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: grid;
+      place-items: center;
+      background: #0b0d10;
+      color: #f4f1ea;
+      transition: opacity .5s ease, visibility .5s ease;
+    }
+
+    #loader.is-done {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loader-inner {
+      width: min(360px, 82vw);
+      text-align: center;
+    }
+
+    .loader-dot {
+      display: block;
+      width: 9px;
+      height: 9px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: #e2b077;
+    }
+
+    .loader-name {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 38px;
+      font-weight: 400;
+      letter-spacing: .07em;
+    }
+
+    .loader-tag {
+      margin: 8px 0 26px;
+      font-size: 10.5px;
+      letter-spacing: .24em;
+      text-transform: uppercase;
+      color: #7e858f;
+    }
+
+    .loader-track {
+      height: 2px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, .09);
+      overflow: hidden;
+    }
+
+    .loader-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #8c6b43, #e2b077);
+      transition: width .45s cubic-bezier(.3, .9, .3, 1);
+    }
+
+    .loader-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 12px 0 0;
+      font-size: 11px;
+      color: #7e858f;
+    }
+
+    .loader-pct {
+      font-family: ui-monospace, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
 </head>
 
 <body>

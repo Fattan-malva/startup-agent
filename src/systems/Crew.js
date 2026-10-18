@@ -136,6 +136,58 @@ export class Crew {
       if (!c.controlled) this.brains.get(c)?.update(dt);
       c.update(dt, elapsed, this.building);
     }
+    this.separate();
+  }
+
+  /* ------------------------------------------------- anti tembus karakter */
+
+  /**
+   * Anti tembus antar karakter: pasangan yang tumpang tindih saling digeser
+   * keluar (masing-masing setengah jarak tumpang tindih), jadi saat
+   * ditabrak badannya Bergeser ke samping, bukan menembus.
+   * Yang duduk / sedang masuk kursi jadi jangkar: yang jalan-lah yang
+   * terdorong penuh, supaya orang yang duduk tidak lepas dari kursi.
+   */
+  separate(radius = 0.27) {
+    const bodies = this.members.concat(
+      (this.building.staffRoster ?? []).map((s) => s.critter),
+    );
+    const min = radius * 2;
+    for (let i = 0; i < bodies.length; i++) {
+      const a = bodies[i];
+      if (a._forced === "Death") continue;
+      const aAnchor = a.sitting || a._seating;
+      for (let j = i + 1; j < bodies.length; j++) {
+        const b = bodies[j];
+        if (b._forced === "Death") continue;
+        const bAnchor = b.sitting || b._seating;
+        if (aAnchor && bAnchor) continue;
+        let dx = b.position.x - a.position.x;
+        let dz = b.position.z - a.position.z;
+        let d = Math.hypot(dx, dz);
+        if (d >= min) continue;
+        if (d < 1e-5) {
+          const ang = (a.variant + 1) * 2.4;
+          dx = Math.cos(ang) * 1e-3;
+          dz = Math.sin(ang) * 1e-3;
+          d = 1e-3;
+        }
+        const push = (min - d) / d;
+        if (aAnchor) {
+          b.position.x += dx * push;
+          b.position.z += dz * push;
+        } else if (bAnchor) {
+          a.position.x -= dx * push;
+          a.position.z -= dz * push;
+        } else {
+          const half = push * 0.5;
+          a.position.x -= dx * half;
+          a.position.z -= dz * half;
+          b.position.x += dx * half;
+          b.position.z += dz * half;
+        }
+      }
+    }
   }
 
   roster() {

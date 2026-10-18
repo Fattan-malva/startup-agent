@@ -23,6 +23,7 @@ export class Player {
 
     this.controlled = null;
     this.walkTarget = null;
+    this._walkPath = null;
     this._dir = new THREE.Vector2();
     this._ax = new THREE.Vector2();
     this._tmp = new THREE.Vector3();
@@ -47,11 +48,12 @@ export class Player {
     if (this.controlled && this.controlled !== critter) this.crew.release(this.controlled);
     this.controlled = critter;
     this.crew.takeover(critter);
-    critter.walkScale = 1.6; // a hand on the wheel walks a bit brisker
+    critter.walkScale = 1.3; // a hand on the wheel walks a bit brisker
     critter.status = "Kamu kendalikan";
     // control the character: first-person camera in the world
     this.rig.enterFps(critter);
     this.walkTarget = null;
+    this._walkPath = null;
     this.fx?.setWalkTarget(null);
     this.hud?.setControlling({ name: critter.name, species: critter.speciesId, emoji: critter.spec.emoji });
     this.hud?.setFirstPerson(true);
@@ -68,6 +70,7 @@ export class Player {
     this.rig.follow(null);
     this.rig.overview();
     this.walkTarget = null;
+    this._walkPath = null;
     this.fx?.setWalkTarget(null);
     this.hud?.setControlling(null);
     this.hud?.setFirstPerson(false);
@@ -78,6 +81,9 @@ export class Player {
     if (!this.controlled) return;
     if (this.rig.firstPerson) return; // walking is WASD when you are inside
     this.walkTarget = { x: point.x, z: point.z };
+    // hitung rute sekali saat tujuan ditetapkan (A*), bukan tiap frame
+    this._walkPath = this.building.route(this.controlled.position, this.walkTarget);
+    this.controlled.followPath(this._walkPath, false);
     this.fx?.setWalkTarget(point);
   }
 
@@ -106,6 +112,7 @@ export class Player {
     const ax = this.input.moveAxis(this._ax);
     if (ax.x !== 0 || ax.y !== 0) {
       this.walkTarget = null;
+      this._walkPath = null;
       this.fx?.setWalkTarget(null);
       // camera-relative direction
       const sin = Math.sin(this.rig.yaw);
@@ -114,18 +121,21 @@ export class Player {
       const dz = -sin * ax.x - cos * ax.y;
       c.moveDir(dx, dz, this.input.running);
       c.status = this.input.running ? "Buru-buru! 🏃" : "Berkeliling";
-    } else if (this.walkTarget) {
-      const from = this.building.roomAt(c.position.x, c.position.z);
-      const to = this.building.roomAt(this.walkTarget.x, this.walkTarget.z);
-      const path = this.building.path(from, to, this.walkTarget);
+    } else if (this.walkTarget && this._walkPath) {
+      const path = this._walkPath;
       const last = path[path.length - 1];
-      if (Math.hypot(last.x - c.position.x, last.z - c.position.z) < 0.35) {
+      const arrived = Math.hypot(last.x - c.position.x, last.z - c.position.z) < 0.3
+        || (c.pathDone && !c.path);
+      if (arrived) {
         this.walkTarget = null;
+        this._walkPath = null;
         this.fx?.setWalkTarget(null);
         c.moveDir(0, 0);
         c.status = "Sampai tujuan";
-      } else {
-        c.followPath(path, false);
+      } else if (c.pathDone && !c.path) {
+        // jalur habis tapi belum di titik akhir → hitung ulang sekali
+        this._walkPath = this.building.route(c.position, this.walkTarget);
+        c.followPath(this._walkPath, false);
         c.status = "Jalan ke tujuan";
       }
     } else {

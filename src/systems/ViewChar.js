@@ -17,7 +17,7 @@ export class ViewChar {
     this.critter = null;
     this.running = false;
     this._rotY = 0;
-    this._rotX = 0;
+    this._rotX = 0.25;
     this._zoom = 3.4;
     this._dragging = false;
     this._lastX = 0;
@@ -76,6 +76,9 @@ export class ViewChar {
       this.canvas.addEventListener("pointermove", (e) => {
         if (!this._dragging) return;
         this._rotY += (e.clientX - this._lastX) * 0.012;
+        this._rotX = THREE.MathUtils.clamp(
+          this._rotX + (e.clientY - this._lastY) * 0.008, 0.02, 0.95,
+        );
         this._lastX = e.clientX;
         this._lastY = e.clientY;
         this._autoRotate = false;
@@ -117,7 +120,7 @@ export class ViewChar {
     this.scene.add(c.root);
     this.critter = c;
     this._rotY = 0;
-    this._rotX = 0;
+    this._rotX = 0.25;
     this._zoom = 3.4;
     this._autoRotate = true;
 
@@ -146,11 +149,24 @@ export class ViewChar {
     this._lastT = now;
     if (this.critter) {
       if (this._autoRotate && !this._dragging) this._rotY += dt * 0.6;
-      this.critter.root.rotation.y = this._rotY;
       this.critter.update(dt, now / 1000, null);
+      // Critter.update() menimpa root.rotation.y dengan yaw internalnya setiap
+      // frame — override SETELAH update supaya drag putaran benar-benar
+      // terlihat (badan samping & belakang bisa dilihat).
+      this.critter.yaw = this._rotY;
+      this.critter.targetYaw = this._rotY;
+      this.critter.root.rotation.y = this._rotY;
     }
-    this.camera.position.set(0, 1.4, this._zoom);
-    this.camera.lookAt(0, 0.95, 0);
+    // orbit kamera di sekeliling karakter; drag vertikal memutar sudut pandang
+    const r = this._zoom;
+    const pitch = this._rotX;
+    const targetY = 0.95;
+    this.camera.position.set(
+      0,
+      targetY + Math.sin(pitch) * r,
+      Math.cos(pitch) * r,
+    );
+    this.camera.lookAt(0, targetY, 0);
     this.renderer.render(this.scene, this.camera);
   }
 

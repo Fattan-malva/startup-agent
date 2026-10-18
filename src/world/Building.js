@@ -4,6 +4,7 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { MAT } from "./materials.js";
 import { mulberry32 } from "./textures.js";
 import { Critter } from "../character/Critter.js";
+import { StaffBrain } from "../systems/AI.js";
 import {
   box,
   cyl,
@@ -112,6 +113,8 @@ export class Building {
 
     this.staffPosts = {};
     this.staffCritters = {};
+    // pasangan critter + StaffBrain yang berkeliling dalam ruangannya
+    this.staffRoster = [];
 
     this._v = new THREE.Vector3();
     this._c = new THREE.Color();
@@ -644,7 +647,8 @@ export class Building {
     // Bin cafe — pojok tenggara.
     this._static(createBin(), 2.7, -1.15, 0);
 
-    // Barista cafe.
+    // Barista cafe — keliling cafe & duduk di sofanya, tapi selalu kembali
+    // ke belakang konter.
     this._spawnStaffCritter({
       id: "barista",
       name: "Barista",
@@ -657,6 +661,7 @@ export class Building {
       hotspotMessage: "Barista: pesanan dicatat, silakan tunggu di lounge ☕",
       radius: 1.1,
       room: "cafe",
+      homeStatus: "Menyeduh kopi ☕",
     });
 
     /* ================= LOBBY ================= */
@@ -670,6 +675,7 @@ export class Building {
     });
     this._deskChair(-8.35, 2.45, Math.PI, { color: "navy", type: "reception", gap: 0.78 });
 
+    // Resepsionis lobby — keliling lobby & duduk di kursi receptionisnya
     this._spawnStaffCritter({
       id: "receptionist",
       name: "Resepsionis",
@@ -682,6 +688,8 @@ export class Building {
       hotspotMessage: "Resepsionis: selamat datang di Critter Corp. Ada yang bisa dibantu?",
       radius: 1.4,
       room: "lobby",
+      seatType: "reception",
+      homeStatus: "Menunggu tamu 🛎️",
     });
 
     this._static(createSofa({ width: 1.72, depth: 0.78 }), -5.35, 5.95, Math.PI);
@@ -833,6 +841,9 @@ export class Building {
     hotspotMessage,
     radius = 1.2,
     room,
+    seatType = null,      // mis. "reception" → staf duduk di kursi posnya
+    homeStatus = null,
+    wanderRadius = 5,     // radius merdeka berkeliling (di clamp ruangan saja)
   }) {
     const critter = new Critter({
       species: "staff",
@@ -842,8 +853,11 @@ export class Building {
       variant,
     });
 
+    // penanda "live" supaya root ini tidak ikut digabung ke mesh statis;
+    // update sesungguhnya dilakukan Building lewat staffRoster
     critter.root.userData.interactionManaged = true;
-    critter.root.userData.update = (dt, elapsed) => critter.update(dt, elapsed, null);
+    critter.root.userData.liveMarker = true;
+    critter.root.userData.update = () => {};
 
     this._static(critter.root, x, z, yaw);
     critter.teleport(x, z, yaw);
@@ -856,13 +870,18 @@ export class Building {
       onClick: () => hotspotMessage,
     });
 
-    this.staffPosts[id] = {
+    const post = {
       room,
       x, z, yaw,
-      radius,
-      allowRooms: [room],
+      radius: wanderRadius,
+      homeStatus: homeStatus || "Standby",
     };
+    this.staffPosts[id] = post;
     this.staffCritters[id] = critter;
+
+    const brain = new StaffBrain(critter, this, post, { seatType, homeStatus });
+    this.staffRoster.push({ critter, brain, postId: id });
+    critter.brain = brain;
 
     return critter;
   }
@@ -1180,6 +1199,197 @@ export class Building {
     return true;
   }
 
+  /* ----------------------------------------------------- navigation (A*) */
+
+  /**
+   * Grid jalan-pakai halus (0.25 m): sel di dalam lantai yang bebas dari
+   * tembok & perabot (sudah memperhitungkan radius tubuh 0.30 m). Pintu
+   * otomatis jadi celah karena tembok dibangun per-span dengan celah pintu.
+   */
+  _navEnsure() {
+    if (this._nav) return this._nav;
+    const cell = 0.25;
+    const x0 = this.bounds.x0, x1 = this.bounds.x1;
+    const z0 = this.bounds.z0, z1 = this.bounds.z1;
+    const nx = Math.max(1, Math.round((x1 - x0) / cell));
+    const nz = Math.max(1, Math.round((z1 - z0) / cell));
+    const walk = new Uint8Array(nx * nz);
+    const R = 0.30;
+    for (let j = 0; j < nz; j++) {
+      for (let i = 0; i < nx; i++) {
+        const x = x0 + (i + 0.5) * cell;
+        const z = z0 + (j + 0.5) * cell;
+        // jaga jarak dari cangkang lantai (sinkron dengan clampToFloor)
+        if (x < x0 + 0.42 || x > x1 - 0.42 || z < z0 + 0.42 || z > z1 - 0.42) continue;
+        walk[j * nx + i] = this.isFree(x, z, R) ? 1 : 0;
+      }
+    }
+    this._nav = { cell, x0, z0, nx, nz, walk };
+    return this._nav;
+  }
+
+  /** Sel jalan-pakai terdekat dari titik mana pun ( Spiral search kecil). */
+  _nearestWalkable(x, z, nav, maxRadius = 1.25) {
+    const { cell, x0, z0, nx, nz, walk } = nav;
+    const ci = THREE.MathUtils.clamp(Math.floor((x - x0) / cell), 0, nx - 1);
+    const cj = THREE.MathUtils.clamp(Math.floor((z - z0) / cell), 0, nz - 1);
+    if (walk[cj * nx + ci]) {
+      return { i: cj * nx + ci, x: x0 + (ci + 0.5) * cell, z: z0 + (cj + 0.5) * cell };
+    }
+    const maxR = Math.ceil(maxRadius / cell);
+    for (let r = 1; r <= maxR; r++) {
+      for (let dj = -r; dj <= r; dj++) {
+        for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          const X = ci + di, Z = cj + dj;
+          if (X < 0 || Z < 0 || X >= nx || Z >= nz) continue;
+          if (!walk[Z * nx + X]) continue;
+          return { i: Z * nx + X, x: x0 + (X + 0.5) * cell, z: z0 + (Z + 0.5) * cell };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Benang penglihatan: apakah garis A→B bebas rintangan? */
+  _lineFree(ax, az, bx, bz, radius = 0.30) {
+    const d = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(d / 0.14));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      if (!this.isFree(ax + (bx - ax) * t, az + (bz - az) * t, radius)) return false;
+    }
+    return true;
+  }
+
+  /** Sederhanakan jalur sel dengan string-pulling agar tidak bergerigi. */
+  _simplify(points) {
+    const out = [];
+    let cursor = 0;
+    let a = points[0];
+    out.push(a);
+    while (cursor < points.length - 1) {
+      let j = points.length - 1;
+      while (j > cursor + 1 && !this._lineFree(a.x, a.z, points[j].x, points[j].z)) j--;
+      cursor = j;
+      a = points[j];
+      out.push(a);
+    }
+    return out;
+  }
+
+  /** A* 8-arah di atas grid; mengembalikan deretan indeks sel atau null. */
+  _navSearch(nav, startI, goalI) {
+    const { nx, nz, walk } = nav;
+    const total = nx * nz;
+    const gCost = new Float32Array(total).fill(Infinity);
+    const parent = new Int32Array(total).fill(-1);
+    const goalX = goalI % nx;
+    const goalZ = (goalI / nx) | 0;
+
+    // binary heap kecil (indeks & skor paralel)
+    const hI = [];
+    const hF = [];
+    const swap = (a, b) => {
+      [hI[a], hI[b]] = [hI[b], hI[a]];
+      [hF[a], hF[b]] = [hF[b], hF[a]];
+    };
+    const push = (i, f) => {
+      hI.push(i); hF.push(f);
+      let c = hI.length - 1;
+      while (c > 0) {
+        const p = (c - 1) >> 1;
+        if (hF[p] <= hF[c]) break;
+        swap(p, c); c = p;
+      }
+    };
+    const pop = () => {
+      const top = hI[0];
+      const li = hI.length - 1;
+      hI[0] = hI[li]; hF[0] = hF[li];
+      hI.pop(); hF.pop();
+      let c = 0;
+      for (;;) {
+        const l = c * 2 + 1, r = l + 1;
+        let m = c;
+        if (l < hI.length && hF[l] < hF[m]) m = l;
+        if (r < hI.length && hF[r] < hF[m]) m = r;
+        if (m === c) break;
+        swap(m, c); c = m;
+      }
+      return top;
+    };
+
+    const DIRS = [
+      [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
+      [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2],
+    ];
+
+    gCost[startI] = 0;
+    push(startI, 0);
+    let found = false;
+    let guard = total * 8;
+    while (hI.length && guard-- > 0) {
+      const i = pop();
+      if (i === goalI) { found = true; break; }
+      const cx = i % nx, cz = (i / nx) | 0;
+      for (const [dx, dz, cost] of DIRS) {
+        const X = cx + dx, Z = cz + dz;
+        if (X < 0 || Z < 0 || X >= nx || Z >= nz) continue;
+        const nI = Z * nx + X;
+        if (!walk[nI]) continue;
+        // larang memotong sudut: kedua tetangga ortogonal harus jalan
+        if (dx !== 0 && dz !== 0 && (!walk[cz * nx + X] || !walk[Z * nx + cx])) continue;
+        const ng = gCost[i] + cost;
+        if (ng < gCost[nI]) {
+          gCost[nI] = ng;
+          parent[nI] = i;
+          const hx = Math.abs(X - goalX), hz = Math.abs(Z - goalZ);
+          const mx = Math.max(hx, hz), mn = Math.min(hx, hz);
+          push(nI, ng + (mx + 0.4142 * mn) * 1.001); // tie-break halus
+        }
+      }
+    }
+    if (!found) return null;
+    const cells = [];
+    for (let i = goalI; i !== -1; i = parent[i]) cells.push(i);
+    cells.reverse();
+    return cells;
+  }
+
+  /**
+   * Rute pintar dari posisi `from` ke `target`: garis lurus bila bebas,
+   * selain itu A* grid → sederhanakan. Karakter otomatis menghindari
+   * tembok & semua perabot alih-alih memaksakan jalan menempel.
+   */
+  route(from, target) {
+    const fallback = [{ x: target.x, z: target.z }];
+    if (this._lineFree(from.x, from.z, target.x, target.z, 0.30)) return fallback;
+
+    const nav = this._navEnsure();
+    const start = this._nearestWalkable(from.x, from.z, nav);
+    const goal = this._nearestWalkable(target.x, target.z, nav);
+    if (!start || !goal) return fallback; // pola lama sebagai jaring pengaman
+
+    const cells = start.i !== goal.i ? this._navSearch(nav, start.i, goal.i) : null;
+    if (!cells) {
+      return this._lineFree(start.x, start.z, goal.x, goal.z, 0.24)
+        ? [{ x: goal.x, z: goal.z }]
+        : fallback;
+    }
+    const pts = cells.map((i) => ({
+      x: nav.x0 + ((i % nav.nx) + 0.5) * nav.cell,
+      z: nav.z0 + (((i / nav.nx) | 0) + 0.5) * nav.cell,
+    }));
+    const simp = this._simplify(pts).slice(1); // buang sel posisi awal
+    const out = simp.map((p) => ({ x: p.x, z: p.z }));
+
+    // tujuan presisi hanya jika memang bisa dipijak (kursi ≠ titik jalan);
+    // kalau tidak, rute berhenti di sel terdekat dan duduk menyusul lewat seatInto
+    if (this.isFree(target.x, target.z, 0.18)) out.push({ x: target.x, z: target.z });
+    return out.length ? out : fallback;
+  }
+
   path(fromRoomId, toRoomId, target) {
     const pts = [];
     if (fromRoomId !== toRoomId) {
@@ -1259,6 +1469,12 @@ export class Building {
     }
     for (let i = 0; i < this.tickers.length; i++) {
       this.tickers[i].userData.update?.(dt, elapsed);
+    }
+    // staf: otak sendiri, lalu badan dengan collision + kunci pos ruangan
+    for (const s of this.staffRoster) {
+      s.brain.update(dt);
+      s.critter.update(dt, elapsed, this);
+      this.clampToStaffPost(s.postId, s.critter.position, 0.35);
     }
   }
 }
