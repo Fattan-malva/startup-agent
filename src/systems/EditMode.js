@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { MAT } from "../world/materials.js";
-import { DEFAULT_EDITS } from "../world/defaultEdits.js";
+import { DEFAULT_EDITS } from "../data/defaultEdits.js";
 
 /* ===================================================================== *
  *  EditMode — tata ulang perabot ala editor.
@@ -16,7 +16,7 @@ import { DEFAULT_EDITS } from "../world/defaultEdits.js";
  * ===================================================================== */
 
 // Tata ruang disimpan sebagai file JSON di repo (bukan localStorage).
-// Dev server menulis src/world/layout.default.json lewat endpoint ini.
+// Dev server menulis src/data/layout.default.json lewat endpoint ini.
 const LAYOUT_URL = "/__layout";
 const SNAP = 0.25;              // grid snap (meter) — fallback lama
 const PICK_PERIOD = 1 / 30;     // hover raycast throttle

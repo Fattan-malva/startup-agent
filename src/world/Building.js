@@ -1737,7 +1737,7 @@ export class Building {
 
   /**
    * Snapshot LENGKAP tata ruang (semua perabot, bukan hanya yang berubah).
-   * Dipakai untuk menulis src/world/layout.default.json dari Mode Edit:
+   * Dipakai untuk menulis src/data/layout.default.json dari Mode Edit:
    * siapa pun yang pull repo langsung memakai tata ruang ini.
    */
   serializeLayout() {

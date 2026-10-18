@@ -2,7 +2,7 @@
  * Dipakai sebagai titik awal & titik "Reset": semua posisi di sini sudah
  * lolos uji kursi + jalur. Jangan ubah tanpa menjalankan diag-seats/diag-edit.
  *
- * Sumbernya adalah src/world/layout.default.json: file ini ditulis ulang
+ * Sumbernya adalah src/data/layout.default.json: file ini ditulis ulang
  * otomatis oleh Mode Edit (tombol Simpan / auto-save), sehingga siapa pun
  * yang pull repo langsung memakai tata ruang terbaru.
  */

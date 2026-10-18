@@ -4,7 +4,42 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LAYOUT_FILE = path.join(__dirname, "src", "world", "layout.default.json");
+const LAYOUT_FILE = path.join(__dirname, "src", "data", "layout.default.json");
+
+const STAFF_FILE = path.join(__dirname, "src", "data", "staff.json");
+
+function staffSavePlugin() {
+  return {
+    name: "atelier-staff-save",
+    configureServer(server) {
+      server.middlewares.use("/__staff", (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ ok: false, error: "method not allowed" }));
+          return;
+        }
+        let body = "";
+        req.on("data", (c) => { body += c; if (body.length > 2_000_000) req.destroy(); });
+        req.on("end", () => {
+          try {
+            const data = JSON.parse(body);
+            if (!Array.isArray(data)) throw new Error("staff harus array");
+            const out = JSON.stringify(data, null, 2) + "\n";
+            fs.mkdirSync(path.dirname(STAFF_FILE), { recursive: true });
+            fs.writeFileSync(STAFF_FILE, out, "utf8");
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ ok: true, bytes: out.length }));
+          } catch (err) {
+            res.statusCode = 400;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ ok: false, error: String(err?.message || err) }));
+          }
+        });
+      });
+    },
+  };
+}
 
 function layoutSavePlugin() {
   return {
@@ -46,7 +81,7 @@ function layoutSavePlugin() {
 
 export default defineConfig({
   base: "./",
-  plugins: [layoutSavePlugin()],
+  plugins: [layoutSavePlugin(), staffSavePlugin()],
   server: {
     port: 5173,
     open: false,

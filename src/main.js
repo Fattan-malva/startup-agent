@@ -24,6 +24,7 @@ import { Input } from "./systems/Input.js";
 import { TopCamera } from "./systems/TopCamera.js";
 import { Player } from "./systems/Player.js";
 import { Interaction } from "./systems/Interaction.js";
+import { StaffModal } from "./systems/StaffModal.js";
 import { EditMode } from "./systems/EditMode.js";
 import { HUD } from "./ui/HUD.js";
 import { ViewChar } from "./systems/ViewChar.js";
@@ -104,7 +105,8 @@ async function boot() {
         }
       },
     });
-    crew.populate(POPULATION);
+    crew.populateFromStaff();
+    const staffModal = new StaffModal({ building, crew, hud });
 
     const meeting = new Meeting({ building, crew });
 
@@ -131,6 +133,7 @@ async function boot() {
       rig,
       player,
       onPossess: (critter) => player.possess(critter),
+      onStaffModal: () => staffModal?.open(),
     });
 
     /* ------------------------------------------------------------- state */
@@ -185,6 +188,9 @@ async function boot() {
       switch (name) {
         case "spawn-open":
           hud.toggleSpawn(true);
+          break;
+        case "staff-open":
+          staffModal?.open();
           break;
         case "spawn-close":
           hud.toggleSpawn(false);
@@ -475,7 +481,7 @@ async function boot() {
       player.update(dt); // drive the body first, then let it step
       crew.update(dt, elapsed);
       meeting.update(dt);
-      rig.suppressDragPan = edit.dragging || !!edit.pressedItem;
+      rig.suppressDragPan = edit.dragging || !!edit.pressedItem || hud.modalOpen;
       rig.update(dt, input, player.active);
       fx.update(dt, elapsed);
 

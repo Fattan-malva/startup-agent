@@ -157,6 +157,9 @@
     <aside id="roster" class="panel roster" aria-label="Daftar pegawai">
       <div class="roster-head">
         <span class="roster-title">Tim</span>
+        <button class="card-close is-static" type="button" aria-label="Manajemen staf" data-action="staff-open" title="Manajemen staf HR">
+          <i data-lucide="settings"></i>
+        </button>
         <button class="card-close is-static" type="button" aria-label="Tutup daftar" data-action="roster">
           &times;
         </button>
@@ -214,7 +217,64 @@
       <input type="file" id="edit-file" accept="application/json,.json" hidden />
     </aside>
 
-    <!-- first-person crosshair (only visible while controlling a character) -->
+    <!-- staff management modal -->
+    <div id="staff-modal" class="modal" role="dialog" aria-modal="true" aria-label="Manajemen staf HR">
+      <div class="modal-card staff-modal-card">
+        <button class="card-close" type="button" aria-label="Tutup" data-action="staff-close">&times;</button>
+        <p class="card-kicker">People Ops</p>
+        <h2 class="modal-title">Manajemen staf</h2>
+        <p class="modal-lead">Kelola profil dan model karakter staf kantor.</p>
+        <div class="staff-modal-body">
+          <aside class="staff-sidebar">
+            <button class="btn is-accent" type="button" data-action="staff-new">+ Staf baru</button>
+            <ul id="staff-list" class="staff-list"></ul>
+          </aside>
+          <section class="staff-content">
+            <div class="staff-tabs">
+              <button class="seg-item is-active" type="button" data-action="staff-tab" data-value="profile">Profil</button>
+              <button class="seg-item" type="button" data-action="staff-tab" data-value="model">Model</button>
+            </div>
+            <div id="staff-form-profile" class="staff-form">
+              <label>Nama <input id="staff-name" type="text" /></label>
+              <label>Jabatan <input id="staff-title" type="text" /></label>
+              <label>Departemen
+                <select id="staff-dept"></select>
+              </label>
+              <label>Meja
+                <select id="staff-desk"></select>
+              </label>
+            </div>
+            <div id="staff-form-model" class="staff-form" hidden>
+              <label>Spesies
+                <select id="staff-species"></select>
+              </label>
+              <label>Warna dasi <input id="staff-tie" type="color" /></label>
+            </div>
+            <div class="staff-actions">
+              <button class="btn" type="button" data-action="staff-save">Simpan</button>
+              <button class="btn chip--danger" type="button" data-action="staff-delete">Hapus</button>
+            </div>
+          </section>
+          <aside class="staff-preview">
+            <canvas id="staff-preview-canvas" class="viewchar-canvas" width="260" height="320"></canvas>
+            <div class="staff-preview-menus">
+              <label>Kulit <input id="staff-skin" type="color" /></label>
+              <label>Baju <input id="staff-shirt" type="color" /></label>
+              <label>Celana <input id="staff-pants" type="color" /></label>
+              <label>Aksesoris
+                <select id="staff-accessory">
+                  <option value="none">Tanpa</option>
+                  <option value="glasses">Kacamata</option>
+                  <option value="hat">Topi</option>
+                  <option value="headset">Headset</option>
+                </select>
+              </label>
+            </div>
+            <p class="staff-preview-hint">Preview karakter</p>
+          </aside>
+        </div>
+      </div>
+    </div>
     <div id="crosshair" class="crosshair" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
       <i class="crosshair-dot"></i>

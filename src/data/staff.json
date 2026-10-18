@@ -1,0 +1,137 @@
+[
+  {
+    "id": "staff-001",
+    "name": "Alya Pratama",
+    "title": "Frontend Engineer",
+    "department": "Engineering",
+    "roomId": "developer",
+    "deskId": "p67",
+    "model": { "species": "developer", "tieColor": 4685926 }
+  },
+  {
+    "id": "staff-002",
+    "name": "Bagas Wicaksono",
+    "title": "Backend Engineer",
+    "department": "Engineering",
+    "roomId": "developer",
+    "deskId": "p69",
+    "model": { "species": "developer", "tieColor": 4685926 }
+  },
+  {
+    "id": "staff-003",
+    "name": "Citra Maheswari",
+    "title": "QA Engineer",
+    "department": "Engineering",
+    "roomId": "developer",
+    "deskId": "p71",
+    "model": { "species": "analyst", "tieColor": 4685926 }
+  },
+  {
+    "id": "staff-004",
+    "name": "Dimas Saputra",
+    "title": "DevOps Engineer",
+    "department": "Engineering",
+    "roomId": "developer",
+    "deskId": "p73",
+    "model": { "species": "operator", "tieColor": 4685926 }
+  },
+  {
+    "id": "staff-005",
+    "name": "Eka Rahmawati",
+    "title": "UI/UX Designer",
+    "department": "Design",
+    "roomId": "studio",
+    "deskId": null,
+    "model": { "species": "designer", "tieColor": 12941908 }
+  },
+  {
+    "id": "staff-006",
+    "name": "Fajar Nugroho",
+    "title": "Brand Designer",
+    "department": "Design",
+    "roomId": "studio",
+    "deskId": null,
+    "model": { "species": "creator", "tieColor": 12941908 }
+  },
+  {
+    "id": "staff-007",
+    "name": "Gita Permata",
+    "title": "HR Generalist",
+    "department": "People",
+    "roomId": "hr",
+    "deskId": "p133",
+    "model": { "species": "people", "tieColor": 14048913 }
+  },
+  {
+    "id": "staff-008",
+    "name": "Hendra Kusuma",
+    "title": "Recruiter",
+    "department": "People",
+    "roomId": "hr",
+    "deskId": null,
+    "model": { "species": "people", "tieColor": 14048913 }
+  },
+  {
+    "id": "staff-009",
+    "name": "Indra Wijaya",
+    "title": "CEO",
+    "department": "Executive",
+    "roomId": "ceo",
+    "deskId": "p150",
+    "model": { "species": "finance", "tieColor": 7577040 }
+  },
+  {
+    "id": "staff-010",
+    "name": "Jasmine Aulia",
+    "title": "Executive Assistant",
+    "department": "Executive",
+    "roomId": "ceo",
+    "deskId": null,
+    "model": { "species": "product", "tieColor": 7577040 }
+  },
+  {
+    "id": "staff-011",
+    "name": "Kurnia Adi",
+    "title": "Operations Lead",
+    "department": "Operations",
+    "roomId": "staff",
+    "deskId": "p107",
+    "model": { "species": "operator", "tieColor": 9214393 }
+  },
+  {
+    "id": "staff-012",
+    "name": "Laras Setyani",
+    "title": "Admin Officer",
+    "department": "Operations",
+    "roomId": "staff",
+    "deskId": "p109",
+    "model": { "species": "intern", "tieColor": 9214393 }
+  },
+  {
+    "id": "staff-013",
+    "name": "Miko Prasetyo",
+    "title": "Data Analyst",
+    "department": "Growth",
+    "roomId": "staff",
+    "deskId": "p111",
+    "model": { "species": "analyst", "tieColor": 5217144 }
+  },
+  {
+    "id": "staff-014",
+    "name": "Nadia Fitri",
+    "title": "Marketing Specialist",
+    "department": "Growth",
+    "roomId": "lobby",
+    "deskId": null,
+    "model": { "species": "growth", "tieColor": 5217144 }
+  },
+  {
+    "id": "staff-015",
+    "name": "Omar Fadhil",
+    "title": "Finance Officer",
+    "department": "Finance",
+    "roomId": "staff",
+    "deskId": "p113",
+    "model": { "species": "finance", "tieColor": 7577040 }
+  }
+]

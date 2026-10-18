@@ -10,7 +10,7 @@ import * as THREE from "three";
 const HOVER_PERIOD = 1 / 30;
 
 export class Interaction {
-  constructor({ camera, building, crew, input, fx, hud, rig, player, onPossess = null, onSpawnRequest = null }) {
+  constructor({ camera, building, crew, input, fx, hud, rig, player, onPossess = null, onSpawnRequest = null, onStaffModal = null }) {
     this.camera = camera;
     this.building = building;
     this.crew = crew;
@@ -21,6 +21,7 @@ export class Interaction {
     this.player = player;
     this.onPossess = onPossess;
     this.onSpawnRequest = onSpawnRequest;
+    this.onStaffModal = onStaffModal;
 
     this.enabled = true;
     this.hovered = null;
@@ -176,6 +177,11 @@ export class Interaction {
     const prop = this._interactiveOf(hit);
     if (prop) {
       const meta = prop.userData.interactive;
+      if (meta.openStaffModal) {
+        this.onStaffModal?.();
+        this.hud.hideTooltip();
+        return;
+      }
       // Semua kursi bisa diklik untuk diduduki (pemain yang sedang
       // mengendalikan tubuh). Kartu biasa hanya kalau tidak ada kursi.
       if (meta.seat && this.player?.active) {

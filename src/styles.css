@@ -1274,3 +1274,19 @@ kbd {
   border-color: rgba(255, 110, 92, 0.7);
   background: rgba(255, 110, 92, 0.22);
 }
+/* staff modal */
+.modal-card.staff-modal-card { width: min(1100px, 96vw); max-height: 88vh; overflow: auto; }
+.staff-modal-body { display: grid; grid-template-columns: 220px 1fr 260px; gap: 14px; margin-top: 10px; }
+.staff-sidebar, .staff-content, .staff-preview { background: rgba(255,255,255,.03); border: 1px solid var(--hair); border-radius: 10px; padding: 10px; }
+.staff-list { list-style: none; padding: 0; margin: 8px 0 0; max-height: 50vh; overflow: auto; }
+.staff-item { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.staff-item.is-active { background: rgba(255,255,255,.08); }
+.staff-form { display: grid; gap: 8px; }
+.staff-form label { display: grid; gap: 4px; font-size: 11px; color: var(--ink-soft); }
+.staff-form input, .staff-form select { padding: 6px 8px; border-radius: 6px; border: 1px solid var(--hair); background: rgba(0,0,0,.2); color: var(--ink); }
+.staff-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.staff-actions { display: flex; gap: 8px; margin-top: 8px; }
+.staff-preview { display: grid; place-items: center; }
+.staff-preview-hint { font-size: 10px; color: var(--ink-mute); margin: 4px 0 0; }
+.roster-head { display: flex; align-items: center; gap: 6px; }
+.roster-head .card-close svg { width: 14px; height: 14px; }
