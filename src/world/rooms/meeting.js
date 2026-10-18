@@ -25,7 +25,7 @@ export function build(b) {
   );
 
   const sideSeatXs = [-1.92, -0.96, 0, 0.96, 1.92];
-  for (const dz of [-0.9, 0.9]) {
+  for (const dz of [-1.12, 1.12]) {
     const yaw = dz > 0 ? Math.PI : 0;
     for (let i = 0; i < sideSeatXs.length; i++) {
       const dx = sideSeatXs[i];
@@ -54,7 +54,7 @@ export function build(b) {
   b._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "wood" }), -9.4, -5.8, Math.PI / 2);
   b._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "light" }), -9.4, -2.0, Math.PI / 2);
 
-  b._plant(-9.2, -1.5, 0, { variant: 1, scale: 0.7, seed: 31 });
+  b._plant(-8.7, -1.5, 0, { variant: 1, scale: 0.7, seed: 31 });
   // Bin meeting — pojok tenggara; digeser sedikit dari sekat kaca (muka -1.07).
   b._static(createBin(), -1.5, -1.5, 0);
 

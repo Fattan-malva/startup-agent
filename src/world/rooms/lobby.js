@@ -54,7 +54,7 @@ export function build(b) {
     hint: "Klik untuk mengganti tampilan", radius: 0.85,
     onClick: () => { recMon.userData.api.cycle(); return "Daftar tamu diperbarui"; },
   });
-  b._deskChair(-8.35, 2.45, Math.PI, { color: "navy", type: "reception", gap: 0.78 });
+  b._deskChair(-8.35, 2.45, Math.PI, { color: "navy", type: "reception", gap: 1.05 });
 
   // Resepsionis lobby — keliling lobby & duduk di kursi receptionisnya
   b._spawnStaffCritter({
@@ -76,14 +76,14 @@ export function build(b) {
   b._static(createSofa({ width: 1.72, depth: 0.78 }), -5.35, 5.95, Math.PI);
   b._seat(-5.35, 5.95, Math.PI, "lounge");
   b._static(createCoffeeTable({ r: 0.34 }), -5.35, 4.72, 0);
-  b._static(createArmchair({ color: "sand" }), -4.05, 4.95, -Math.PI / 2);
-  b._seat(-4.05, 4.95, -Math.PI / 2, "lounge");
-  b._static(createBench({ w: 0.95, d: 0.38, h: 0.44 }), -8.55, 5.8, 0);
+  b._static(createArmchair({ color: "sand" }), -3.75, 4.95, -Math.PI / 2);
+  b._seat(-3.75, 4.95, -Math.PI / 2, "lounge");
+  b._static(createBench({ w: 0.95, d: 0.38, h: 0.48 }), -8.55, 5.8, 0);
   b._static(createBookshelf({ width: 0.82, height: 1.45, depth: 0.28, shelves: 4 }), -9.48, 6.05, Math.PI / 2);
-  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), -6.55, 6.1, 0);
-  b._static(createWallArt({ w: 0.62, h: 0.78, variant: 3 }), -6.2, 6.82, Math.PI, 0.65, { w: 0.1, d: 0.78 });
+  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), -6.75, 6.1, 0);
+  b._static(createWallArt({ w: 0.62, h: 0.78, variant: 3 }), -6.2, 6.82, Math.PI, 0.65, { w: 0.68, d: 0.1 });
   b._plant(-9.25, 1.55, 0, { variant: 0, scale: 0.72, seed: 55 });
-  b._static(createMagazineRack({ w: 0.5, h: 0.68, d: 0.24 }), -3.55, 2.0, Math.PI / 2);
+  b._static(createMagazineRack({ w: 0.5, h: 0.68, d: 0.24 }), -4.0, 2.0, Math.PI / 2);
   // Bin lobby — pojok timur laut (jauh dari muka dinding koridor 1.12).
   b._static(createBin(), -3.3, 1.45, 0);
 }

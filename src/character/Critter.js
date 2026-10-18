@@ -60,6 +60,7 @@ export class Critter {
     this.speed = 0;
     this.walkScale = 1;
     this._stuck = 0;
+    this._blockedWish = null;
     this._dodge = null;
     this.yaw = 0;
     this.targetYaw = 0;
@@ -74,6 +75,9 @@ export class Critter {
     this.path = null;
     this.pathIndex = 0;
     this.pathDone = true;
+    this.pathFailed = false;
+    this._seatObstacle = null;
+    this._seatStuck = 0;
     this.running = false;
     this.onFootstep = null;
     this._stepSign = 1;
@@ -172,15 +176,41 @@ export class Critter {
   moveDir(dx, dz, running = false) {
     this.path = null;
     this.pathDone = true;
+    this.pathFailed = false;
     const len = Math.hypot(dx, dz);
-    this._wishLen = len;
-    if (len > 1e-4) this._wish.set(dx / len, dz / len);
-    else this._wish.set(0, 0);
+    if (len > 1e-4) {
+      const nx = dx / len;
+      const nz = dz / len;
+      if (this._blockedWish && nx * this._blockedWish.x + nz * this._blockedWish.z > 0.92) {
+        // Stop pushing against the same wall until the input direction changes.
+        this._wish.set(0, 0);
+        this._wishLen = 0;
+        this.running = running;
+        return;
+      }
+      this._blockedWish = null;
+      this._wish.set(nx, nz);
+      this._wishLen = len;
+    } else {
+      this._blockedWish = null;
+      this._wish.set(0, 0);
+      this._wishLen = 0;
+    }
     this.running = running;
   }
 
   followPath(points, running = false) {
-    if (!points || !points.length) { this.moveDir(0, 0); return; }
+    if (!points || !points.length) {
+      this.path = null;
+      this.pathDone = true;
+      this.pathFailed = true;
+      this._wish.set(0, 0);
+      this._wishLen = 0;
+      this.running = false;
+      return;
+    }
+    this.pathFailed = false;
+    this._blockedWish = null;
     this.path = points;
     this.pathIndex = 0;
     this.pathDone = false;
@@ -197,15 +227,18 @@ export class Critter {
     this._seatTarget = null;
     this._seating = false;
     this._seatProgress = 0;
+    this._seatStuck = 0;
     if (wasSitting && !this.sitting) {
       this._noCollide = 0.5;
       this.emote("standing");
     }
   }
 
-  seatInto(x, z, yaw = null) {
+  seatInto(x, z, yaw = null, seat = null) {
     this.pose("stand");
     this._oneShot = null;
+    this._seatObstacle = seat?.obstacle || null;
+    this._seatStuck = 0;
     this._seatTarget = { x, z, yaw };
     this._seating = true;
     this._seatProgress = 0;
@@ -223,6 +256,8 @@ export class Critter {
     this._seatTarget = null;
     this._seatProgress = 0;
     this._seatStartDist = 1;
+    // Preserve the own-seat collider exception until the body has stepped clear.
+    this._seatStuck = 0;
     this._noCollide = 0.6; // biar mulus lepas dari zona kursi
     this.pose("stand");
   }
@@ -237,17 +272,20 @@ export class Critter {
     this._wish.set(0, 0);
     this._wishLen = 0;
     this._stuck = 0;
+    this._blockedWish = null;
     this._dodge = null;
     this.sitting = false;
     this._seatTarget = null;
     this._seating = false;
     this._seatProgress = 0;
+    this._seatObstacle = null;
+    this._seatStuck = 0;
     this._noCollide = 0;
     this._forced = null;
     this.motion.rotation.set(0, 0, 0);
   }
 
-  _updateSeating(dt, elapsed) {
+  _updateSeating(dt, elapsed, building) {
     const target = this._seatTarget;
     if (!target) { this._seating = false; this.pose("stand"); return; }
     const dx = target.x - this.position.x;
@@ -263,6 +301,7 @@ export class Critter {
       this._seatTarget = null;
       this._seating = false;
       this._seatProgress = 0;
+      this._seatStuck = 0;
       this.speed = 0;
       this._wish.set(0, 0);
       this._wishLen = 0;
@@ -271,13 +310,33 @@ export class Critter {
       return;
     }
     const k = 1 - Math.exp(-10 * dt);
-    // langkah masuk kursi: jalan normal dulu; pelan hanya untuk langkah
-    // terakhir, ketika sudah benar-benar mepet kursi (sisa < 0.28 m)
     const cruise = dist < 0.28 ? 0.5 : WALK_SPEED;
     this.speed += (cruise - this.speed) * k;
-    const step = this.speed * dt;
-    this.position.x += (dx / dist) * step;
-    this.position.z += (dz / dist) * step;
+    const step = Math.min(dist, this.speed * dt);
+    const beforeX = this.position.x;
+    const beforeZ = this.position.z;
+    if (building) building.moveSafely(this.position, (dx / dist) * step, (dz / dist) * step, 0.29, this._seatObstacle, this);
+    else {
+      this.position.x += (dx / dist) * step;
+      this.position.z += (dz / dist) * step;
+    }
+    const moved = Math.hypot(this.position.x - beforeX, this.position.z - beforeZ);
+    if (moved < step * 0.35) this._seatStuck += dt;
+    else this._seatStuck = 0;
+    if (this._seatStuck > 0.8) {
+      this._seatTarget = null;
+      this._seating = false;
+      this._seatObstacle = null;
+      this._seatStuck = 0;
+      this.pathFailed = true;
+      this.pathDone = true;
+      this.speed = 0;
+      this._wish.set(0, 0);
+      this._wishLen = 0;
+      this.status = "Kursi terhalang";
+      this._animate(dt, elapsed);
+      return;
+    }
     this._seatProgress = THREE.MathUtils.clamp(1 - dist / this._seatStartDist, 0, 1);
     // selama melangkah: hadap ke arah kursi (arah gerak), bukan yaw akhir
     this.targetYaw = Math.atan2(dx, dz);
@@ -289,7 +348,7 @@ export class Critter {
   }
 
   update(dt, elapsed, building) {
-    if (this._seating) { this._updateSeating(dt, elapsed); return; }
+    if (this._seating) { this._updateSeating(dt, elapsed, building); return; }
     if (this.path) {
       const waypoint = this.path[this.pathIndex];
       const last = this.pathIndex >= this.path.length - 1;
@@ -299,30 +358,49 @@ export class Critter {
       if (this._stuck > STUCK_LIMIT) {
         this._stuck = 0;
         // bedakan penghalang: tembok/perabot vs karakter lain
-        const aheadFree = !building || building.isFree(
-          this.position.x + this._wish.x * 0.5,
-          this.position.z + this._wish.y * 0.5, 0.3);
+        const aheadX = this.position.x + this._wish.x * 0.5;
+        const aheadZ = this.position.z + this._wish.y * 0.5;
+        const aheadFree = !building || building.isFree(aheadX, aheadZ, 0.3);
         let dodged = false;
-        if (aheadFree) {
-          // di depan bebas = yang menghalangi karakter lain → menghindar:
-          // cari sisi kosong (kiri/kanan) lalu melesat kesamping sejenak
+        if (aheadFree && building) {
+          // A character ahead is a dynamic blocker; dodge only into a spot
+          // that is clear of both static objects and all other bodies.
           const b = building;
           const px = this._wish.y, pz = -this._wish.x;
           const pref = ((this.variant + (this.name?.length ?? 0)) % 2) ? 1 : -1;
-          if (b.isFree(this.position.x + px * 0.55 * pref, this.position.z + pz * 0.55 * pref, 0.3)) {
+          const canDodge = (x, z) => b.isFree(x, z, 0.3) &&
+            (b.dynamicBodies ?? []).every((other) => !other || other === this ||
+              Math.hypot(x - other.position.x, z - other.position.z) >= 0.59);
+          if (canDodge(this.position.x + px * 0.55 * pref, this.position.z + pz * 0.55 * pref)) {
             this._dodge = { t: 0.55, x: px * pref, z: pz * pref };
             dodged = true;
-          } else if (b.isFree(this.position.x - px * 0.55 * pref, this.position.z - pz * 0.55 * pref, 0.3)) {
+          } else if (canDodge(this.position.x - px * 0.55 * pref, this.position.z - pz * 0.55 * pref)) {
             this._dodge = { t: 0.55, x: -px * pref, z: -pz * pref };
             dodged = true;
           }
         }
         if (!dodged) {
-          // tembok/perabot → lanjutkan seperti biasa: lewati titik jalur ini
-          this.pathIndex++;
-          if (this.pathIndex >= this.path.length) {
-            this.path = null; this.pathDone = true;
-            this._wish.set(0, 0); this._wishLen = 0;
+          if (aheadFree) {
+            // Crowded by people on both sides: stop instead of pushing forward.
+            this.path = null;
+            this.pathDone = true;
+            this.pathFailed = true;
+            this._wish.set(0, 0);
+            this._wishLen = 0;
+          } else {
+            // Static obstruction: replan, and stop if no safe route exists.
+            const destination = this.path[this.path.length - 1];
+            const replanned = building?.route(this.position, destination);
+            if (replanned?.length) {
+              this.path = replanned;
+              this.pathIndex = 0;
+            } else {
+              this.path = null;
+              this.pathDone = true;
+              this.pathFailed = true;
+              this._wish.set(0, 0);
+              this._wishLen = 0;
+            }
           }
         }
       } else if (dist < (last ? ARRIVE_RADIUS : REACH)) {
@@ -355,8 +433,11 @@ export class Critter {
     const fromZ = this.position.z;
     if (wishMax > 0) {
       const step = this.speed * dt;
-      this.position.x += this._wish.x * step;
-      this.position.z += this._wish.y * step;
+      if (building) building.moveSafely(this.position, this._wish.x * step, this._wish.y * step, 0.29, this._seatObstacle, this);
+      else {
+        this.position.x += this._wish.x * step;
+        this.position.z += this._wish.y * step;
+      }
       this.targetYaw = Math.atan2(this._wish.x, this._wish.y);
     } else if (this.look && this.speed < 0.06 && !this.sitting && !dead) {
       this.targetYaw = Math.atan2(this.look.x - this.position.x, this.look.z - this.position.z);
@@ -364,12 +445,29 @@ export class Critter {
 
     if (building) {
       building.clampToFloor(this.position, 0.36);
+      // Swept collision checks happen before each step; never push the
+      // character through a neighbouring obstacle during post-correction.
+      if (this._seatObstacle && !this.sitting && !this._seating) {
+        const o = this._seatObstacle;
+        const outside = this.position.x < o.minX - 0.31 || this.position.x > o.maxX + 0.31 ||
+          this.position.z < o.minZ - 0.31 || this.position.z > o.maxZ + 0.31;
+        if (outside) this._seatObstacle = null;
+      }
       if (this._noCollide > 0) this._noCollide -= dt;
-      if (!this.sitting && this._noCollide <= 0) building.resolveCollisions(this.position, 0.3);
     }
     const moved = Math.hypot(this.position.x - fromX, this.position.z - fromZ);
-    if (wishMax > 0 && moved < this.speed * dt * 0.35) this._stuck += dt;
-    else this._stuck = 0;
+    if (wishMax > 0 && moved < this.speed * dt * 0.2) {
+      this._stuck += dt;
+      if (!this.path && this._stuck > 0.12) {
+        this._blockedWish = { x: this._wish.x, z: this._wish.y };
+        this._wish.set(0, 0);
+        this._wishLen = 0;
+        this.speed = 0;
+        this._stuck = 0;
+      }
+    } else {
+      this._stuck = 0;
+    }
 
     this.yaw = dampAngle(this.yaw, this.targetYaw, 10, dt);
     this.root.rotation.y = this.yaw;

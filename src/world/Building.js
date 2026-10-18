@@ -71,6 +71,7 @@ export class Building {
   constructor(scene) {
     this.scene = scene;
     this.obstacles = [];
+    this.dynamicBodies = [];
     this.interactives = [];
     this.seats = [];
     this.plants = [];
@@ -231,6 +232,7 @@ export class Building {
         maxX: Math.max(sx, ex) + halfT,
         minZ: Math.min(sz, ez) - halfT,
         maxZ: Math.max(sz, ez) + halfT,
+        kind: "wall",
       });
 
       if (isGlass) {
@@ -478,7 +480,7 @@ export class Building {
       const swap = q % 2 === 1;
       const hw = (swap ? f.d : f.w) / 2;
       const hd = (swap ? f.w : f.d) / 2;
-      this.obstacles.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
+      this.obstacles.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd, centerX: x, centerZ: z, owner: obj, kind: "prop" });
     }
     return obj;
   }
@@ -494,22 +496,31 @@ export class Building {
       const swap = q % 2 === 1;
       const hw = (swap ? f.d : f.w) / 2;
       const hd = (swap ? f.w : f.d) / 2;
-      this.obstacles.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
+      this.obstacles.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd, centerX: x, centerZ: z, owner: obj, kind: "prop" });
     }
     return obj;
   }
 
   _seat(x, z, yaw, type) {
+    // The final sit animation may overlap only the chair/sofa assigned to it.
+    let obstacle = null;
+    for (let i = this.obstacles.length - 1; i >= 0; i--) {
+      const candidate = this.obstacles[i];
+      if (candidate.owner && Math.abs(candidate.centerX - x) < 0.025 && Math.abs(candidate.centerZ - z) < 0.025) {
+        obstacle = candidate;
+        break;
+      }
+    }
     const seat = {
       id: `${type}-${this.seats.length}`,
-      x, z, yaw, type, taken: null,
+      x, z, yaw, type, taken: null, obstacle,
       sit: { x: x + Math.sin(yaw) * SIT_FWD, z: z + Math.cos(yaw) * SIT_FWD },
     };
     this.seats.push(seat);
     return seat;
   }
 
-  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = 0.85, type = "desk" } = {}) {
+  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = 1.05, type = "desk" } = {}) {
     const x = deskX + Math.sin(deskRy) * gap;
     const z = deskZ + Math.cos(deskRy) * gap;
     const yaw = deskRy + Math.PI;
@@ -800,25 +811,32 @@ export class Building {
     return this.staffPosts[id] || null;
   }
 
-  clampToStaffPost(id, v3, margin = 0.35) {
+  clampToStaffPost(id, v3, margin = 0.35, critter = null) {
     const p = this.staffPosts[id];
     if (!p) return v3;
 
     const room = this.room(p.room);
+    let tx = v3.x;
+    let tz = v3.z;
     if (room) {
-      v3.x = THREE.MathUtils.clamp(v3.x, room.x0 + margin, room.x1 - margin);
-      v3.z = THREE.MathUtils.clamp(v3.z, room.z0 + margin, room.z1 - margin);
+      tx = THREE.MathUtils.clamp(tx, room.x0 + margin, room.x1 - margin);
+      tz = THREE.MathUtils.clamp(tz, room.z0 + margin, room.z1 - margin);
     }
 
-    const dx = v3.x - p.x;
-    const dz = v3.z - p.z;
+    const dx = tx - p.x;
+    const dz = tz - p.z;
     const d = Math.hypot(dx, dz);
     if (d > p.radius && d > 1e-5) {
       const k = p.radius / d;
-      v3.x = p.x + dx * k;
-      v3.z = p.z + dz * k;
+      tx = p.x + dx * k;
+      tz = p.z + dz * k;
     }
-    return v3;
+    // The leash is a desired position, not a teleport. Respect every
+    // static and dynamic collider while returning toward the post.
+    return this.moveSafely(
+      v3, tx - v3.x, tz - v3.z, 0.29,
+      critter?._seatObstacle || null, critter,
+    );
   }
 
   clampToFloor(v3, margin = 0.35) {
@@ -827,8 +845,9 @@ export class Building {
     return v3;
   }
 
-  resolveCollisions(v3, radius = 0.3) {
+  resolveCollisions(v3, radius = 0.3, ignoreObstacle = null) {
     for (const b of this.obstacles) {
+      if (b === ignoreObstacle) continue;
       const cx = THREE.MathUtils.clamp(v3.x, b.minX, b.maxX);
       const cz = THREE.MathUtils.clamp(v3.z, b.minZ, b.maxZ);
       const dx = v3.x - cx;
@@ -855,13 +874,60 @@ export class Building {
     return v3;
   }
 
-  isFree(x, z, radius = 0.35) {
+  isFree(x, z, radius = 0.35, ignoreObstacle = null) {
     for (const b of this.obstacles) {
+      if (b === ignoreObstacle) continue;
       const cx = THREE.MathUtils.clamp(x, b.minX, b.maxX);
       const cz = THREE.MathUtils.clamp(z, b.minZ, b.maxZ);
       if ((x - cx) ** 2 + (z - cz) ** 2 < radius * radius) return false;
     }
     return true;
+  }
+
+  /**
+   * Move in swept micro-steps. Every position is checked before commit, so
+   * fast movement and diagonal cornering cannot tunnel through obstacles.
+   * A blocked diagonal may slide along either free axis.
+   */
+  moveSafely(v3, dx, dz, radius = 0.3, ignoreObstacle = null, mover = null) {
+    const distance = Math.hypot(dx, dz);
+    if (distance < 1e-8) return v3;
+    const steps = Math.max(1, Math.ceil(distance / Math.max(0.055, radius * 0.38)));
+    const sx = dx / steps;
+    const sz = dz / steps;
+    const canOccupy = (x, z) => {
+      if (x < this.bounds.x0 + radius || x > this.bounds.x1 - radius ||
+          z < this.bounds.z0 + radius || z > this.bounds.z1 - radius) return false;
+      if (!this.isFree(x, z, radius, ignoreObstacle)) return false;
+      for (const other of this.dynamicBodies) {
+        if (!other || other === mover) continue;
+        const minD = radius + 0.29;
+        const ox = x - other.position.x;
+        const oz = z - other.position.z;
+        if (ox * ox + oz * oz < minD * minD) return false;
+      }
+      return true;
+    };
+    for (let i = 0; i < steps; i++) {
+      const nx = v3.x + sx;
+      const nz = v3.z + sz;
+      if (canOccupy(nx, nz)) {
+        v3.x = nx;
+        v3.z = nz;
+        continue;
+      }
+      const axes = Math.abs(sx) >= Math.abs(sz)
+        ? [["x", sx], ["z", sz]]
+        : [["z", sz], ["x", sx]];
+      for (const [axis, delta] of axes) {
+        const cx = v3.x + (axis === "x" ? delta : 0);
+        const cz = v3.z + (axis === "z" ? delta : 0);
+        if (!canOccupy(cx, cz)) continue;
+        v3.x = cx;
+        v3.z = cz;
+      }
+    }
+    return v3;
   }
 
   /* ----------------------------------------------------- navigation (A*) */
@@ -917,12 +983,12 @@ export class Building {
   }
 
   /** Benang penglihatan: apakah garis A→B bebas rintangan? */
-  _lineFree(ax, az, bx, bz, radius = 0.30) {
+  _lineFree(ax, az, bx, bz, radius = 0.30, ignoreObstacle = null) {
     const d = Math.hypot(bx - ax, bz - az);
-    const steps = Math.max(1, Math.ceil(d / 0.14));
+    const steps = Math.max(1, Math.ceil(d / 0.10));
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      if (!this.isFree(ax + (bx - ax) * t, az + (bz - az) * t, radius)) return false;
+      if (!this.isFree(ax + (bx - ax) * t, az + (bz - az) * t, radius, ignoreObstacle)) return false;
     }
     return true;
   }
@@ -1028,19 +1094,19 @@ export class Building {
    * tembok & semua perabot alih-alih memaksakan jalan menempel.
    */
   route(from, target) {
-    const fallback = [{ x: target.x, z: target.z }];
-    if (this._lineFree(from.x, from.z, target.x, target.z, 0.30)) return fallback;
+    const direct = [{ x: target.x, z: target.z }];
+    if (this._lineFree(from.x, from.z, target.x, target.z, 0.30)) return direct;
 
     const nav = this._navEnsure();
     const start = this._nearestWalkable(from.x, from.z, nav);
     const goal = this._nearestWalkable(target.x, target.z, nav);
-    if (!start || !goal) return fallback; // pola lama sebagai jaring pengaman
+    if (!start || !goal) return []; // Never force a direct path when no safe path exists.
 
     const cells = start.i !== goal.i ? this._navSearch(nav, start.i, goal.i) : null;
     if (!cells) {
       return this._lineFree(start.x, start.z, goal.x, goal.z, 0.24)
         ? [{ x: goal.x, z: goal.z }]
-        : fallback;
+        : [];
     }
     const pts = cells.map((i) => ({
       x: nav.x0 + ((i % nav.nx) + 0.5) * nav.cell,
@@ -1052,7 +1118,7 @@ export class Building {
     // tujuan presisi hanya jika memang bisa dipijak (kursi ≠ titik jalan);
     // kalau tidak, rute berhenti di sel terdekat dan duduk menyusul lewat seatInto
     if (this.isFree(target.x, target.z, 0.18)) out.push({ x: target.x, z: target.z });
-    return out.length ? out : fallback;
+    return out;
   }
 
   path(fromRoomId, toRoomId, target) {
@@ -1113,9 +1179,10 @@ export class Building {
     if (seat && seat.taken === who) seat.taken = null;
   }
 
-  approachTo(seat, radii = [0.5, 0.68, 0.86]) {
+  approachTo(seat, radii = [0.78, 0.92, 1.08, 1.24]) {
     const room = this.roomAt(seat.x, seat.z);
     const base = seat.yaw ?? 0;
+    const target = seat.sit || seat;
     for (const r of radii) {
       for (let i = 0; i < 12; i++) {
         const step = Math.ceil(i / 2) * (Math.PI / 6) * (i % 2 ? 1 : -1);
@@ -1123,7 +1190,10 @@ export class Building {
         const x = seat.x + Math.sin(a) * r;
         const z = seat.z + Math.cos(a) * r;
         if (this.roomAt(x, z) !== room) continue;
-        if (this.isFree(x, z, 0.32)) return { x, z };
+        if (!this.isFree(x, z, 0.30)) continue;
+        if (!this._lineFree(x, z, target.x, target.z, 0.24, seat.obstacle)) continue;
+        if (!this.isFree(target.x, target.z, 0.24, seat.obstacle)) continue;
+        return { x, z };
       }
     }
     return null;
@@ -1132,6 +1202,9 @@ export class Building {
   /* --------------------------------------------------------------- loop */
 
   update(dt, elapsed) {
+    this.dynamicBodies = (this.crew?.members ?? []).concat(
+      (this.staffRoster ?? []).map((s) => s.critter),
+    );
     if (Math.abs(this.targetNightness - this.nightness) > 0.001) {
       const k = 1 - Math.exp(-2.2 * dt);
       this.nightness += (this.targetNightness - this.nightness) * k;
@@ -1146,15 +1219,13 @@ export class Building {
     for (let i = 0; i < this.tickers.length; i++) {
       this.tickers[i].userData.update?.(dt, elapsed);
     }
-    // staf: otak sendiri, lalu badan dengan collision + kunci pos ruangan;
-    // kunci pos dijalankan SEBELUM resolveCollisions supaya staf tidak
-    // terdorong menembus meja/kasir oleh kunci pos itu sendiri
+    // NPC staf bergerak memakai swept collision yang sama dengan crew.
+    // Batas pos diterapkan sebagai gerakan aman, bukan teleportasi lalu push.
     for (const s of this.staffRoster) {
       s.brain.update(dt);
       s.critter.update(dt, elapsed, this);
       if (!this.meetingActive && !s.critter.sitting && !s.critter._seating) {
-        this.clampToStaffPost(s.postId, s.critter.position, 0.35);
-        this.resolveCollisions(s.critter.position, 0.3);
+        this.clampToStaffPost(s.postId, s.critter.position, 0.35, s.critter);
       }
     }
   }

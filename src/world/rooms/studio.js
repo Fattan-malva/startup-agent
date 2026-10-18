@@ -25,7 +25,7 @@ export function build(b) {
   );
 
   const studioSeatXs = [10.9, 13.1];
-  for (const dz of [-0.82, 0.82]) {
+  for (const dz of [-1.12, 1.12]) {
     const yaw = dz > 0 ? Math.PI : 0;
     for (const x of studioSeatXs) {
       b._static(
@@ -71,7 +71,7 @@ export function build(b) {
 
   b._plant(9.6, -6.2, 0, { variant: 1, scale: 0.68, seed: 88 });
   b._plant(14.85, -6.2, 0, { variant: 0, scale: 0.62, seed: 89 });
-  b._static(createWallArt({ w: 0.62, h: 0.78, variant: 2 }), 15.87, -4.8, -Math.PI / 2, 0.68, { w: 0.1, d: 0.78 });
+  b._static(createWallArt({ w: 0.62, h: 0.78, variant: 2 }), 15.87, -4.8, -Math.PI / 2, 0.68, { w: 0.78, d: 0.1 });
   // Bin studio — pojok barat laut (jauh dari muka dinding koridor -1.12).
   b._static(createBin(), 9.55, -1.5, 0);
 }

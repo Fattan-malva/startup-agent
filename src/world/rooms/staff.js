@@ -25,7 +25,7 @@ export function build(b) {
       b._deskParts(ws, `staff-${String.fromCharCode(97 + staffIdx)}`);
       b._deskChair(x, row.z, row.ry, {
         color: staffIdx % 2 === 0 ? "navy" : "charcoal",
-        gap: 0.78,
+        gap: 1.05,
         type: "desk",
       });
       staffIdx++;
@@ -46,7 +46,7 @@ export function build(b) {
   );
 
   b._static(createWallShelf({ w: 0.9, d: 0.22, shelves: 2 }), 0.4, 6.82, Math.PI, 1.08, { w: 0.9, d: 0.18 });
-  b._static(createWallArt({ w: 0.55, h: 0.7, variant: 1 }), 3.5, 6.82, Math.PI, 0.63, { w: 0.1, d: 0.7 });
+  b._static(createWallArt({ w: 0.55, h: 0.7, variant: 1 }), 3.5, 6.82, Math.PI, 0.63, { w: 0.62, d: 0.1 });
   b._plant(5.6, 6.5, 0, { variant: 1, scale: 0.62, seed: 61 });
   // Bin staff — pojok barat daya.
   b._static(createBin(), -2.7, 6.5, 0);
