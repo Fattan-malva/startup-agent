@@ -115,6 +115,8 @@ export class Building {
     this.staffCritters = {};
     // pasangan critter + StaffBrain yang berkeliling dalam ruangannya
     this.staffRoster = [];
+    // true saat rapat berjalan: staf dipas-lepas dari kunci pos ruangan
+    this.meetingActive = false;
 
     this._v = new THREE.Vector3();
     this._c = new THREE.Color();
@@ -1431,8 +1433,13 @@ export class Building {
     return out;
   }
 
-  claimSeat(type, who) {
-    const free = this.seats.filter((s) => s.type === type && (!s.taken || s.taken === who));
+  claimSeat(type, who, roomId) {
+    const free = this.seats.filter((s) =>
+      s.type === type
+      // opsional: batasi ke kursi yang ADA DI DALAM satu ruangan
+      // (studio kreatif juga punya kursi tipe "meeting"!)
+      && (!roomId || this.roomAt(s.x, s.z) === roomId)
+      && (!s.taken || s.taken === who));
     if (!free.length) return null;
     const seat = free[Math.floor(Math.random() * free.length)];
     seat.taken = who;
@@ -1470,11 +1477,16 @@ export class Building {
     for (let i = 0; i < this.tickers.length; i++) {
       this.tickers[i].userData.update?.(dt, elapsed);
     }
-    // staf: otak sendiri, lalu badan dengan collision + kunci pos ruangan
+    // staf: otak sendiri, lalu badan dengan collision + kunci pos ruangan;
+    // kunci pos dijalankan SEBELUM resolveCollisions supaya staf tidak
+    // terdorong menembus meja/kasir oleh kunci pos itu sendiri
     for (const s of this.staffRoster) {
       s.brain.update(dt);
       s.critter.update(dt, elapsed, this);
-      this.clampToStaffPost(s.postId, s.critter.position, 0.35);
+      if (!this.meetingActive && !s.critter.sitting && !s.critter._seating) {
+        this.clampToStaffPost(s.postId, s.critter.position, 0.35);
+        this.resolveCollisions(s.critter.position, 0.3);
+      }
     }
   }
 }

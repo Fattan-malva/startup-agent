@@ -14,7 +14,7 @@ export const HIP_Y = 0.485;
 export const BODY_HEIGHT = 1.1;
 
 function makeIdCard(c, accent) {
-  const width = 280, height = 392; // rasio badge memanjang (pas kartu lebar)
+  const width = 272, height = 392; // rasio badge memanjang (pas kartu)
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext("2d");
@@ -204,18 +204,19 @@ export function buildBody(c) {
   lanyardGroup.name = "Lanyard";
   spine.add(lanyardGroup);
   for (const side of [-1, 1]) {
-    // satu tarikan tali: leher → menuruni muka dada → ujung atas kartu
-    seg(lanyardGroup, V(side * 0.032, 0.240, 0.046), V(0, 0.197, 0.0745), 0.005, 0.002, lanyard);
+    // tali lebih tebal (0.008) supaya tidak tipis sekali; kelihatan lebih
+    // panjang karena kartu dikecilkan dan digantung lebih rendah
+    seg(lanyardGroup, V(side * 0.032, 0.240, 0.046), V(0, 0.178, 0.0745), 0.008, 0.003, lanyard);
   }
 
   const card = new THREE.Group();
   card.name = "Employee ID card";
-  card.position.set(0, 0.148, 0.075);
+  card.position.set(0, 0.135, 0.075);
   card.rotation.x = -0.04;
   lanyardGroup.add(card);
-  add(card, new RoundedBoxGeometry(0.074, 0.104, 0.006, 3, 0.004), M(0xffffff), 0, 0, 0);
+  add(card, new RoundedBoxGeometry(0.058, 0.082, 0.006, 3, 0.004), M(0xffffff), 0, 0, 0);
   const cardFace = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.070, 0.098),
+    new THREE.PlaneGeometry(0.054, 0.078),
     new THREE.MeshBasicMaterial({ map: makeIdCard(c, accentHex), toneMapped: false }),
   );
   cardFace.position.z = 0.0035;

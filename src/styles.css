@@ -178,8 +178,17 @@ kbd {
   scrollbar-width: none;
 }
 
-.viewchar-species::-webkit-scrollbar {
+.viewchar-species::-webkit-scrollbar,
+.modal ::-webkit-scrollbar,
+.modal-card ::-webkit-scrollbar {
   display: none;
+}
+
+.modal,
+.modal-card,
+.viewchar-species {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .brand-viewchar {

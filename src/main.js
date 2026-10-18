@@ -26,6 +26,7 @@ import { Player } from "./systems/Player.js";
 import { Interaction } from "./systems/Interaction.js";
 import { HUD } from "./ui/HUD.js";
 import { ViewChar } from "./systems/ViewChar.js";
+import { Meeting } from "./systems/AI.js";
 
 const POPULATION = 14;
 const BG = 0x141922;
@@ -92,6 +93,8 @@ async function boot() {
     });
     crew.populate(POPULATION);
 
+    const meeting = new Meeting({ building, crew });
+
     hud.setProgress(0.86, "Menyambungkan kontrol");
     await sleepFrame();
 
@@ -156,6 +159,9 @@ async function boot() {
     }
 
     function reset() {
+      meeting.end();
+      const btn = document.getElementById("btn-meeting");
+      if (btn) { btn.textContent = "Rapat"; btn.classList.remove("is-accent"); }
       player.release();
       interaction.clearSelection();
       rig.follow(null);
@@ -256,6 +262,20 @@ async function boot() {
           viewChar?.show(value);
           break;
         }
+        case "meeting": {
+          const btn = document.getElementById("btn-meeting");
+          if (meeting.active) {
+            meeting.end();
+            if (btn) { btn.textContent = "Rapat"; btn.classList.remove("is-accent"); }
+            hud.toast("Rapat selesai — semua karyawan kembali bekerja ✅", 3000);
+          } else if (meeting.start()) {
+            if (btn) { btn.textContent = "Akhiri Rapat"; btn.classList.add("is-accent"); }
+            hud.toast("Rapat dimulai — semua karyawan menuju ruang meeting 🧑‍💼", 3200);
+          } else {
+            hud.toast("Rapat sedang berlangsung", 2200);
+          }
+          break;
+        }
         case "close-card":
           interaction.clearSelection();
           break;
@@ -350,6 +370,7 @@ async function boot() {
       building.update(dt, elapsed);
       player.update(dt); // drive the body first, then let it step
       crew.update(dt, elapsed);
+      meeting.update(dt);
       rig.update(dt, input, player.active);
       fx.update(dt, elapsed);
 

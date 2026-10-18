@@ -80,10 +80,16 @@ export class Input {
     };
 
     this._onPointerUp = (e) => {
+      const wasDown = this.down;
       const wasDrag = this.dragging;
       this.down = false;
       this.dragging = false;
       this.delta.set(0, 0);
+      // pointerup di luar kanvas (dock HUD, panel Tim, modal) bukan klik
+      // dunia — jangan daftarkan klik, supaya tombol-tombol HUD tidak ikut
+      // memicu raycast / click-walk / geser kamera
+      const onCanvas = e.target === this.dom || this.dom.contains?.(e.target);
+      if (!wasDown || !onCanvas) return;
       if (!wasDrag) {
         this._updateNdc(e);
         this._click = { x: e.clientX, y: e.clientY, ndc: this.ndc.clone() };

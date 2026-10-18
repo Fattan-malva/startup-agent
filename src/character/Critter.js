@@ -216,6 +216,17 @@ export class Critter {
 
   lookAt(x, z) { this.look = x === null ? null : { x, z }; }
 
+  /** Berdiri dari posisi duduk saat ini (tanpa memindahkan posisi). */
+  standUp() {
+    this.sitting = false;
+    this._seating = false;
+    this._seatTarget = null;
+    this._seatProgress = 0;
+    this._seatStartDist = 1;
+    this._noCollide = 0.6; // biar mulus lepas dari zona kursi
+    this.pose("stand");
+  }
+
   teleport(x, z, yaw = 0) {
     this.root.position.set(x, 0, z);
     this.yaw = this.targetYaw = yaw;

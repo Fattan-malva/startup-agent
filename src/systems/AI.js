@@ -75,17 +75,24 @@ export class Brain {
   _approachAndSit(seat) {
     const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
     const dist = Math.hypot(spot.x - this.c.position.x, spot.z - this.c.position.z);
-    if (dist > 0.3 && !this.goal.sitNear) {
-      // fase pendekatan: ikuti rute sampai dekat kursi dulu
-      this.goal.sitNear = true;
-      this.stage = "travel";
-      this.c.status = "Menuju kursi";
-      const path = this.b.route(this.c.position, spot);
-      this.c.pose("stand");
-      this.c.followPath(path, false);
-      return;
+    if (dist > 0.3) {
+      // langkah lurus ke pad HANYA kalau garisnya benar-benar bebas, sah
+      // kalau tidak bebas (ada meja/kursi di antara) → rute A* ulang.
+      // Guard: kalau rute berulang kali tak bisa menutupi pad, izin
+      this.goal.sitRetries = this.goal.sitRetries || 0;
+      if (!this.b._lineFree(this.c.position.x, this.c.position.z, spot.x, spot.z, 0.26)
+          && this.goal.sitRetries < 3) {
+        this.goal.sitNear = true;
+        this.goal.sitRetries++;
+        this.stage = "travel";
+        this.c.status = "Menuju kursi";
+        const path = this.b.route(this.c.position, spot);
+        this.c.pose("stand");
+        this.c.followPath(path, false);
+        return;
+      }
     }
-    // sudah dekat → langkah pendek masuk ke kursi lalu duduk
+    // sudah benar-benar dekat → langkah pendek masuk kursi lalu duduk
     this.c.seatInto(spot.x, spot.z, this.goal.yaw);
   }
 
@@ -414,14 +421,19 @@ export class StaffBrain {
   _approachAndSit(seat) {
     const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
     const dist = Math.hypot(spot.x - this.c.position.x, spot.z - this.c.position.z);
-    if (dist > 0.3 && !this.goal.sitNear) {
-      this.goal.sitNear = true;
-      this.stage = "travel";
-      this.c.status = "Menuju kursi";
-      const path = this.b.route(this.c.position, spot);
-      this.c.pose("stand");
-      this.c.followPath(path, false);
-      return;
+    if (dist > 0.3) {
+      this.goal.sitRetries = this.goal.sitRetries || 0;
+      if (!this.b._lineFree(this.c.position.x, this.c.position.z, spot.x, spot.z, 0.26)
+          && this.goal.sitRetries < 3) {
+        this.goal.sitNear = true;
+        this.goal.sitRetries++;
+        this.stage = "travel";
+        this.c.status = "Menuju kursi";
+        const path = this.b.route(this.c.position, spot);
+        this.c.pose("stand");
+        this.c.followPath(path, false);
+        return;
+      }
     }
     this.c.seatInto(spot.x, spot.z, seat.yaw);
   }
@@ -436,6 +448,7 @@ export class StaffBrain {
   }
 
   update(dt) {
+    if (this.paused) return;
     if (this.stage === "act") {
       this.actTime -= dt;
       if (this.actTime <= 0) this._finish();
@@ -452,5 +465,266 @@ export class StaffBrain {
     }
     this.cool -= dt;
     if (this.cool <= 0) this._choose();
+  }
+}
+
+/* ===================================================================== *
+ *  Meeting — rapat kantor yang dipicu dari dock.
+ *
+ *  start(): semua karakter (NPC biasa + staf; penonton/controlled
+ *  tidak dibawa) menuju ruang meeting: yang dapat klaim kursi duduk,
+ *  yang tidak kebagian berdiri di titik kosong menghadap meja — sampai
+ *  end() dipanggil, mereka tetap di ruangan.
+ * ===================================================================== */
+export class Meeting {
+  constructor({ building, crew }) {
+    this.b = building;
+    this.crew = crew;
+    this.active = false;
+    this.parts = [];
+    this._clock = 5;
+    this._front = null;
+  }
+
+  start() {
+    if (this.active || !this.b.room("meeting")) return false;
+    this.active = true;
+    this.b.meetingActive = true;
+    const room = this.b.room("meeting");
+    this._front = { x: (room.x0 + room.x1) / 2, z: (room.z0 + room.z1) / 2 };
+
+    const participants = [
+      ...this.crew.members.filter((c) => !c.controlled),
+      ...this.b.staffRoster.map((s) => s.critter),
+    ];
+    // bekuin otak masing-masing + lepas kursi/partner lama
+    for (const c of participants) {
+      const brain = c.brain;
+      if (brain) {
+        if (brain.seat) this.b.releaseSeat(brain.seat, c);
+        brain.seat = null;
+        if (brain.partner) {
+          if (brain.partner.brain) brain.partner.brain.paused = false;
+          brain.partner = null;
+        }
+        brain.paused = true;
+        brain.goal = null;
+        brain.stage = "idle";
+      }
+      c.path = null;
+      c.pathDone = true;
+      if (c.sitting || c._seating) c.standUp();
+      else c.pose("stand");
+      c.status = "Menuju rapat 🧑‍💼";
+    }
+
+    // HANYA kursi di dalam ruang meeting (ruang studio kreatif juga punya
+    // kursi tipe "meeting") → yang dapat duduk, sisanya berdiri di ruangan
+    this.parts = [];
+    const standers = [];
+    for (const c of participants) {
+      const seat = this.b.claimSeat("meeting", c, "meeting");
+      if (seat) {
+        this.parts.push({
+          c, mode: "sit", stage: "travel", seat, retries: 0,
+          homeYaw: null, chat: 0, pal: null,
+        });
+      }
+      else standers.push(c);
+    }
+
+    const spots = this._standSpots(standers.length);
+    standers.forEach((c, i) => {
+      this.parts.push({
+        c, mode: "stand", stage: "travel",
+        spot: spots[i % Math.max(1, spots.length)] || null,
+        started: false,
+        homeYaw: null, chat: 0, pal: null,
+      });
+    });
+    // pasangan ngobrol pertama mulai tidak lama setelah semua tiba
+    this._clock = 3.5;
+
+    return true;
+  }
+
+  end() {
+    if (!this.active) return false;
+    this.active = false;
+    this.b.meetingActive = false;
+    for (const p of this.parts) {
+      const c = p.c;
+      if (p.seat) this.b.releaseSeat(p.seat, c);
+      if (c.sitting || c._seating) c.standUp();
+      else c.pose("stand");
+      c.status = "Balik kerja";
+      c.path = null;
+      c.pathDone = true;
+      if (c.brain) {
+        c.brain.paused = false;
+        c.brain.goal = null;
+        c.brain.stage = "idle";
+      }
+    }
+    this.parts = [];
+    return true;
+  }
+
+  update(dt) {
+    if (!this.active) return;
+    const front = this._front;
+
+    // flavor: sesekali pasangan peserta mulai ngobrol (duduk maupun berdiri)
+    this._clock -= dt;
+    if (this._clock <= 0) {
+      this._clock = 4.5 + Math.random() * 4.5;
+      this._startRandomChat();
+    }
+
+    for (const p of this.parts) {
+      const c = p.c;
+      if (c.sitting || c._seating) {
+        // sudah (proses) duduk → settle; tetap boleh ngobrol sambil duduk
+        p.stage = "settled";
+        if (p.homeYaw == null) p.homeYaw = p.seat?.yaw ?? c.targetYaw;
+        this._chatStep(p, dt);
+        continue;
+      }
+
+      if (p.mode === "sit" && p.seat) {
+        const spot = { x: p.seat.sit?.x ?? p.seat.x, z: p.seat.sit?.z ?? p.seat.z };
+        const dist = Math.hypot(spot.x - c.position.x, spot.z - c.position.z);
+        if (dist <= 0.3) {
+          p.homeYaw = p.seat.yaw;
+          c.seatInto(spot.x, spot.z, p.seat.yaw);
+          c.status = "Duduk rapat 🪑";
+          p.stage = "settled";
+          continue;
+        }
+        if (c.pathDone && !c.path) {
+          p.retries++;
+          if (p.retries > 3) {
+            // kart pad tak terjangkau rute → masuk saja daripada stuck
+            p.homeYaw = p.seat.yaw;
+            c.seatInto(spot.x, spot.z, p.seat.yaw);
+            c.status = "Duduk rapat 🪑";
+            p.stage = "settled";
+            continue;
+          }
+          const path = this.b.route(c.position, spot);
+          c.followPath(path, false);
+          p.stage = "travel";
+        }
+        continue;
+      }
+
+      if (p.mode === "stand") {
+        if (!p.started && p.spot) {
+          p.started = true;
+          c.followPath(this.b.route(c.position, p.spot), false);
+          continue;
+        }
+        if (c.pathDone && !c.path) {
+          p.stage = "settled";
+          p.homeYaw = Math.atan2(front.x - c.position.x, front.z - c.position.z);
+          c.status = "Rapat — berdiri 🧍";
+          this._chatStep(p, dt);
+        } else {
+          this._chatStep(p, dt);
+        }
+      }
+    }
+  }
+
+  /** Sikap satu peserta yang sudah siap: menghadap lawan obrolan,
+   *  atau kembali netral menghadap meja/arah depannya. */
+  _chatStep(p, dt) {
+    const c = p.c;
+    if (p.chat > 0 && p.pal) {
+      const pal = p.pal;
+      if (!this.parts.includes(pal) || pal.stage !== "settled") {
+        // lawan obrolan menghilang (mis. di-reset) → kembali netral
+        p.chat = 0;
+        p.pal = null;
+        c.status = "Rapat berlangsung 📝";
+        return;
+      }
+      p.chat -= dt;
+      if (p.chat <= 0) {
+        p.chat = 0;
+        p.pal = null;
+        c.status = "Rapat berlangsung 📝";
+        return;
+      }
+      const pc = pal.c;
+      c.targetYaw = Math.atan2(pc.position.x - c.position.x, pc.position.z - c.position.z);
+      return;
+    }
+    // netral: menghadap meja rapat (berdiri) / arah kursi (duduk)
+    if (p.homeYaw != null) c.targetYaw = p.homeYaw;
+  }
+
+  /** Pasangkan 1–2 pasangan peserta yang sudah siap untuk mengobrol.
+   *  Berlaku juga untuk yang duduk — cukup memutar badan menghadap
+   *  lawan + gestur kecil, jadi suasana rapat terasa hidup. */
+  _startRandomChat() {
+    const idle = this.parts.filter((p) => p.stage === "settled" && !p.chat && !p.c._forced);
+    if (idle.length < 2) return;
+    for (let i = idle.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idle[i], idle[j]] = [idle[j], idle[i]];
+    }
+    const lines = [
+      "Bahas sprint mingguan 🗒️",
+      "Nggosip proyek ☕",
+      "Bagikan ide desain ✨",
+      "Evaluasi rilis kemarin 🔍",
+      "Janjian review draft 📝",
+    ];
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    const pairCount = Math.min(2, Math.floor(idle.length / 2));
+    for (let k = 0; k < pairCount; k++) {
+      const a = idle[k * 2];
+      const b = idle[k * 2 + 1];
+      const dur = 4 + Math.random() * 4;
+      a.chat = dur; a.pal = b;
+      b.chat = dur; b.pal = a;
+      a.c.status = line;
+      b.c.status = "Mendengarkan 👂";
+      a.c.gesture(Math.random() < 0.5 ? "yes" : "no");
+      if (Math.random() < 0.6) b.c.gesture("yes");
+    }
+  }
+
+  /** Titik berdiri: sel bebas di dalam ruang meeting, berjarak pas antar orang. */
+  _standSpots(count) {
+    if (count <= 0) return [];
+    const room = this.b.room("meeting");
+    if (!room) return [];
+    const spots = [];
+    for (let z = room.z0 + 0.9; z <= room.z1 - 0.85; z += 0.75) {
+      for (let x = room.x0 + 0.9; x <= room.x1 - 0.85; x += 0.75) {
+        if (this.b.isFree(x, z, 0.4)) spots.push({ x, z });
+      }
+    }
+    // acak supaya penempatan tidak seragam kaku
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+    const picks = [];
+    for (const s of spots) {
+      if (picks.length >= count) break;
+      if (picks.every((q) => Math.hypot(q.x - s.x, q.z - s.z) > 0.7)) picks.push(s);
+    }
+    if (picks.length < count) {
+      for (const s of spots) {
+        if (picks.length >= count) break;
+        if (!picks.includes(s) && picks.every((q) => Math.hypot(q.x - s.x, q.z - s.z) > 0.45)) {
+          picks.push(s);
+        }
+      }
+    }
+    return picks;
   }
 }
