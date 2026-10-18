@@ -63,8 +63,9 @@ export const WALLS = [
   },
 
   // Dinding timur HR + door arm koridor (z=1.95). Segmen 1.05..5.8
-  // memisahkan HR dari arm; segmen 5.8..7 adalah muka notch (exterior).
-  { x1: 23.8, z1: 1.05, x2: 23.8, z2: 7, mat: "wall", doors: [{ at: 0.9, w: 1.3 }] },
+  // memisahkan HR dari arm; segmen 5.8..7 ditangani satu kali oleh
+  // dinding muka notch di atas agar tidak ada dua tembok bertumpuk.
+  { x1: 23.8, z1: 1.05, x2: 23.8, z2: 5.8, mat: "wall", doors: [{ at: 0.9, w: 1.3 }] },
 
   // Sekat KACA utara — Cafe|Meeting (x=-1) dan Cafe|Studio (x=9):
   // ESPRIT terbuka, ruangan sebelah terlihat — TIDAK menyempitkan siapa pun.
