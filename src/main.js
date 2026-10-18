@@ -1,5 +1,5 @@
 /* ===================================================================== *
- *  Critter Corp — a miniature startup office seen from above.
+ *  Atelier Corp — a miniature startup office seen from above.
  *
  *  Boot order:
  *    1. HUD                       (so failures have somewhere to land)
@@ -436,7 +436,7 @@ async function boot() {
       hud.toast("Klik pegawai mana pun untuk melihat statusnya, atau buat karaktermu 👋", 4200);
     }, 1200);
 
-    window.critterCorp = { THREE, renderer, scene, camera, building, crew, rig, fx, input, player, interaction, hud };
+    window.atelierCorp = { THREE, renderer, scene, camera, building, crew, rig, fx, input, player, interaction, hud };
   } catch (err) {
     console.error(err);
     hud.showError(err);

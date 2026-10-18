@@ -1,4 +1,4 @@
-﻿import * as THREE from "three";
+import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { MAT } from "./materials.js";
@@ -15,6 +15,7 @@ import {
   BOUNDS,
   FLOOR_POLYGON,
   WALL_H,
+  DOOR_H,
   WALL_T,
   WALLS,
   ROOMS,
@@ -24,7 +25,7 @@ import {
 import { furnishRooms } from "./rooms/index.js";
 
 /* ===================================================================== *
- *  Building â€” one floor of Critter Corp.
+ *  Building — one floor of Atelier Corp.
  * ===================================================================== */
 
 const SIT_FWD = 0.16;
@@ -123,6 +124,7 @@ export class Building {
     this._walls();
     this._roomSigns();
     this._lighting();
+    this._ceilings();
     this._furnish();
     this._addUniversalInteractions();
     this._mergeStatic();
@@ -166,26 +168,8 @@ export class Building {
       this.staticGroup.add(plane);
     }
 
-    const thresholdMat = MAT.brass || MAT.steel;
-    // North doors: meeting (-6.5), cafe (1.5), studio (6.5), developer (13.1).
-    for (const x of [-6.5, 1.5, 6.5, 13.1]) {
-      const strip = box(1.16, 0.018, 0.075, thresholdMat);
-      strip.position.set(x, 0.018, -1.04);
-      this.staticGroup.add(strip);
-    }
-    // South doors: lobby (-6.5), staff (0), CEO (8.5).
-    for (const x of [-6.5, 0, 8.5]) {
-      const strip = box(1.16, 0.018, 0.075, thresholdMat);
-      strip.position.set(x, 0.018, 1.04);
-      this.staticGroup.add(strip);
-    }
-    // Wing door â€” HUMAN RESOURCE, di dinding vertikal x = 14.6 (z 1.95).
-    const hrStrip = box(0.075, 0.018, 1.16, thresholdMat);
-    hrStrip.position.set(14.6, 0.018, 1.95);
-    this.staticGroup.add(hrStrip);
-    const entranceStrip = box(0.075, 0.018, 1.38, thresholdMat);
-    entranceStrip.position.set(-9.94, 0.018, 4.5);
-    this.staticGroup.add(entranceStrip);
+    // Ambang pintu (brass strip) dihapus — lantai menyambung polos
+    // dari ruangan ke koridor tanpa "gerigi" di bawah setiap pintu.
   }
 
   /* -------------------------------------------------------------- walls */
@@ -262,7 +246,7 @@ export class Building {
       }
     }
 
-    const openingH = Math.min(1.18, WALL_H - 0.12);
+    const openingH = Math.min(DOOR_H, WALL_H - 0.1);
     const headerH = WALL_H - openingH;
     if (headerH > 0.02) {
       for (const d of sorted) {
@@ -320,13 +304,17 @@ export class Building {
       { title: "LOBBY", sub: "RECEPTION", x: -6.5, z: 0.98, ry: Math.PI, face: -1 },
       { title: "STAFF ROOM", sub: "8 WORKSTATIONS", x: 0, z: 0.98, ry: Math.PI, face: -1 },
       { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: 8.5, z: 0.98, ry: Math.PI, face: -1 },
-      // Sign door HR nempel dinding vertikal x=14.6 â†’ offset ke arah timur.
+      // Sign door HR nempel dinding vertikal x=14.6 → offset ke arah timur.
       { title: "HUMAN RESOURCE", sub: "PEOPLE & CULTURE", x: 14.67, z: 1.95, ry: Math.PI / 2, face: 0, ox: 0.045 },
     ];
 
+    // Papan nama menempel DI TENGAH lintel pintu (bukan mepet bawah),
+    // mengikuti tinggi pintu via DOOR_H supaya selalu presisi.
+    const signY = (DOOR_H + WALL_H) / 2;
+
     for (const s of signs) {
       const back = rbox(1.05, 0.26, 0.045, 0.018, MAT.steel, 0.008);
-      back.position.set(s.x, 1.29, s.z);
+      back.position.set(s.x, signY, s.z);
       back.rotation.y = s.ry;
       this.staticGroup.add(back);
 
@@ -340,27 +328,90 @@ export class Building {
       );
       // plate menghadap dari dinding: offset via s.face (*0.03 di sumbu z)
       // atau s.ox untuk dinding vertikal (offset sumbu x).
-      plate.position.set(s.x + (s.ox || 0), 1.29, s.z + (s.oz ?? s.face * 0.03));
+      plate.position.set(s.x + (s.ox || 0), signY, s.z + (s.oz ?? s.face * 0.03));
       plate.rotation.y = s.ry;
       this.staticGroup.add(plate);
     }
 
     const ent = rbox(1.35, 0.3, 0.05, 0.02, MAT.steel, 0.01);
-    ent.position.set(-9.93, 1.28, 4.5);
+    ent.position.set(-9.93, signY, 4.5);
     ent.rotation.y = Math.PI / 2;
     this.staticGroup.add(ent);
 
     const entPlate = new THREE.Mesh(
       new THREE.PlaneGeometry(1.26, 0.24),
       new THREE.MeshStandardMaterial({
-        map: makeSignTexture("CRITTER CORP", "WELCOME"),
+        map: makeSignTexture("ATELIER CORP", "WELCOME"),
         roughness: 0.4,
         metalness: 0.2,
       }),
     );
-    entPlate.position.set(-9.9, 1.28, 4.5);
+    entPlate.position.set(-9.9, signY, 4.5);
     entPlate.rotation.y = Math.PI / 2;
     this.staticGroup.add(entPlate);
+  }
+
+  /* --------------------------------------------------------- ceilings */
+
+  /**
+   * Plafon panel putih kotak-kotak (garis grid) — HANYA terlihat saat
+   * mode Kendalikan (first-person): dari atas/iso gedung tetap terbuka
+   * supaya tetap mudah diintip, tapi begitu "masuk badan" karakter,
+   * ruangan langsung tertutup plafon lengkap.
+   */
+  _ceilings() {
+    const g = new THREE.Group();
+    g.name = "Ceilings";
+
+    // Tekstur grid: satu tile = 1 sel, digambar di canvas lalu di-repeat.
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const ctx = c.getContext("2d");
+    // panel putih biasa (hampir flat, hanya sedikit variasi)
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.fillStyle = "#f7f8f9";
+    ctx.fillRect(10, 10, 108, 108);
+    // garis grid lebar tapi terang — secukupnya, tidak dominan
+    ctx.strokeStyle = "#d7dbe0";
+    ctx.lineWidth = 14;
+    ctx.strokeRect(0, 0, 128, 128);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    // sel plafon ~1.5 m teoritis; repeat bulat supaya seam menyambung rapi
+    const w = BOUNDS.x1 - BOUNDS.x0;
+    const d = BOUNDS.z1 - BOUNDS.z0;
+    const nx = Math.max(1, Math.round(w / 1.5));
+    const nz = Math.max(1, Math.round(d / 1.5));
+    tex.repeat.set(nx, nz);
+
+    // MeshStandardMaterial biasa — plafon putih normal (bukan "menyala");
+    // kecerahannya mengikuti cahaya, yang dijaga tetap terang oleh boost
+    // interior saat mode kendalikan aktif.
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.96,
+      metalness: 0.0,
+    });
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
+    plane.rotation.x = Math.PI / 2; // normal menghadap BAWAH (dilihat dari dalam)
+    plane.position.set((BOUNDS.x0 + BOUNDS.x1) / 2, WALL_H - 0.02, (BOUNDS.z0 + BOUNDS.z1) / 2);
+    plane.castShadow = false;
+    plane.receiveShadow = false;
+    g.add(plane);
+
+    g.visible = false; // default: mode jelajah — plafon tersembunyi
+    this.scene.add(g);
+    this.ceilings = g;
+  }
+
+  setCeilings(on) {
+    if (this.ceilings) this.ceilings.visible = !!on;
+    // masuk/keluar mode kendalikan → boost cahaya interior ikut nyala/padam
+    // (dipadam halus di update() supaya transisinya tidak "pop")
+    this.lightBoostTarget = on ? 1 : 0;
   }
 
   /* ------------------------------------------------------------ lights */
@@ -383,6 +434,9 @@ export class Building {
     this.lights = { hemi, sun, fill, amb };
     this.nightness = 0;
     this.targetNightness = 0;
+    // boost cahaya interior — aktif saat plafon tampil (mode kendalikan)
+    this.lightBoost = 0;
+    this.lightBoostTarget = 0;
   }
 
   setNightness(v, instant = false) {
@@ -395,14 +449,20 @@ export class Building {
 
   _applyNightness() {
     const v = this.nightness;
+    // boost: cahaya interior ekstra saat mode kendalikan (first-person).
+    // Dari dalam, dinding/sisi furniture tidak pernah terkena sun fisik,
+    // jadi tanpa boost ruangan terasa gelap; boost menaikkan hemi/ambient/
+    // sun/fill secukupnya. Malam hari boost dikurangi (0.45×) biar tetap
+    // ada kesan "lampu kantor menyala" tapi tidak membuat malam jadi siang.
+    const b = this.lightBoost * THREE.MathUtils.lerp(1, 0.45, v);
     const L = this.lights;
-    L.sun.intensity = THREE.MathUtils.lerp(1.55, 0.25, v);
+    L.sun.intensity = THREE.MathUtils.lerp(1.55, 0.25, v) + 0.55 * b;
     L.sun.color.setHex(v > 0.5 ? 0xa8bcff : 0xfff3df);
-    L.hemi.intensity = THREE.MathUtils.lerp(1.05, 0.35, v);
+    L.hemi.intensity = THREE.MathUtils.lerp(1.05, 0.35, v) + 0.5 * b;
     L.hemi.color.setHex(v > 0.5 ? 0x2a3a5c : 0xdfe8f5);
     L.hemi.groundColor.setHex(v > 0.5 ? 0x0e1218 : 0x6b5a45);
-    L.fill.intensity = THREE.MathUtils.lerp(0.35, 0.5, v);
-    L.amb.intensity = THREE.MathUtils.lerp(0.22, 0.16, v);
+    L.fill.intensity = THREE.MathUtils.lerp(0.35, 0.5, v) + 0.35 * b;
+    L.amb.intensity = THREE.MathUtils.lerp(0.22, 0.16, v) + 0.42 * b;
   }
 
   /* ------------------------------------------------------------ furnish */
@@ -477,7 +537,7 @@ export class Building {
         radius: 0.85,
         onClick: () => {
           api?.water?.();
-          return "Sudah disiram â€” terima kasih ðŸŒ¿";
+          return "Sudah disiram — terima kasih 🌿";
         },
       });
     }
@@ -506,7 +566,7 @@ export class Building {
       const y = Math.max(0.68, item.y + 0.66);
       this._hotspot(item.x, item.z, y, size, {
         id: `inspect-prop-${this._interactionId++}`,
-        label: `${label} Â· ${roomName}`,
+        label: `${label} · ${roomName}`,
         hint: "Klik untuk memeriksa detail dan status objek",
         radius: 1.0,
         onClick: () => {
@@ -542,7 +602,7 @@ export class Building {
     hotspotMessage,
     radius = 1.2,
     room,
-    seatType = null,      // mis. "reception" â†’ staf duduk di kursi posnya
+    seatType = null,      // mis. "reception" → staf duduk di kursi posnya
     homeStatus = null,
     wanderRadius = 5,     // radius merdeka berkeliling (di clamp ruangan saja)
   }) {
@@ -643,7 +703,7 @@ export class Building {
       const pos = part.getWorldPosition(new THREE.Vector3());
       this._hotspot(pos.x, pos.z, 0.91, 0.42, {
         id: `${label.toLowerCase().replace(/\s+/g, "-")}-${key}`,
-        label: `${label} Â· workstation`,
+        label: `${label} · workstation`,
         hint: "Klik untuk inspeksi",
         radius: 0.55,
         onClick: () => message,
@@ -856,7 +916,7 @@ export class Building {
     return null;
   }
 
-  /** Benang penglihatan: apakah garis Aâ†’B bebas rintangan? */
+  /** Benang penglihatan: apakah garis A→B bebas rintangan? */
   _lineFree(ax, az, bx, bz, radius = 0.30) {
     const d = Math.hypot(bx - ax, bz - az);
     const steps = Math.max(1, Math.ceil(d / 0.14));
@@ -964,7 +1024,7 @@ export class Building {
 
   /**
    * Rute pintar dari posisi `from` ke `target`: garis lurus bila bebas,
-   * selain itu A* grid â†’ sederhanakan. Karakter otomatis menghindari
+   * selain itu A* grid → sederhanakan. Karakter otomatis menghindari
    * tembok & semua perabot alih-alih memaksakan jalan menempel.
    */
   route(from, target) {
@@ -989,7 +1049,7 @@ export class Building {
     const simp = this._simplify(pts).slice(1); // buang sel posisi awal
     const out = simp.map((p) => ({ x: p.x, z: p.z }));
 
-    // tujuan presisi hanya jika memang bisa dipijak (kursi â‰  titik jalan);
+    // tujuan presisi hanya jika memang bisa dipijak (kursi ≠ titik jalan);
     // kalau tidak, rute berhenti di sel terdekat dan duduk menyusul lewat seatInto
     if (this.isFree(target.x, target.z, 0.18)) out.push({ x: target.x, z: target.z });
     return out.length ? out : fallback;
@@ -1075,6 +1135,12 @@ export class Building {
     if (Math.abs(this.targetNightness - this.nightness) > 0.001) {
       const k = 1 - Math.exp(-2.2 * dt);
       this.nightness += (this.targetNightness - this.nightness) * k;
+      this._applyNightness();
+    }
+    // boost cahaya interior menyala/padam halus mengikuti plafon
+    if (Math.abs(this.lightBoostTarget - this.lightBoost) > 0.005) {
+      const kb = 1 - Math.exp(-5 * dt);
+      this.lightBoost += (this.lightBoostTarget - this.lightBoost) * kb;
       this._applyNightness();
     }
     for (let i = 0; i < this.tickers.length; i++) {

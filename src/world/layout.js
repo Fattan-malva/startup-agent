@@ -8,7 +8,9 @@ export const BOUNDS = { x0: -10, x1: 16.2, z0: -7, z1: 7 };
 export const FLOOR_POLYGON = [
   [-10, -7], [16.2, -7], [16.2, 7], [-10, 7],
 ];
-export const WALL_H = 1.52;
+export const WALL_H = 2.4;
+// Tinggi bukaan pintu (lintel) — semua door otomatis mengikuti konstanta ini.
+export const DOOR_H = 1.75;
 export const WALL_T = 0.14;
 // Koridor lebar nominal 2.1 m (muka-ke-muka ±1.96). Semua boundary
 // (room, partition, sign, threshold) mengacu ke z = ±1.05 ini.

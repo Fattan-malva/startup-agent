@@ -11,6 +11,7 @@ import {
   createBin,
   createPendantLamp,
 } from "../props.js";
+import { WALL_H } from "../layout.js";
 
 export function build(b) {
   const mcx = -5.5;
@@ -58,9 +59,10 @@ export function build(b) {
   const pendantA = createPendantLamp();
   const pendantB = createPendantLamp();
   const pendantC = createPendantLamp();
-  b._static(pendantA, mcx - 1.5, mcz, 0, 2.15);
-  b._static(pendantB, mcx, mcz, 0, 2.15);
-  b._static(pendantC, mcx + 1.5, mcz, 0, 2.15);
+  // kord lampu 0.7 m — pas sampai plafon (WALL_H)
+  b._static(pendantA, mcx - 1.5, mcz, 0, WALL_H - 0.7);
+  b._static(pendantB, mcx, mcz, 0, WALL_H - 0.7);
+  b._static(pendantC, mcx + 1.5, mcz, 0, WALL_H - 0.7);
   b._interactive(pendantA, { id: "pendant-meeting-a", label: "Lampu rapat A", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu A nyala" : "Lampu A mati" });
   b._interactive(pendantB, { id: "pendant-meeting-b", label: "Lampu rapat B", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu B nyala" : "Lampu B mati" });
   b._interactive(pendantC, { id: "pendant-meeting-c", label: "Lampu rapat C", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu C nyala" : "Lampu C mati" });

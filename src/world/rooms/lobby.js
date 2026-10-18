@@ -66,7 +66,7 @@ export function build(b) {
     x: -7.85, z: 3.6, yaw: -Math.PI / 3,
     hotspotLabel: "Resepsionis lobby",
     hotspotHint: "Klik untuk bertanya",
-    hotspotMessage: "Resepsionis: selamat datang di Critter Corp. Ada yang bisa dibantu?",
+    hotspotMessage: "Resepsionis: selamat datang di Atelier Corp. Ada yang bisa dibantu?",
     radius: 1.4,
     room: "lobby",
     seatType: "reception",

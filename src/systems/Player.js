@@ -52,6 +52,8 @@ export class Player {
     critter.status = "Kamu kendalikan";
     // control the character: first-person camera in the world
     this.rig.enterFps(critter);
+    // plafon hanya tampil saat mode kendalikan (kamera first-person)
+    this.building?.setCeilings?.(true);
     this.walkTarget = null;
     this._walkPath = null;
     this.fx?.setWalkTarget(null);
@@ -66,6 +68,8 @@ export class Player {
     this.controlled.status = "Balik kerja";
     this.controlled.walkScale = 1;
     this.controlled = null;
+    // keluar dari mode kendalikan → plafon menghilang lagi
+    this.building?.setCeilings?.(false);
     this.rig.exitFps();
     this.rig.follow(null);
     this.rig.overview();
