@@ -36,7 +36,7 @@ export class Brain {
     // A* routing menangani pendekatan + menghindari tembok/perabot;
     // titik via lama tidak diperlukan lagi.
     void via;
-    const path = this.b.route(this.c.position, target);
+    const path = this.b.route(this.c.position, target, this.c);
     this.c.pose("stand");
     this.c.followPath(path, running);
   }
@@ -83,12 +83,13 @@ export class Brain {
    */
   _approachAndSit(seat) {
     const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+    const ign = this.b.seatIgnore(seat);
     const clearToSeat = this.b._lineFree(
-      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, seat.obstacle,
-    ) && this.b.isFree(spot.x, spot.z, 0.24, seat.obstacle);
+      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, ign,
+    ) && this.b.isFree(spot.x, spot.z, 0.24, ign);
     if (!clearToSeat) {
       const approach = this.b.approachTo(seat);
-      const path = approach ? this.b.route(this.c.position, approach) : [];
+      const path = approach ? this.b.route(this.c.position, approach, this.c) : [];
       if (path.length && Math.hypot(approach.x - this.c.position.x, approach.z - this.c.position.z) > 0.25) {
         this.goal.approach = approach;
         this.stage = "travel";
@@ -101,7 +102,8 @@ export class Brain {
       this.c.status = "Kursi terhalang";
       return;
     }
-    // Final movement ignores this seat's own collider only, never tables/walls.
+    // Final movement ignores this seat's own collider (+ perabot yang menempel
+    // di titik duduk, mis. meja yang ditutup kursi), never walls/tables lain.
     this.c.seatInto(spot.x, spot.z, seat.yaw ?? this.goal?.yaw, seat);
   }
 
@@ -133,41 +135,53 @@ export class Brain {
   _chooseGoal() {
     const roll = Math.random();
     if (roll < 0.28) return this._goalWork();
-    if (roll < 0.44) return this._goalWander();
-    if (roll < 0.56) return this._goalCoffee();
-    if (roll < 0.66) return this._goalWater();
-    if (roll < 0.8) return this._goalChat();
-    if (roll < 0.88) return this._goalBreak();
+    if (roll < 0.42) return this._goalWander();
+    if (roll < 0.54) return this._goalCoffee();
+    if (roll < 0.62) return this._goalWater();
+    if (roll < 0.76) return this._goalChat();
+    if (roll < 0.88) return this._goalSitAny();
     if (roll < 0.94) return this._goalCooler();
     return this._goalMeeting();
   }
 
-  _goalWork() {
-    const seat = this._freeDesk();
-    if (!seat) return this._goalWander();
-    this.seat = seat;
-    this._beginTravel({
-      type: "work",
-      target: this._seatSpot(seat),
-      yaw: seat.yaw, // face the desk
-      seat,
-      via: this.b.approachTo(seat),
-      travelStatus: "Menuju meja",
-    });
+  /**
+   * Ambil kursi kosong yang titik pendekatannya BENAR-BENAR bisa dicapai.
+   * Kalau kursi yang terklaim ternyata di kantong buntu / terhalang, lepas
+   * lagi dan coba kandidat lain — jadi NPC tidak pernah "nyangkut niat".
+   */
+  _reachableSeat(claim) {
+    for (let i = 0; i < 6; i++) {
+      const seat = claim();
+      if (!seat) return null;
+      const approach = this.b.approachTo(seat);
+      if (approach) return { seat, approach };
+      this.b.releaseSeat(seat, this.c);
+    }
+    return null;
   }
 
-  _goalMeeting() {
-    const seat = this.b.claimSeat("meeting", this.c);
-    if (!seat) return this._goalWander();
+  _sitGoal(seat, approach, type, status) {
     this.seat = seat;
     this._beginTravel({
-      type: "meeting",
+      type,
       target: this._seatSpot(seat),
       yaw: seat.yaw,
       seat,
-      via: this.b.approachTo(seat),
-      travelStatus: "Menuju ruang rapat",
+      via: approach,
+      travelStatus: status,
     });
+  }
+
+  _goalWork() {
+    const found = this._reachableSeat(() => this.b.claimSeat("desk", this.c));
+    if (!found) return this._goalWander();
+    this._sitGoal(found.seat, found.approach, "work", "Menuju meja");
+  }
+
+  _goalMeeting() {
+    const found = this._reachableSeat(() => this.b.claimSeat("meeting", this.c));
+    if (!found) return this._goalSitAny();
+    this._sitGoal(found.seat, found.approach, "meeting", "Menuju ruang rapat");
   }
 
   _goalWander() {
@@ -181,19 +195,27 @@ export class Brain {
   }
 
   _goalCoffee() {
+    const p = this.b.poiNear("Espresso machine", this.c.position, {
+      start: 0.72, maxR: 2.0, gap: 0.7, radius: 0.34,
+    });
+    if (!p) return this._goalSitAny();
     this._beginTravel({
       type: "coffee",
-      target: { x: -0.1, z: -5.12 },
-      yaw: Math.PI,
+      target: { x: p.x, z: p.z },
+      yaw: p.yaw,
       travelStatus: "Ngambil kopi",
     });
   }
 
   _goalCooler() {
+    const p = this.b.poiNear("Dispenser air", this.c.position, {
+      start: 0.72, maxR: 2.0, gap: 0.7, radius: 0.34,
+    });
+    if (!p) return this._goalSitAny();
     this._beginTravel({
       type: "cooler",
-      target: { x: 2.0, z: -5.0 },
-      yaw: Math.PI,
+      target: { x: p.x, z: p.z },
+      yaw: p.yaw,
       travelStatus: "Haus nih",
     });
   }
@@ -202,28 +224,47 @@ export class Brain {
     const spots = this.b.plantSpots;
     if (!spots.length) return this._goalWander();
     const p = spots[Math.floor(Math.random() * spots.length)];
+    // Cari titik berhenti di sekitar tanaman yang masih di "ruangan" yang
+    // sama dengan tanaman itu — supaya NPC tidak jalan menembus sekat
+    // (mis. menyiram tanaman lobby dari sisi cafe).
+    const home = this.b.roomAt(p.x, p.z);
+    const bd = this.b.bounds;
+    const offs = [[0.7, 0.5], [-0.7, 0.5], [0.7, -0.5], [-0.7, -0.5], [0.85, 0], [-0.85, 0], [0, 0.75], [0, -0.75]];
+    let target = { x: p.x, z: p.z };
+    for (const [ox, oz] of offs) {
+      const tx = p.x + ox, tz = p.z + oz;
+      if (tx < bd.x0 + 0.3 || tx > bd.x1 - 0.3 || tz < bd.z0 + 0.3 || tz > bd.z1 - 0.3) continue;
+      if (this.b.roomAt(tx, tz) !== home) continue;
+      if (!this.b.isFree(tx, tz, 0.32)) continue;
+      if (!this.b.walkableAt(tx, tz, 0.22, true)) continue;
+      target = { x: tx, z: tz };
+      break;
+    }
     this._beginTravel({
       type: "water",
-      target: { x: p.x + 0.7, z: p.z + 0.5 },
+      target,
       travelStatus: "Ambil semprotan",
     });
   }
 
   _goalBreak() {
-    const seat = this.b.claimSeat(Math.random() < 0.5 ? "lounge" : "lunch", this.c);
-    if (seat) {
-      this.seat = seat;
-      return this._beginTravel({
-        type: "break",
-        target: this._seatSpot(seat),
-        yaw: seat.yaw,
-        seat,
-        via: this.b.approachTo(seat),
-        travelStatus: "Cari tempat duduk",
-      });
-    }
-    const spot = this.b.randomSpot("lobby", { x: 0, z: 0 });
-    this._beginTravel({ type: "break", target: spot, travelStatus: "Istirahat" });
+    const want = Math.random() < 0.5 ? "lounge" : null;
+    const found = this._reachableSeat(() => this.b.claimSeat(want, this.c));
+    if (!found) return this._goalWander();
+    this._sitGoal(found.seat, found.approach, "break", "Cari tempat duduk");
+  }
+
+  /** Duduk di kursi/sofa tipe APA PUN yang kosong (semua dudukan bisa dipakai). */
+  _goalSitAny() {
+    const found = this._reachableSeat(() => this.b.claimAnySeat(this.c));
+    if (!found) return this._goalBreak();
+    const st = found.seat.type;
+    this._sitGoal(
+      found.seat,
+      found.approach,
+      "break",
+      st === "desk" ? "Mau duduk kerja" : "Cari tempat duduk",
+    );
   }
 
   _goalChat() {
@@ -354,9 +395,19 @@ export class StaffBrain {
         this._inRoom(s) && (s.type === "lounge" || s.type === "lunch") && !s.taken);
     }
     if (!pool.length) return null;
-    const seat = pool[Math.floor(Math.random() * pool.length)];
-    seat.taken = this.c;
-    return seat;
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    // hanya pilih kursi yang titik pendekatannya benar-benar bisa dicapai
+    for (const s of pool) {
+      if (!this.b.approachTo(s)) continue;
+      s.taken = this.c;
+      s.takenAt = this.b._clock;
+      s.uses = (s.uses || 0) + 1;
+      return s;
+    }
+    return null;
   }
 
   _releaseSeat() {
@@ -381,7 +432,7 @@ export class StaffBrain {
       return;
     }
     if (seat) this.goal.approach = t;
-    const path = this.b.route(this.c.position, t);
+    const path = this.b.route(this.c.position, t, this.c);
     this.c.pose("stand");
     this.c.followPath(path, false);
   }
@@ -444,12 +495,13 @@ export class StaffBrain {
   /** Sama seperti Brain: dekati kursi lewat rute normal dulu, baru duduk. */
   _approachAndSit(seat) {
     const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+    const ign = this.b.seatIgnore(seat);
     const clearToSeat = this.b._lineFree(
-      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, seat.obstacle,
-    ) && this.b.isFree(spot.x, spot.z, 0.24, seat.obstacle);
+      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, ign,
+    ) && this.b.isFree(spot.x, spot.z, 0.24, ign);
     if (!clearToSeat) {
       const approach = this.b.approachTo(seat);
-      const path = approach ? this.b.route(this.c.position, approach) : [];
+      const path = approach ? this.b.route(this.c.position, approach, this.c) : [];
       if (path.length && Math.hypot(approach.x - this.c.position.x, approach.z - this.c.position.z) > 0.25) {
         this.goal.approach = approach;
         this.stage = "travel";
@@ -555,7 +607,13 @@ export class Meeting {
     this.parts = [];
     const standers = [];
     for (const c of participants) {
-      const seat = this.b.claimSeat("meeting", c, "meeting");
+      let seat = null;
+      for (let i = 0; i < 6; i++) {
+        const s = this.b.claimSeat("meeting", c, "meeting");
+        if (!s) break;
+        if (this.b.approachTo(s)) { seat = s; break; }
+        this.b.releaseSeat(s, c);
+      }
       if (seat) {
         this.parts.push({
           c, mode: "sit", stage: "travel", seat, retries: 0,
@@ -626,9 +684,10 @@ export class Meeting {
       if (p.mode === "sit" && p.seat) {
         const spot = { x: p.seat.sit?.x ?? p.seat.x, z: p.seat.sit?.z ?? p.seat.z };
         const dist = Math.hypot(spot.x - c.position.x, spot.z - c.position.z);
+        const ign = this.b.seatIgnore(p.seat);
         const clearToSeat = this.b._lineFree(
-          c.position.x, c.position.z, spot.x, spot.z, 0.24, p.seat.obstacle,
-        ) && this.b.isFree(spot.x, spot.z, 0.24, p.seat.obstacle);
+          c.position.x, c.position.z, spot.x, spot.z, 0.24, ign,
+        ) && this.b.isFree(spot.x, spot.z, 0.24, ign);
         if (dist <= 0.3 && clearToSeat) {
           p.homeYaw = p.seat.yaw;
           c.seatInto(spot.x, spot.z, p.seat.yaw, p.seat);
@@ -648,7 +707,7 @@ export class Meeting {
             continue;
           }
           const approach = this.b.approachTo(p.seat);
-          const path = approach ? this.b.route(c.position, approach) : [];
+          const path = approach ? this.b.route(c.position, approach, c) : [];
           if (path.length) {
             p.approach = approach;
             c.followPath(path, false);
@@ -665,7 +724,7 @@ export class Meeting {
       if (p.mode === "stand") {
         if (!p.started && p.spot) {
           p.started = true;
-          c.followPath(this.b.route(c.position, p.spot), false);
+          c.followPath(this.b.route(c.position, p.spot, c), false);
           continue;
         }
         if (c.pathDone && !c.path) {

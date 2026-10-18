@@ -42,6 +42,12 @@ export class HUD {
       viewcharSpecies: byId("viewchar-species"),
       roster: byId("roster"),
       rosterList: byId("roster-list"),
+      editbar: byId("editbar"),
+      editBtn: byId("btn-edit"),
+      editTarget: byId("edit-target"),
+      editMats: byId("edit-mats"),
+      editSnap: byId("btn-snap"),
+      editFile: byId("edit-file"),
       controlInfo: byId("control-info"),
       btnRelease: byId("btn-release"),
       loader: byId("loader"),
@@ -61,6 +67,7 @@ export class HUD {
     this._helpOpen = false;
     this._spawnOpen = false;
     this._rosterOpen = true;
+    this._editOpen = false;
     this._selectedSpecies = SPECIES[0].id;
     this._lastMsg = null;
     this._fps = false;
@@ -217,6 +224,44 @@ export class HUD {
           .toString(16)
           .padStart(6, "0")}"></span>`;
       ul.appendChild(li);
+    }
+  }
+
+  /* ------------------------------------------------------------ edit mode */
+  toggleEditBar(force) {
+    const open =
+      typeof force === "boolean" ? force : !this._editOpen;
+    this._editOpen = open;
+    this.dom.editbar?.classList.toggle("is-open", open);
+    return open;
+  }
+
+  get editOpen() {
+    return !!this._editOpen;
+  }
+
+  setEditTarget(text) {
+    if (!this.dom.editTarget) return;
+    if (this.dom.editTarget.textContent !== text) this.dom.editTarget.textContent = text;
+  }
+
+  setEditSnap(on) {
+    this.dom.editSnap?.classList.toggle("is-active", !!on);
+  }
+
+  renderEditMats(list, activeKey) {
+    const wrap = this.dom.editMats;
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    for (const m of list) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "sw" + (m.key === activeKey ? " is-active" : "");
+      b.dataset.action = "edit-mat";
+      b.dataset.value = m.key;
+      b.title = m.label;
+      b.style.setProperty("--c", m.color);
+      wrap.appendChild(b);
     }
   }
 

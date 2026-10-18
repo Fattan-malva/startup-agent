@@ -24,6 +24,7 @@ export class Player {
     this.controlled = null;
     this.walkTarget = null;
     this._walkPath = null;
+    this._sitSeat = null;
     this._dir = new THREE.Vector2();
     this._ax = new THREE.Vector2();
     this._tmp = new THREE.Vector3();
@@ -56,6 +57,7 @@ export class Player {
     this.building?.setCeilings?.(true);
     this.walkTarget = null;
     this._walkPath = null;
+    this._sitSeat = null;
     this.fx?.setWalkTarget(null);
     this.hud?.setControlling({ name: critter.name, species: critter.speciesId, emoji: critter.spec.emoji });
     this.hud?.setFirstPerson(true);
@@ -64,6 +66,10 @@ export class Player {
 
   release() {
     if (!this.controlled) return;
+    if (this._sitSeat) {
+      this.building.releaseSeat(this._sitSeat, this.controlled);
+      this._sitSeat = null;
+    }
     this.crew.release(this.controlled);
     this.controlled.status = "Balik kerja";
     this.controlled.walkScale = 1;
@@ -85,9 +91,10 @@ export class Player {
     if (!this.controlled) return;
     if (this.rig.firstPerson) return; // walking is WASD when you are inside
     this.walkTarget = { x: point.x, z: point.z };
+    this._sitSeat = null;
     // Compute a safe route once. An unreachable point should stop here,
     // never fall back to a direct line through furniture or partitions.
-    this._walkPath = this.building.route(this.controlled.position, this.walkTarget);
+    this._walkPath = this.building.route(this.controlled.position, this.walkTarget, this.controlled);
     this.controlled.followPath(this._walkPath, false);
     if (!this._walkPath.length) {
       this.walkTarget = null;
@@ -112,6 +119,7 @@ export class Player {
       const sin = Math.sin(yaw);
       const cos = Math.cos(yaw);
       if (ax.x !== 0 || ax.y !== 0) {
+        this._standFromSeat();
         c.moveDir(sin * ax.y - cos * ax.x, cos * ax.y + sin * ax.x, this.input.running);
         c.status = this.input.running ? "Buru-buru! 🏃" : "Berkeliling";
       } else {
@@ -123,6 +131,7 @@ export class Player {
 
     const ax = this.input.moveAxis(this._ax);
     if (ax.x !== 0 || ax.y !== 0) {
+      this._standFromSeat();
       this.walkTarget = null;
       this._walkPath = null;
       this.fx?.setWalkTarget(null);
@@ -147,14 +156,23 @@ export class Player {
       const arrived = Math.hypot(last.x - c.position.x, last.z - c.position.z) < 0.3
         || (c.pathDone && !c.path);
       if (arrived) {
+        const seat = this._sitSeat;
         this.walkTarget = null;
         this._walkPath = null;
         this.fx?.setWalkTarget(null);
+        if (seat) {
+          // sampai di titik pendekatan kursi → melangkah masuk & duduk
+          this._sitSeat = null;
+          const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+          c.seatInto(spot.x, spot.z, seat.yaw ?? 0, seat);
+          c.status = "Duduk santai 🪑";
+          return;
+        }
         c.moveDir(0, 0);
         c.status = "Sampai tujuan";
       } else if (c.pathDone && !c.path) {
         // jalur habis tapi belum di titik akhir → hitung ulang sekali
-        this._walkPath = this.building.route(c.position, this.walkTarget);
+        this._walkPath = this.building.route(c.position, this.walkTarget, c);
         if (!this._walkPath.length) {
           this.walkTarget = null;
           this._walkPath = null;
@@ -172,6 +190,80 @@ export class Player {
   }
 
   /* ------------------------------------------------------------ actions */
+
+  /** Berdiri dari kursi + lepas klaimnya (dipakai saat pemain mulai jalan). */
+  _standFromSeat() {
+    const c = this.controlled;
+    if (!c) return;
+    const seat = this._sitSeat || this.building.seatOf(c);
+    if (seat) this.building.releaseSeat(seat, c);
+    this._sitSeat = null;
+    if (c.sitting || c._seating) c.standUp();
+  }
+
+  /**
+   * Duduk di kursi/sofa yang diklik: klaim kursi, cari jalan ke titik
+   * pendekatan yang aman lewat A*, lalu melangkah masuk dan duduk.
+   * Kalau sudah dekat (≤1 m) & garis ke titik duduk bebas → langsung duduk.
+   */
+  sitOn(seat) {
+    const c = this.controlled;
+    if (!c || !seat) return false;
+    if (seat.taken && seat.taken !== c) {
+      this.hud?.toast("Kursi itu sedang dipakai orang lain", 1800);
+      return false;
+    }
+    this._standFromSeat();
+    seat.taken = c;
+    seat.takenAt = this.building._clock;
+    seat.uses = (seat.uses || 0) + 1;
+    this._sitSeat = seat;
+
+    const ign = this.building.seatIgnore(seat);
+    const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+    const dist = Math.hypot(spot.x - c.position.x, spot.z - c.position.z);
+    const clear = this.building._lineFree(c.position.x, c.position.z, spot.x, spot.z, 0.24, ign)
+      && this.building.isFree(spot.x, spot.z, 0.24, ign);
+    if (dist <= 1.0 && clear) {
+      c.seatInto(spot.x, spot.z, seat.yaw ?? 0, seat);
+      c.status = "Duduk santai 🪑";
+      this.walkTarget = null;
+      this._walkPath = null;
+      this.fx?.setWalkTarget(null);
+      this._sitSeat = null;
+      return true;
+    }
+
+    const approach = this.building.approachTo(seat);
+    if (this.rig.firstPerson) {
+      this.building.releaseSeat(seat, c);
+      this._sitSeat = null;
+      this.hud?.toast("Terlalu jauh — dekatkan diri ke kursi dulu", 2000);
+      return false;
+    }
+    if (!approach) {
+      this.building.releaseSeat(seat, c);
+      this._sitSeat = null;
+      this.hud?.toast("Tidak ada jalan menuju kursi itu", 2200);
+      return false;
+    }
+    this.walkTarget = { x: approach.x, z: approach.z };
+    this._walkPath = this.building.route(c.position, approach, c);
+    if (!this._walkPath.length) {
+      this.building.releaseSeat(seat, c);
+      this._sitSeat = null;
+      this.walkTarget = null;
+      this._walkPath = null;
+      this.hud?.toast("Tidak ada jalan menuju kursi itu", 2200);
+      return false;
+    }
+    c.pose("stand");
+    c.followPath(this._walkPath, false);
+    c.status = "Menuju kursi";
+    this.fx?.setWalkTarget(approach);
+    this.hud?.toast("Menuju kursi…", 1600);
+    return true;
+  }
 
   /** E — greet the nearest colleague, or use the nearest interactive prop. */
   interact() {

@@ -1,5 +1,14 @@
 /* ===================================================================== *
- *  Cafe — pantry, lounge TV, dan staff barista (keliling cafe).
+ *  Cafe — sayap utara-timur (x 5.5..16, z -10..-3.1).
+ *
+ *  Layout:
+ *    - konter pantry panjang di dinding utara + espresso machine
+ *      interaktif; 3 bar stool (ottoman) menghadap konter
+ *    - kulkas + media cabinet + TV lounge + PlayStation di dinding utara
+ *      bagian timur, lounge sofa menghadap TV di atas karpet navy
+ *    - 2 meja bundar dengan armchair (area makan)
+ *    - barista (NPC) keliling cafe, kembali ke dekat konter
+ *  Pintu ada di dinding selatan z = -3.1 (x = 6.3), menghadap koridor U.
  * ===================================================================== */
 import * as THREE from "three";
 
@@ -13,14 +22,17 @@ import {
   createSofa,
   createCoffeeTable,
   createArmchair,
+  createOttoman,
   createSideTable,
+  createStorageCabinet,
+  createClock,
   createBin,
   createCoffeeMachine,
   createMug,
 } from "../props.js";
 
 /* ------------------------------------------------------------------ *
- *  TV lounge (was Building.createTV).                                 *
+ *  TV lounge — bezel tipis + layar yang bisa dinyalakan.              *
  * ------------------------------------------------------------------ */
 function createTV({ w = 1.4, h = 0.85 } = {}) {
   const g = new THREE.Group();
@@ -57,7 +69,7 @@ function createTV({ w = 1.4, h = 0.85 } = {}) {
 }
 
 /* ------------------------------------------------------------------ *
- *  PlayStation (was Building.createPlayStation).                      *
+ *  PlayStation — dekorasi konsol di atas media cabinet.               *
  * ------------------------------------------------------------------ */
 function createPlayStation() {
   const g = new THREE.Group();
@@ -82,10 +94,7 @@ function createPlayStation() {
 }
 
 /* ------------------------------------------------------------------ *
- *  Konter pantry (was Building._kitchenCounter) — cara pasang:        *
- *    const counter = kitchenCounter(b);                               *
- *    b._static(counter, 0.5, -6.35, 0);                               *
- *    b._splitLive(counter, [counter.userData.parts.machine]);         *
+ *  Konter pantry — splash MENEMPEL dinding utara (lokal -z).          *
  * ------------------------------------------------------------------ */
 function kitchenCounter(b) {
   const g = new THREE.Group();
@@ -160,91 +169,110 @@ function kitchenCounter(b) {
 }
 
 export function build(b) {
+  /* ── Pantry: konter + kulkas + TV lounge ─────────────────────────── */
   const counter = kitchenCounter(b);
-  b._static(counter, 0.5, -6.35, 0);
+  b._static(counter, 11.6, -9.62, 0);
   b._splitLive(counter, [counter.userData.parts.machine]);
 
+  /* 3 bar stool (ottoman) DITUTUP ke konter — sekaligus membuka jalur
+   * lewat lounge supaya sudut TV tidak jadi kantong buntu. */
+  const stoolXs = [10.85, 11.6, 12.35];
+  for (const sx of stoolXs) {
+    const stool = createOttoman({ w: 0.6, d: 0.56, color: "olive" });
+    b._static(stool, sx, -9.12, Math.PI);
+    b._seat(sx, -9.12, Math.PI, "lounge");
+  }
+
   const fridge = createFridge({ w: 0.55, h: 1.4, d: 0.55 });
-  // Keep the fridge off the glass partition and away from the counter's end.
-  b._static(fridge, 8.3, -5.9, 0);
+  b._static(fridge, 15.35, -9.62, 0);
   b._interactive(fridge, {
-    id: "cafe-fridge", label: "Kulkas cafe",
-    hint: "Klik untuk membuka / menutup", radius: 0.7,
-    onClick: (self) => self.userData.api.toggle() ? "Kulkas dibuka" : "Kulkas ditutup",
+    id: "cafe-fridge",
+    label: "Kulkas cafe",
+    hint: "Klik untuk membuka / menutup",
+    radius: 0.7,
+    onClick: (self) => (self.userData.api.toggle() ? "Kulkas dibuka" : "Kulkas ditutup"),
   });
 
-  // Low media cabinet supports the TV and console; leave a clear gap to the pantry.
   const mediaCabinet = createStorageCabinet({ w: 1.35, h: 0.56, d: 0.38, color: "wood" });
-  b._static(mediaCabinet, 2.5, -6.55, 0, 0, { w: 1.42, d: 0.44 });
+  b._static(mediaCabinet, 13.8, -9.74, 0, 0, { w: 1.42, d: 0.44 });
 
   const tv = createTV({ w: 1.4, h: 0.85 });
-  b._static(tv, 2.5, -6.85, 0, 1.15);
+  b._static(tv, 13.8, -9.82, 0, 1.15);
   b._interactive(tv, {
-    id: "cafe-tv", label: "TV lounge",
-    hint: "Klik untuk ganti channel", radius: 1.2,
+    id: "cafe-tv",
+    label: "TV lounge",
+    hint: "Klik untuk ganti channel",
+    radius: 1.2,
     onClick: () => "Channel: gameplay tournament · 4K 60 fps",
   });
 
   const ps = createPlayStation();
-  // This prop rests on the media cabinet, so it must not create a floor collider.
-  ps.userData.footprint = null;
-  b._static(ps, 2.5, -6.55, 0, 0.56);
+  ps.userData.footprint = null; // menempel media cabinet, bukan collider lantai
+  b._static(ps, 13.8, -9.6, 0, 0.62);
   b._interactive(ps, {
-    id: "cafe-ps", label: "PlayStation",
-    hint: "Klik untuk menyalakan", radius: 0.7,
+    id: "cafe-ps",
+    label: "PlayStation",
+    hint: "Klik untuk menyalakan",
+    radius: 0.7,
     onClick: () => "PS: game siap dimainkan",
   });
 
-  // Carpet L-shape — digeser ke dalam supaya tidak menyentuh dinding koridor.
-  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.0), MAT.rugNavy);
-  carpet.rotation.x = -Math.PI / 2;
-  carpet.position.set(0.3, 0.012, -2.7);
-  carpet.receiveShadow = true;
-  b.staticGroup.add(carpet);
+  b._static(createClock(), 9.5, -9.86, 0, 2.0);
 
-  // L-sofa A — sisi koridor, back DI DALAM room (tidak menembus dinding).
-  // Back sofa = z_back; center z = -1.75 → back di -1.325, dinding inner -1.12. Aman.
-  const sofaA = createSofa({ width: 2.0, depth: 0.85 });
-  b._static(sofaA, 0.25, -1.95, Math.PI, 0, { w: 2.1, d: 0.95 });
-  b._seat(0.25, -1.95, Math.PI, "lounge");
+  /* ── Lounge menghadap TV (karpet navy) ───────────────────────────── */
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.6), MAT.rugNavy);
+  rug.rotation.x = -Math.PI / 2;
+  rug.position.set(13.8, 0.012, -7.4);
+  rug.receiveShadow = true;
+  b.staticGroup.add(rug);
 
-  // L-sofa B — sisi barat, footprint FIX (pre-swap salah sebelumnya).
-  // fp {w:2.4, d:0.85} dibaca _static dengan swap ry=π/2 → world 0.85 × 2.4.
-  const sofaB = createSofa({ width: 2.4, depth: 0.85 });
-  b._static(sofaB, -0.35, -3.8, Math.PI / 2, 0, { w: 2.4, d: 0.85 });
-  b._seat(-0.35, -3.8, Math.PI / 2, "lounge");
+  const sofa = createSofa({ width: 2.0, depth: 0.85 });
+  b._static(sofa, 13.8, -6.15, Math.PI, 0, { w: 2.1, d: 0.95 });
+  b._seat(13.8, -6.15, Math.PI, "lounge");
 
-  // Coffee table — digeser bersama sofa supaya tidak menembus sofa.
-  b._static(createCoffeeTable({ r: 0.38 }), 0.65, -2.95, 0);
+  const armA = createArmchair({ color: "sand" });
+  b._static(armA, 15.25, -7.9, Math.PI);
+  b._seat(15.25, -7.9, Math.PI, "lounge");
 
-  /* Lounge timur — memanfaatkan cafe selebar 10 m (x -1..9) */
-  const sofaC = createSofa({ width: 2.1, depth: 0.9 });
-  b._static(sofaC, 7.4, -3.8, -Math.PI / 2, 0, { w: 2.1, d: 0.95 });
-  b._seat(7.4, -3.8, -Math.PI / 2, "lounge");
-  b._static(createCoffeeTable({ r: 0.38 }), 6.4, -2.9, 0);
-  const armC = createArmchair({ color: "sand" });
-  b._static(armC, 7.5, -2.0, -Math.PI / 2);
-  b._seat(7.5, -2.0, -Math.PI / 2, "lounge");
-  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 7.5, -3.1, 0);
+  const armB = createArmchair({ color: "sand" });
+  b._static(armB, 11.9, -7.35, Math.PI);
+  b._seat(11.9, -7.35, Math.PI, "lounge");
 
-  b._plant(5.2, -1.55, 0, { variant: 0, scale: 0.7, seed: 32 });
-  // Bin cafe — pojok timur laut (jauh dari lane door cafe x 0.85..2.15).
-  b._static(createBin(), 8.6, -1.5, 0);
+  b._static(createCoffeeTable({ r: 0.38 }), 13.8, -7.5, 0);
 
-  // Barista cafe — keliling cafe & duduk di sofanya, tapi selalu kembali
-  // ke belakang konter.
+  /* ── Area makan: 2 meja bundar + armchair ────────────────────────── */
+  const dining = [
+    { x: 8.3, z: -5.4 },
+    { x: 11.2, z: -5.4 },
+  ];
+  for (const t of dining) {
+    b._static(createCoffeeTable({ r: 0.4 }), t.x, t.z, 0);
+    b._static(createArmchair({ color: "olive" }), t.x, t.z - 1.5, 0);
+    b._seat(t.x, t.z - 1.5, 0, "lounge");
+    b._static(createArmchair({ color: "olive" }), t.x, t.z + 1.5, Math.PI);
+    b._seat(t.x, t.z + 1.5, Math.PI, "lounge");
+  }
+  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 9.75, -6.6, 0);
+
+  b._plant(6.1, -9.4, 0, { variant: 0, scale: 0.66, seed: 32 });
+  b._plant(9.6, -9.4, 0, { variant: 1, scale: 0.6, seed: 33 });
+  b._plant(15.5, -3.9, 0, { variant: 2, scale: 0.6, seed: 34 });
+  b._static(createBin(), 7.75, -3.5, 0);
+
+  /* ── Barista (NPC) — keliling cafe, kembali dekat konter ─────────── */
   b._spawnStaffCritter({
     id: "barista",
     name: "Barista",
     tieColor: 0x4f9b78,
     department: { id: "cafe", name: "Cafe" },
     variant: 0,
-    x: 0.5, z: -5.45, yaw: 0,
+    x: 13.5, z: -8.9, yaw: Math.PI,
     hotspotLabel: "Barista cafe",
     hotspotHint: "Klik untuk memesan kopi",
     hotspotMessage: "Barista: pesanan dicatat, silakan tunggu di lounge ☕",
-    radius: 1.1,
+    radius: 1.6,
     room: "cafe",
+    wanderRadius: 3.5,
     homeStatus: "Menyeduh kopi ☕",
   });
 }

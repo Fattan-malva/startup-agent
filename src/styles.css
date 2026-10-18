@@ -329,7 +329,7 @@ kbd {
   gap: 8px 16px;
   padding: 11px 16px;
   border-radius: 18px;
-  max-width: min(880px, calc(100vw - 36px));
+  max-width: min(980px, calc(100vw - 36px));
 }
 
 .dock-group {
@@ -1152,4 +1152,95 @@ kbd {
 .hud.is-fps .brand:hover,
 .hud.is-fps .roster:hover {
   opacity: 1;
+}
+
+/* ===================================================================== *
+ *  Edit mode (tata ulang world)
+ * ===================================================================== */
+
+.editbar {
+  left: 18px;
+  bottom: 18px;
+  width: min(300px, calc(100vw - 36px));
+  max-height: calc(100vh - 240px);
+  padding: 11px 13px 13px;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  z-index: 7;
+}
+
+.editbar::-webkit-scrollbar {
+  display: none;
+}
+
+.editbar.is-open {
+  display: flex;
+}
+
+.editbar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edit-target {
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px dashed var(--hair-strong);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  min-height: 30px;
+}
+
+.edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-row > .dock-label {
+  min-width: 52px;
+}
+
+.edit-row--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.edit-mats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+}
+
+.edit-actions .btn {
+  flex: 1 1 auto;
+}
+
+.chip--danger {
+  color: #ff9c8f;
+  border-color: rgba(255, 110, 92, 0.42);
+  background: rgba(255, 110, 92, 0.12);
+}
+
+.chip--danger:hover {
+  color: #ffd0c8;
+  border-color: rgba(255, 110, 92, 0.7);
+  background: rgba(255, 110, 92, 0.22);
 }

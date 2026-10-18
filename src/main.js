@@ -24,12 +24,16 @@ import { Input } from "./systems/Input.js";
 import { TopCamera } from "./systems/TopCamera.js";
 import { Player } from "./systems/Player.js";
 import { Interaction } from "./systems/Interaction.js";
+import { EditMode } from "./systems/EditMode.js";
 import { HUD } from "./ui/HUD.js";
 import { ViewChar } from "./systems/ViewChar.js";
 import { Meeting } from "./systems/AI.js";
 
 const POPULATION = 14;
 const BG = 0x141922;
+// Sudut kamera preset: 4 sudut diagonal mengelilingi gedung (derajat).
+// 45° = arah awal; 225° = lawannya.
+const VIEW_ANGLES = [45, 135, 225, 315];
 
 const sleepFrame = () =>
   new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -61,6 +65,10 @@ async function boot() {
     // TopCamera, which also fits it to the building + window aspect.
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 240);
 
+    // Input sudah dipasang lebih awal supaya Mode Edit bisa memakainya
+    // sebelum kru dipanggil.
+    const input = new Input(canvas);
+
     hud.setProgress(0.22, "Membuat material");
     await sleepFrame();
     setMaxAnisotropy(renderer.capabilities.getMaxAnisotropy());
@@ -81,6 +89,11 @@ async function boot() {
     // the hands and sleeves visible in first-person view
     rig.viewmodel = new Viewmodel(scene);
 
+    // Mode Edit world — muat tata ruang tersimpan SEBELUM kru dipanggil
+    // supaya rute & titik spawn sudah memperhitungkan perabot yang dipindah.
+    const edit = new EditMode({ scene, building, rig, fx, hud, input });
+    edit.loadSaved();
+
     let player = null;
     const crew = new Crew({
       scene,
@@ -97,8 +110,6 @@ async function boot() {
 
     hud.setProgress(0.86, "Menyambungkan kontrol");
     await sleepFrame();
-
-    const input = new Input(canvas);
 
     player = new Player({
       building,
@@ -182,6 +193,7 @@ async function boot() {
           hud.setSpeciesSelected(value);
           break;
         case "spawn-confirm": {
+          if (edit.enabled) edit.setEnabled(false);
           const critter = player.spawn({ species: hud.speciesSelected, name: hud.spawnName });
           hud.toggleSpawn(false);
           toastStatus(critter);
@@ -190,6 +202,7 @@ async function boot() {
         case "possess": {
           const c = critterById(value);
           if (c) {
+            if (edit.enabled) edit.setEnabled(false);
             player.possess(c);
             toastStatus(c);
           }
@@ -226,6 +239,11 @@ async function boot() {
         case "rotate":
           rig.targetYaw += value === "left" ? Math.PI / 4 : -Math.PI / 4;
           break;
+        case "view": {
+          const deg = Number(value);
+          if (Number.isFinite(deg)) rig.targetYaw = (deg * Math.PI) / 180;
+          break;
+        }
         case "time":
           setTime(value);
           break;
@@ -276,6 +294,49 @@ async function boot() {
           }
           break;
         }
+        /* ---- mode edit (tata ulang world) ------------------------ */
+        case "edit-mode":
+          if (!edit.enabled) {
+            if (player.active) player.release();
+            input.releaseLock();
+          }
+          edit.toggle();
+          break;
+        case "edit-close":
+          edit.setEnabled(false);
+          break;
+        case "edit-rotate":
+          edit.rotateSelected(Number(value) || 0);
+          break;
+        case "edit-snap":
+          edit.setSnap(!edit.snap);
+          hud.setEditSnap(edit.snap);
+          break;
+        case "edit-mat":
+          edit.applyMaterial(value);
+          break;
+        case "edit-reset":
+          edit.resetSelected();
+          break;
+        case "edit-reset-all":
+          edit.resetAll();
+          break;
+        case "edit-save":
+          edit.save();
+          hud.toast("Layout disimpan di browser", 2000);
+          break;
+        case "edit-export":
+          edit.exportEdits();
+          break;
+        case "edit-import":
+          hud.dom.editFile?.click();
+          break;
+        case "edit-copy":
+          edit.copySelected();
+          break;
+        case "edit-delete":
+          edit.deleteSelected();
+          break;
         case "close-card":
           interaction.clearSelection();
           break;
@@ -301,8 +362,29 @@ async function boot() {
     });
     input.onKey("KeyR", reset);
     input.onKey("KeyH", () => hud.toggleHelp());
+    input.onKey("BracketLeft", () => {
+      if (edit.enabled) edit.rotateSelected(-15);
+    });
+    input.onKey("BracketRight", () => {
+      if (edit.enabled) edit.rotateSelected(15);
+    });
+    input.onKey("Delete", () => {
+      if (edit.enabled) edit.deleteSelected();
+    });
+    input.onKey("Backspace", (e) => {
+      if (!edit.enabled) return;
+      e.preventDefault(); // jangan "kembali" di browser
+      edit.deleteSelected();
+    });
+    input.onKey("KeyD", (e) => {
+      if (!edit.enabled || !(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault(); // Ctrl+D = bookmark di browser → matikan
+      edit.copySelected();
+    });
     input.onKey("Escape", () => {
-      if (hud.modalOpen) {
+      if (edit.enabled) {
+        edit.setEnabled(false);
+      } else if (hud.modalOpen) {
         hud.toggleHelp(false);
         hud.toggleSpawn(false);
         hud.toggleViewChar(false);
@@ -312,6 +394,13 @@ async function boot() {
       } else if (player.active) {
         player.release();
       }
+    });
+
+    // Impor layout dunia dari file JSON
+    hud.dom.editFile?.addEventListener("change", (e) => {
+      const file = e.target.files?.[0] || null;
+      edit.importEdits(file);
+      e.target.value = "";
     });
 
     /* ------------------------------------------------------------ resize */
@@ -368,13 +457,15 @@ async function boot() {
       elapsed += dt;
 
       building.update(dt, elapsed);
+      edit.update(dt); // Mode Edit: hover & drag perabot (sebelum kamera)
       player.update(dt); // drive the body first, then let it step
       crew.update(dt, elapsed);
       meeting.update(dt);
+      rig.suppressDragPan = edit.dragging || !!edit.pressedItem;
       rig.update(dt, input, player.active);
       fx.update(dt, elapsed);
 
-      interaction.enabled = !hud.modalOpen;
+      interaction.enabled = !hud.modalOpen && !edit.enabled;
       if (interaction.enabled) {
         interaction.update(dt);
         const click = input.consumeClick();
@@ -411,6 +502,16 @@ async function boot() {
           calls: info.calls,
           triangles: info.triangles,
         });
+
+        // tandai tombol arah kamera yang paling dekat dengan yaw sekarang
+        const deg = ((THREE.MathUtils.radToDeg(rig.targetYaw) % 360) + 360) % 360;
+        let bestA = null;
+        let bestD = Infinity;
+        for (const a of VIEW_ANGLES) {
+          const d = Math.abs(((deg - a + 540) % 360) - 180);
+          if (d < bestD) { bestD = d; bestA = a; }
+        }
+        hud.setActive("view", bestD <= 3 ? String(bestA) : "");
       }
       rosterAccum += dt;
       if (rosterAccum > 0.5) {
@@ -436,7 +537,55 @@ async function boot() {
       hud.toast("Klik pegawai mana pun untuk melihat statusnya, atau buat karaktermu 👋", 4200);
     }, 1200);
 
-    window.atelierCorp = { THREE, renderer, scene, camera, building, crew, rig, fx, input, player, interaction, hud };
+    /* Diagnostik singkat dari konsol browser (F12):
+       atelierCorp.seatReport() → status tiap kursi (dipakai/terpakai/kursi)
+       atelierCorp.navReport()  → komponen jaringan jalan (kantong buntu) */
+    window.atelierCorp = {
+      THREE, renderer, scene, camera, building, crew, rig, fx, input, player, interaction, hud, edit,
+      seatReport() {
+        const rows = building.seats.map((s) => ({
+          id: s.id,
+          type: s.type,
+          room: building.roomAt(s.x, s.z),
+          x: +s.x.toFixed(2),
+          z: +s.z.toFixed(2),
+          taken: !!s.taken,
+          uses: s.uses || 0,
+          approach: !!building.approachTo(s),
+        }));
+        const summary = {
+          total: rows.length,
+          taken: rows.filter((r) => r.taken).length,
+          bisaDidekati: rows.filter((r) => r.approach).length,
+          pernahDipakai: rows.filter((r) => r.uses > 0).length,
+          perTipe: rows.reduce((a, r) => ((a[r.type] = (a[r.type] || 0) + 1), a), {}),
+        };
+        console.table(rows);
+        console.info("Ringkasan kursi", summary);
+        return summary;
+      },
+      navReport() {
+        const nav = building._navEnsure();
+        const sizes = new Map();
+        for (const c of nav.comp) {
+          if (c < 0) continue;
+          sizes.set(c, (sizes.get(c) || 0) + 1);
+        }
+        const comps = [...sizes.entries()].sort((a, b) => b[1] - a[1]);
+        let walk = 0;
+        for (const v of nav.walk) walk += v;
+        const summary = {
+          sel: nav.walk.length,
+          jalan: walk,
+          komponen: comps.length,
+          utama: nav.mainComp,
+          kecil: comps.filter(([, n]) => n > 0 && n <= 6).length,
+        };
+        console.table(comps.slice(0, 10).map(([id, n]) => ({ komponen: id, sel: n, utama: id === nav.mainComp })));
+        console.info("Ringkasan navigasi", summary);
+        return summary;
+      },
+    };
   } catch (err) {
     console.error(err);
     hud.showError(err);

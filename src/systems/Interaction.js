@@ -177,6 +177,15 @@ export class Interaction {
     const prop = this._interactiveOf(hit);
     if (prop) {
       const meta = prop.userData.interactive;
+      // Semua kursi bisa diklik untuk diduduki (pemain yang sedang
+      // mengendalikan tubuh). Kartu biasa hanya kalau tidak ada kursi.
+      if (meta.seat && this.player?.active) {
+        this.player.sitOn(meta.seat);
+        prop.getWorldPosition(this._tmp);
+        this.fx.ripple(this._tmp, { radius: 0.42, duration: 0.7 });
+        this.hud.hideTooltip();
+        return;
+      }
       const msg = typeof meta.onClick === "function" ? meta.onClick(prop) : meta.hint || "";
       this.hud.openCard(meta, msg);
       prop.getWorldPosition(this._tmp);

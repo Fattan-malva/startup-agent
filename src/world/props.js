@@ -11,6 +11,13 @@ import { TEX, mulberry32 } from "./textures.js";
  *    userData.anchor  → spot the avatar/UI should look at
  * ===================================================================== */
 
+/* Tinggi permukaan duduk yang SERAGAM untuk semua tempat duduk (kursi
+ * ergonomis, sofa, armchair, ottoman barstool, bangku). Semua cushion
+ * duduk dirancang supaya puncaknya tepat di SEAT_TOP — jadi tidak ada
+ * kursi yang "terlalu tinggi/tebal" dibanding kursi ergonomis, dan
+ * animasi duduk (HIP_Y) cocok untuk semuanya. */
+export const SEAT_TOP = 0.505;
+
 /* ---------------------------------------------------------------- utils */
 
 const geoCache = new Map();
@@ -597,6 +604,7 @@ export function createOfficeChair({ color = "charcoal" } = {}) {
   shade(g);
   g.userData.footprint = { w: 0.72, d: 0.72 };
   g.userData.anchor = new THREE.Vector3(0, 0.9, 0);
+  g.userData.seatTop = SEAT_TOP;   // puncak kursi = patokan semua dudukan
   return g;
 }
 
@@ -749,45 +757,51 @@ export function createSofa({ width = 2.1, depth = 0.9 } = {}) {
   const g = new THREE.Group();
   g.name = "Sofa";
   g.userData.interactionLabel = "Sofa";
-  // Cushion top aligns with the ergonomic office-chair seat at y=0.505.
-  const seatY = 0.365;
+  // Semua dudukan memakai tinggi permukaan yang sama (SEAT_TOP), dan
+  // bantalannya dibuat tipis supaya sejajar dengan kursi ergonomis.
+  const top = SEAT_TOP;            // 0.505 → puncak cushion
+  const cushion = 0.14;            // tebal cushion duduk
+  const cushionY = top - cushion / 2;
+  const base = 0.14;               // rangka kayu di bawah cushion
+  const baseY = top - cushion - base / 2;
 
-  const base = rbox(width, 0.16, depth, 0.05, MAT.fabricNavy, 0.03);
-  put(base, 0, seatY - 0.08, 0);
-  g.add(base);
+  const frame = rbox(width, base, depth, 0.05, MAT.fabricNavy, 0.03);
+  put(frame, 0, baseY, 0);
+  g.add(frame);
 
   const cushions = 3;
   for (let i = 0; i < cushions; i++) {
     const cw = (width - 0.36) / cushions - 0.03;
-    const c = rbox(cw, 0.16, depth - 0.14, 0.05, MAT.fabricNavy, 0.03);
-    put(c, -width / 2 + 0.18 + cw / 2 + i * (cw + 0.03), seatY + 0.06, 0.02);
+    const c = rbox(cw, cushion, depth - 0.14, 0.05, MAT.fabricNavy, 0.03);
+    put(c, -width / 2 + 0.18 + cw / 2 + i * (cw + 0.03), cushionY, 0.02);
     g.add(c);
   }
 
-  const back = rbox(width, 0.62, 0.22, 0.07, MAT.fabricNavy, 0.035);
-  put(back, 0, seatY + 0.28, -depth / 2 + 0.11);
+  const back = rbox(width, 0.56, 0.2, 0.07, MAT.fabricNavy, 0.035);
+  put(back, 0, top + 0.25, -depth / 2 + 0.1);
   g.add(back);
 
   [-1, 1].forEach((s) => {
-    const arm = rbox(0.22, 0.4, depth, 0.06, MAT.fabricNavy, 0.03);
-    put(arm, s * (width / 2 - 0.11), seatY + 0.12, 0);
+    const arm = rbox(0.2, 0.34, depth, 0.06, MAT.fabricNavy, 0.03);
+    put(arm, s * (width / 2 - 0.1), top + 0.09, 0);
     g.add(arm);
   });
 
   // throw pillows
   const pillowMats = [MAT.fabricSand, MAT.fabricRust];
   pillowMats.forEach((m, i) => {
-    const p = rbox(0.36, 0.36, 0.13, 0.06, m, 0.04);
+    const p = rbox(0.34, 0.34, 0.12, 0.06, m, 0.04);
     p.rotation.z = i ? -0.22 : 0.18;
     p.rotation.x = -0.16;
-    put(p, -width / 2 + 0.42 + i * 0.9, seatY + 0.28, -depth / 2 + 0.26);
+    put(p, -width / 2 + 0.42 + i * 0.9, top + 0.24, -depth / 2 + 0.24);
     g.add(p);
   });
 
   [-1, 1].forEach((s) => {
     [0.32, -0.32].forEach((z) => {
-      const leg = cyl(0.018, 0.022, 0.16, MAT.brass, 12);
-      put(leg, s * (width / 2 - 0.16), 0.08, z);
+      const legH = Math.max(0.1, baseY - base / 2);
+      const leg = cyl(0.018, 0.022, legH, MAT.brass, 12);
+      put(leg, s * (width / 2 - 0.16), legH / 2, z);
       g.add(leg);
     });
   });
@@ -795,6 +809,7 @@ export function createSofa({ width = 2.1, depth = 0.9 } = {}) {
   shade(g);
   g.userData.footprint = { w: width + 0.1, d: depth + 0.1 };
   g.userData.anchor = new THREE.Vector3(0, 0.6, 0.2);
+  g.userData.seatTop = SEAT_TOP;
   return g;
 }
 
@@ -1652,58 +1667,78 @@ export function createArmchair({ color = "navy" } = {}) {
   g.name = "Armchair lounge";
   g.userData.interactionLabel = "Armchair lounge";
   const fabric = color === "sand" ? MAT.fabricSand : color === "rust" ? MAT.fabricRust : color === "olive" ? MAT.fabricOlive : MAT.fabricNavy;
-  const base = rbox(0.82, 0.24, 0.72, 0.055, MAT.darkWood, 0.012);
-  put(base, 0, 0.29, 0);
-  g.add(base);
-  const seat = rbox(0.86, 0.19, 0.76, 0.085, fabric, 0.025);
-  put(seat, 0, 0.41, 0.015);
-  g.add(seat);
-  const back = rbox(0.86, 0.76, 0.2, 0.07, fabric, 0.022);
-  put(back, 0, 0.86, -0.28);
-  back.rotation.x = -0.07;
-  g.add(back);
-  for (const sx of [-1, 1]) {
-    const arm = rbox(0.16, 0.38, 0.7, 0.055, fabric, 0.018);
-    put(arm, sx * 0.43, 0.59, 0.01);
-    g.add(arm);
-    const armCap = rbox(0.16, 0.035, 0.56, 0.025, color === "sand" ? MAT.deskTop : fabric, 0.008);
-    put(armCap, sx * 0.43, 0.79, 0.015);
-    g.add(armCap);
-  }
+  // Sama seperti sofa/bangku: permukaan duduk tepat di SEAT_TOP (setinggi
+  // kursi ergonomis), dengan rangka & cushion yang lebih ramping.
+  const top = SEAT_TOP;
+  const cushion = 0.15;
+  const cushionY = top - cushion / 2;
+  const base = 0.16;
+  const baseY = top - cushion - base / 2;
+  const legH = Math.max(0.1, baseY - base / 2);
+
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const leg = rbox(0.055, 0.19, 0.055, 0.014, MAT.blackMetal, 0.005);
-    put(leg, sx * 0.32, 0.095, sz * 0.27);
+    const leg = rbox(0.055, legH, 0.055, 0.014, MAT.blackMetal, 0.005);
+    put(leg, sx * 0.32, legH / 2, sz * 0.27);
     g.add(leg);
     const foot = cyl(0.034, 0.034, 0.018, MAT.brass, 10);
     put(foot, sx * 0.32, 0.009, sz * 0.27);
     g.add(foot);
   }
-  g.userData.footprint = { w: 1.02, d: 0.94 };
+  const frame = rbox(0.82, base, 0.72, 0.055, MAT.darkWood, 0.012);
+  put(frame, 0, baseY, 0);
+  g.add(frame);
+  const seat = rbox(0.84, cushion, 0.74, 0.07, fabric, 0.025);
+  put(seat, 0, cushionY, 0.015);
+  g.add(seat);
+  const back = rbox(0.84, 0.7, 0.18, 0.07, fabric, 0.022);
+  put(back, 0, top + 0.3, -0.28);
+  back.rotation.x = -0.07;
+  g.add(back);
+  for (const sx of [-1, 1]) {
+    const arm = rbox(0.15, 0.32, 0.68, 0.055, fabric, 0.018);
+    put(arm, sx * 0.42, top + 0.08, 0.01);
+    g.add(arm);
+    const armCap = rbox(0.15, 0.03, 0.54, 0.025, color === "sand" ? MAT.deskTop : fabric, 0.008);
+    put(armCap, sx * 0.42, top + 0.255, 0.015);
+    g.add(armCap);
+  }
+  g.userData.footprint = { w: 1.0, d: 0.92 };
   g.userData.anchor = new THREE.Vector3(0, 0.82, 0.12);
+  g.userData.seatTop = SEAT_TOP;
   shade(g);
   return g;
 }
 
-export function createOttoman({ w = 0.62, d = 0.58, h = 0.36, color = "olive" } = {}) {
+export function createOttoman({ w = 0.62, d = 0.58, h = null, color = "olive" } = {}) {
   const g = new THREE.Group();
   g.name = "Ottoman";
   g.userData.interactionLabel = "Ottoman";
   const fabric = color === "rust" ? MAT.fabricRust : color === "sand" ? MAT.fabricSand : color === "navy" ? MAT.fabricNavy : MAT.fabricOlive;
-  const frame = rbox(w - 0.06, h * 0.58, d - 0.06, 0.025, MAT.darkWood, 0.008);
-  put(frame, 0, h * 0.3, 0);
+  // Bangku bar: puncak cushion disejajarkan dengan kursi ergonomis
+  // (SEAT_TOP). Param `h` masih diterima demi kompatibilitas, tapi
+  // permukaan duduk selalu SEAT_TOP supaya semua dudukan sama tinggi.
+  const top = h && h > 0.3 ? Math.min(h, SEAT_TOP) : SEAT_TOP;
+  const cushion = 0.15;
+  const cushionY = top - cushion / 2;
+  const frameTop = top - cushion;
+  const footH = 0.1;
+
+  const frame = rbox(w - 0.06, Math.max(0.12, frameTop - footH), d - 0.06, 0.025, MAT.darkWood, 0.008);
+  put(frame, 0, footH + (frameTop - footH) / 2, 0);
   g.add(frame);
-  const cushion = rbox(w, h * 0.45, d, 0.075, fabric, 0.018);
-  put(cushion, 0, h * 0.77, 0);
-  g.add(cushion);
+  const cushionMesh = rbox(w, cushion, d, 0.075, fabric, 0.018);
+  put(cushionMesh, 0, cushionY, 0);
+  g.add(cushionMesh);
   const seam = rbox(w * 0.78, 0.012, 0.012, 0.004, MAT.fabricCharcoal, 0.002);
-  put(seam, 0, h * 0.99, d / 2 - 0.09);
+  put(seam, 0, top - 0.008, d / 2 - 0.09);
   g.add(seam);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const foot = rbox(0.045, h * 0.3, 0.045, 0.012, MAT.blackMetal, 0.004);
-    put(foot, sx * (w / 2 - 0.1), h * 0.15, sz * (d / 2 - 0.1));
+    const foot = rbox(0.045, footH, 0.045, 0.012, MAT.blackMetal, 0.004);
+    put(foot, sx * (w / 2 - 0.1), footH / 2, sz * (d / 2 - 0.1));
     g.add(foot);
   }
   g.userData.footprint = { w: w + 0.04, d: d + 0.04 };
+  g.userData.seatTop = top;
   shade(g);
   return g;
 }
@@ -1768,8 +1803,8 @@ export function createBench({ w = 1.35, d = 0.44, h = 0.48 } = {}) {
   const g = new THREE.Group();
   g.name = "Bangku koridor";
   g.userData.interactionLabel = "Bangku koridor";
-  const seat = rbox(w, 0.09, d, 0.055, MAT.fabricOlive || MAT.fabricNavy, 0.012);
-  put(seat, 0, h - 0.02, 0);
+  const seat = rbox(w, 0.075, d, 0.055, MAT.fabricOlive || MAT.fabricNavy, 0.012);
+  put(seat, 0, h - 0.012, 0);
   g.add(seat);
   const seatInset = rbox(w - 0.14, 0.006, d - 0.12, 0.04, MAT.fabricSand, 0.002);
   put(seatInset, 0, h + 0.022, 0.005);
@@ -1794,6 +1829,7 @@ export function createBench({ w = 1.35, d = 0.44, h = 0.48 } = {}) {
     g.add(foot);
   }
   g.userData.footprint = { w: w + 0.04, d: d + 0.04 };
+  g.userData.seatTop = SEAT_TOP;
   shade(g);
   return g;
 }

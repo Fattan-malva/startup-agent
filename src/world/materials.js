@@ -102,6 +102,25 @@ export function buildMaterials() {
       envMapIntensity: 0.48,
     }),
 
+    // Taman tengah (outdoor): rumput + jalur gravel.
+    grass: std({
+      map: TEX.grass.map,
+      normalMap: TEX.grass.normalMap,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughness: 0.98,
+      metalness: 0,
+      envMapIntensity: 0.3,
+    }),
+
+    gravel: std({
+      map: TEX.gravel.map,
+      normalMap: TEX.gravel.normalMap,
+      normalScale: new THREE.Vector2(0.7, 0.7),
+      roughness: 0.94,
+      metalness: 0,
+      envMapIntensity: 0.32,
+    }),
+
     tile: std({
       map: tile.map,
       normalMap: tile.normalMap,

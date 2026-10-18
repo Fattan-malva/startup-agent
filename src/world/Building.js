@@ -14,6 +14,7 @@ import {
 import {
   BOUNDS,
   FLOOR_POLYGON,
+  CEILING_POLYGON,
   WALL_H,
   DOOR_H,
   WALL_T,
@@ -29,6 +30,23 @@ import { furnishRooms } from "./rooms/index.js";
  * ===================================================================== */
 
 const SIT_FWD = 0.16;
+// Kursi kerja DITUTUP ke meja (0.62 m): persis seperti orang menaruh kursi
+// di meja. Ini penting bukan cuma soal rapi — kalau kursi ditarik jauh
+// (1.05 m), dua baris kursi yang berhadapan menyegel lorong pod sehingga
+// grid navigasi terpecah dan NPC tidak akan pernah bisa duduk di sana.
+const DESK_CHAIR_GAP = 0.62;
+
+/* Normalisasi daftar collider yang boleh diabaikan (bisa satu obstacle
+ * atau array: kursi + meja yang ditutup kursi). */
+function ignoreList(ignore) {
+  if (!ignore) return null;
+  return Array.isArray(ignore) ? ignore : [ignore];
+}
+function isIgnored(b, list) {
+  if (!list) return false;
+  for (let i = 0; i < list.length; i++) if (list[i] === b) return true;
+  return false;
+}
 
 function polygonFloorGeometry(points) {
   const shape = new THREE.Shape();
@@ -67,6 +85,23 @@ function pointInPolygon(x, z, polygon) {
   return inside;
 }
 
+/**
+ * Tipe "bahan" sebuah perabot, dibaca dari labelnya. Dipakai AI supaya tahu
+ * APA yang menghalangi (mis. "dudukan" bisa diduduki, "meja" tidak bisa
+ * ditembus, "penyimpanan" selalu padat, dst.).
+ */
+export function propType(label = "") {
+  const s = String(label).toLowerCase();
+  if (/kursi|sofa|armchair|ottoman|bangku|stool|dudukan/.test(s)) return "dudukan";
+  if (/meja|workstation|desk|konter|pantry|printer|standing/.test(s)) return "meja";
+  if (/lemari|rak|kabinet|cabinet|storage|filing/.test(s)) return "penyimpanan";
+  if (/tanaman|pot|divider|sekat/.test(s)) return "tanaman";
+  if (/lampu|clock|jam|tv|playstation|kulkas|fridge/.test(s)) return "perangkat";
+  if (/papan|whiteboard|lukisan|moodboard|panel/.test(s)) return "dekorasi";
+  if (/tempat sampah|bin/.test(s)) return "wadah";
+  return "perabot";
+}
+
 export class Building {
   constructor(scene) {
     this.scene = scene;
@@ -87,6 +122,16 @@ export class Building {
 
     this.staffPosts = {};
     this.staffCritters = {};
+
+    /* ---- edit mode (atur-ulang furnitur) ----------------------------- */
+    this.editMode = false;
+    this.staticMeshes = null;          // hasil merge, dibuang saat masuk Edit
+    this._mergedSources = [];          // { obj, group } untuk dipulihkan
+    this._editSeq = 0;                 // id stabil per-perabot (urutan build tetap)
+    this._editItems = new Map();       // obj → item (record edit)
+    this._editById = new Map();        // id → item (termasuk yang dihapus)
+    this._copies = [];                 // perabot hasil Duplikat
+    this._copySeq = 0;                 // penomoran id duplikat (c1, c2, ...)
     // pasangan critter + StaffBrain yang berkeliling dalam ruangannya
     this.staffRoster = [];
     // true saat rapat berjalan: staf dipas-lepas dari kunci pos ruangan
@@ -95,6 +140,8 @@ export class Building {
     this._v = new THREE.Vector3();
     this._c = new THREE.Color();
     this.rng = mulberry32(1337);
+    this._clock = 0;              // waktu berjalan (dipakai klaim kursi)
+    this._seatSweep = 0;          // timer pembersih klaim kursi bocor
 
     this.holder = new THREE.Group();
     this.holder.name = "Props";
@@ -157,6 +204,7 @@ export class Building {
       terrazzo: MAT.terrazzo || MAT.concrete,
       tile: MAT.tile || MAT.concrete,
       wood: MAT.floor,
+      grass: MAT.grass || MAT.concrete,
     };
     const floorOrder = this.rooms.slice().sort((a, b) =>
       ((b.x1 - b.x0) * (b.z1 - b.z0)) - ((a.x1 - a.x0) * (a.z1 - a.z0)));
@@ -226,13 +274,28 @@ export class Building {
       cap.rotation.y = rot;
       this.staticGroup.add(cap);
 
+      // AABB dinding: panjangnya PERSIS sepanjang span (s..e) — padding
+      // hanya tegak lurus dinding. Kalau dipad kedua arah, AABB-nya
+      // menyempitkan mulut pintu ~0.1 m di tiap sisi dan bikin NPC
+      // berdesakan di pintu.
       const halfT = WALL_T / 2 + 0.035;
+      const alongX = Math.abs(ux) > 0.5; // dinding mendatar (sepanjang x)
+      const padX = alongX ? 0 : halfT;
+      const padZ = alongX ? halfT : 0;
       this.obstacles.push({
-        minX: Math.min(sx, ex) - halfT,
-        maxX: Math.max(sx, ex) + halfT,
-        minZ: Math.min(sz, ez) - halfT,
-        maxZ: Math.max(sz, ez) + halfT,
+        minX: Math.min(sx, ex) - padX,
+        maxX: Math.max(sx, ex) + padX,
+        minZ: Math.min(sz, ez) - padZ,
+        maxZ: Math.max(sz, ez) + padZ,
+        centerX: (sx + ex) / 2,
+        centerZ: (sz + ez) / 2,
         kind: "wall",
+        // TANDA PADAT: tidak ada karakter yang boleh memaksa masuk ke sini.
+        solid: true,
+        blocked: true,          // pantang ditembus / didorong
+        type: isGlass ? "sekat" : "dinding",
+        obstacleClass: "wall",  // dinding: TIDAK PERNAH boleh diabaikan
+        label: isGlass ? "Sekat kaca" : "Dinding",
       });
 
       if (isGlass) {
@@ -299,15 +362,17 @@ export class Building {
     };
 
     const signs = [
-      { title: "RUANG MEETING", sub: "MEETING ROOM", x: -6.5, z: -0.98, ry: 0, face: 1 },
-      { title: "CAFE", sub: "BAR & LOUNGE", x: 1.5, z: -0.98, ry: 0, face: 1 },
-      { title: "STUDIO KREATIF", sub: "CREATIVE LAB", x: 12.5, z: -0.98, ry: 0, face: 1 },
-      { title: "DEV ROOM", sub: "ENGINEERING", x: 20.8, z: -0.98, ry: 0, face: 1 },
-      { title: "LOBBY", sub: "RECEPTION", x: -6.5, z: 0.98, ry: Math.PI, face: -1 },
-      { title: "STAFF ROOM", sub: "8 WORKSTATIONS", x: 0, z: 0.98, ry: Math.PI, face: -1 },
-      { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: 9.5, z: 0.98, ry: Math.PI, face: -1 },
-      // Sign door HR nempel dinding vertikal x=23.8 → offset ke arah timur.
-      { title: "HUMAN RESOURCE", sub: "PEOPLE & CULTURE", x: 23.87, z: 1.95, ry: Math.PI / 2, face: 0, ox: 0.045 },
+      // Dinding muka blok utara (z = -3.1) — papan menghadap koridor (+z).
+      { title: "RUANG MEETING", sub: "MEETING ROOM", x: -6.3, z: -3.03, ry: 0, face: 1 },
+      { title: "LOBBY", sub: "RECEPTION", x: 0.0, z: -3.03, ry: 0, face: 1 },
+      { title: "CAFE", sub: "BAR & LOUNGE", x: 6.3, z: -3.03, ry: 0, face: 1 },
+      // Dinding muka blok barat (x = -7.1) — papan menghadap timur (+x).
+      { title: "STAFF ROOM", sub: "OPEN OFFICE", x: -7.03, z: -0.9, ry: Math.PI / 2, face: 0, ox: 0.045 },
+      { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: -7.03, z: 6.5, ry: Math.PI / 2, face: 0, ox: 0.045 },
+      // Dinding muka blok timur (x = 7.1) — papan menghadap barat (-x).
+      { title: "HUMAN RESOURCE", sub: "PEOPLE & CULTURE", x: 7.03, z: -1.5, ry: -Math.PI / 2, face: 0, ox: -0.045 },
+      { title: "STUDIO KREATIF", sub: "CREATIVE LAB", x: 7.03, z: 3.0, ry: -Math.PI / 2, face: 0, ox: -0.045 },
+      { title: "DEV ROOM", sub: "ENGINEERING", x: 7.03, z: 7.0, ry: -Math.PI / 2, face: 0, ox: -0.045 },
     ];
 
     // Papan nama menempel DI TENGAH lintel pintu (bukan mepet bawah),
@@ -335,9 +400,10 @@ export class Building {
       this.staticGroup.add(plate);
     }
 
+    // Papan nama pintu masuk — di atas pintu kaca taman (z = -1, x = 0.0),
+    // menghadap taman (+z) supaya terbaca dari jalur masuk.
     const ent = rbox(1.35, 0.3, 0.05, 0.02, MAT.steel, 0.01);
-    ent.position.set(-9.93, signY, 4.5);
-    ent.rotation.y = Math.PI / 2;
+    ent.position.set(0.0, signY, -0.93);
     this.staticGroup.add(ent);
 
     const entPlate = new THREE.Mesh(
@@ -348,8 +414,7 @@ export class Building {
         metalness: 0.2,
       }),
     );
-    entPlate.position.set(-9.9, signY, 4.5);
-    entPlate.rotation.y = Math.PI / 2;
+    entPlate.position.set(0.0, signY, -0.9);
     this.staticGroup.add(entPlate);
   }
 
@@ -391,15 +456,18 @@ export class Building {
 
     // MeshStandardMaterial biasa — plafon putih normal (bukan "menyala");
     // kecerahannya mengikuti cahaya, yang dijaga tetap terang oleh boost
-    // interior saat mode kendalikan aktif.
+    // interior saat mode kendalikan aktif. DoubleSide karena plafon tapak U
+    // dilihat dari sisi bawah saat karakter berada di dalam.
     const mat = new THREE.MeshStandardMaterial({
       map: tex,
       roughness: 0.96,
       metalness: 0.0,
+      side: THREE.DoubleSide,
     });
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
-    plane.rotation.x = Math.PI / 2; // normal menghadap BAWAH (dilihat dari dalam)
-    plane.position.set((BOUNDS.x0 + BOUNDS.x1) / 2, WALL_H - 0.02, (BOUNDS.z0 + BOUNDS.z1) / 2);
+    // Plafon mengikuti tapak U (CEILING_POLYGON) — taman tengah sengaja
+    // tidak berplafon supaya terasa benar-benar halaman terbuka.
+    const plane = new THREE.Mesh(polygonFloorGeometry(CEILING_POLYGON), mat);
+    plane.position.y = WALL_H - 0.02;
     plane.castShadow = false;
     plane.receiveShadow = false;
     g.add(plane);
@@ -470,39 +538,113 @@ export class Building {
   /* ------------------------------------------------------------ furnish */
 
   _place(obj, x, z, ry = 0, y = 0, fp = null) {
-    obj.position.set(x, y, z);
-    obj.rotation.y = ry;
-    this.holder.add(obj);
-    this.placedProps.push({ obj, x, z, y, ry, state: -1 });
-    const f = fp || obj.userData.footprint;
-    if (f) {
-      const q = ((Math.round(ry / (Math.PI / 2)) % 4) + 4) % 4;
-      const swap = q % 2 === 1;
-      const hw = (swap ? f.d : f.w) / 2;
-      const hd = (swap ? f.w : f.d) / 2;
-      this.obstacles.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd, centerX: x, centerZ: z, owner: obj, kind: "prop" });
-    }
-    return obj;
+    return this._register(obj, x, z, ry, y, fp, this.holder, this.placedProps);
   }
 
   _static(obj, x, z, ry = 0, y = 0, fp = null) {
+    return this._register(obj, x, z, ry, y, fp, this.staticGroup, this.staticProps);
+  }
+
+  /**
+   * Tempat generik: set transform, masukkan ke grup, catat record edit
+   * (posisi asal, footprint, obstacle, kursi, bagian lepas) supaya perabot
+   * bisa dipindah/diputar/di-material saat Mode Edit.
+   */
+  _register(obj, x, z, ry, y, fp, group, list, id = null) {
     obj.position.set(x, y, z);
     obj.rotation.y = ry;
-    this.staticGroup.add(obj);
-    this.staticProps.push({ obj, x, z, y, ry, state: -1 });
-    const f = fp || obj.userData.footprint;
-    if (f) {
-      const q = ((Math.round(ry / (Math.PI / 2)) % 4) + 4) % 4;
-      const swap = q % 2 === 1;
-      const hw = (swap ? f.d : f.w) / 2;
-      const hd = (swap ? f.w : f.d) / 2;
-      this.obstacles.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd, centerX: x, centerZ: z, owner: obj, kind: "prop" });
+    group.add(obj);
+
+    const item = {
+      obj,
+      x, z, y, ry,
+      state: -1,
+      id: id || `p${this._editSeq++}`,
+      label: obj.userData.interactionLabel || obj.name || null,
+      fp: fp || obj.userData.footprint || null,
+      obstacle: null,
+      hotspot: null,
+      extras: null,
+      seats: null,
+      plantSpot: null,
+      baseMat: null,
+      curMat: null,
+      matKey: null,
+      wallLocked: y > 0.2 && this._nearWall(x, z),
+      home: { x, z, ry },
+      isCopy: false,
+      srcId: null,
+      removed: false,
+    };
+    obj.userData.editItem = item;
+    obj.userData.editId = item.id;
+    list.push(item);
+    this._editItems.set(obj, item);
+    this._editById.set(item.id, item);
+
+    if (item.fp) {
+      const o = this._obstacleFor(item, x, z, ry, item.fp);
+      item.obstacle = o;
+      this.obstacles.push(o);
     }
     return obj;
   }
 
+  /** Apakah (x,z) menempel pada salah satu dinding/tembok interior? */
+  _nearWall(x, z, maxDist = 0.45) {
+    const max2 = maxDist * maxDist;
+    for (const w of WALLS) {
+      const dx = w.x2 - w.x1;
+      const dz = w.z2 - w.z1;
+      const len2 = dx * dx + dz * dz;
+      let t = len2 > 1e-9 ? ((x - w.x1) * dx + (z - w.z1) * dz) / len2 : 0;
+      t = t < 0 ? 0 : (t > 1 ? 1 : t);
+      const px = w.x1 + dx * t;
+      const pz = w.z1 + dz * t;
+      if ((x - px) * (x - px) + (z - pz) * (z - pz) < max2) return true;
+    }
+    return false;
+  }
+
+  _obstacleFor(item, x, z, ry, f) {
+    const q = ((Math.round(ry / (Math.PI / 2)) % 4) + 4) % 4;
+    const swap = q % 2 === 1;
+    const hw = (swap ? f.d : f.w) / 2;
+    const hd = (swap ? f.w : f.d) / 2;
+    const label = item.label || item.obj?.userData?.interactionLabel || item.obj?.name || "Perabot";
+    return {
+      minX: x - hw, maxX: x + hw,
+      minZ: z - hd, maxZ: z + hd,
+      centerX: x, centerZ: z,
+      owner: item.obj, kind: "prop",
+      // TANDA PADAT + label + tipe bahan: AI tahu APA yang menghalangi
+      // jalurnya (dipakai `blockerAt`), tidak bisa ditembus/didorong, dan
+      // tahu jenisnya (dudukan / meja / penyimpanan / …).
+      solid: true,
+      blocked: true,
+      obstacleClass: "prop",
+      type: propType(label),
+      label,
+    };
+  }
+
+  /**
+   * Daftarkan sebuah kursi/sofa yang BISA DIDUDUKI.
+   *
+   * Aturan penting:
+   *  • `obstacle`  = collider perabotnya sendiri → saat melangkah masuk
+   *                  dan saat duduk, hanya collider ini (plus perabot yang
+   *                  memang menyelip, mis. meja kerja) yang diabaikan.
+   *  • `overlaps`  = perabot yang boleh DISENTUH badan saat duduk (meja
+   *                  kerja/meja rapat yang ditutup kursi). Dinding & sekat
+   *                  kaca TIDAK PERNAH masuk daftar ini.
+   *  • `height`    = tinggi permukaan duduk (semua dudukan seragam).
+   *
+   * Semua kursi juga otomatis jadi hotspot klik "Duduk", jadi pemain
+   * (mode Kendalikan) bisa duduk di kursi/sofa mana pun.
+   */
   _seat(x, z, yaw, type) {
-    // The final sit animation may overlap only the chair/sofa assigned to it.
+    // 1) collider kursinya sendiri (dipasang tepat sebelum _seat dipanggil)
     let obstacle = null;
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const candidate = this.obstacles[i];
@@ -511,16 +653,64 @@ export class Building {
         break;
       }
     }
+    const sit = { x: x + Math.sin(yaw) * SIT_FWD, z: z + Math.cos(yaw) * SIT_FWD };
+
+    // 2) perabot yang wajar "menyelip" badan saat duduk (meja/meja rapat)
+    const overlaps = [];
+    for (const b of this.obstacles) {
+      if (b === obstacle || b.kind === "wall") continue;
+      const cx = THREE.MathUtils.clamp(sit.x, b.minX, b.maxX);
+      const cz = THREE.MathUtils.clamp(sit.z, b.minZ, b.maxZ);
+      const dx = sit.x - cx;
+      const dz = sit.z - cz;
+      if (dx * dx + dz * dz < 0.34 * 0.34) overlaps.push(b);
+    }
+
     const seat = {
       id: `${type}-${this.seats.length}`,
-      x, z, yaw, type, taken: null, obstacle,
-      sit: { x: x + Math.sin(yaw) * SIT_FWD, z: z + Math.cos(yaw) * SIT_FWD },
+      x, z, yaw, type, taken: null, takenAt: 0, uses: 0, obstacle, overlaps, sit,
+      height: obstacle?.owner?.userData?.seatTop ?? 0.505,
+      seatable: true,
+      blocked: true,          // tetap padat untuk yang BERJALAN
     };
+
+    // 3) tautkan ke record perabot pemiliknya → ikut bergerak saat Mode Edit
+    const item = obstacle ? this._editItems.get(obstacle.owner) : null;
+    if (item) (item.seats || (item.seats = [])).push(seat);
+    if (obstacle) {
+      obstacle.seatable = true;   // AI tahu: ini dudukan, bukan halangan buta
+      obstacle.type = "dudukan";
+      obstacle.seatType = type;
+    }
+
+    // 4) hotspot "Duduk" untuk semua kursi (juga dipakai pemain)
+    const owner = obstacle?.owner;
+    if (owner && !owner.userData.interactive && !owner.userData.interactionManaged) {
+      const label = owner.userData.interactionLabel || owner.name || "Kursi";
+      this._interactive(owner, {
+        id: `seat-${seat.id}`,
+        label: `${label} · ${this.room(this.roomAt(x, z))?.name || "Kantor"}`,
+        hint: "Klik untuk duduk di sini",
+        radius: 1.0,
+        seat,
+        onClick: () => `Kursi ${label} bebas — siap diduduki.`,
+      });
+    }
+
     this.seats.push(seat);
     return seat;
   }
 
-  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = 1.05, type = "desk" } = {}) {
+  /** Collider yang boleh diabaikan saat berjalan masuk & duduk di kursi ini. */
+  seatIgnore(seat) {
+    if (!seat) return null;
+    const list = [];
+    if (seat.obstacle) list.push(seat.obstacle);
+    if (seat.overlaps) for (const o of seat.overlaps) list.push(o);
+    return list.length ? list : null;
+  }
+
+  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = DESK_CHAIR_GAP, type = "desk" } = {}) {
     const x = deskX + Math.sin(deskRy) * gap;
     const z = deskZ + Math.cos(deskRy) * gap;
     const yaw = deskRy + Math.PI;
@@ -538,10 +728,13 @@ export class Building {
     const plant = createPlant(opts);
     plant.userData.interactionManaged = true;
     this._static(plant, x, z, ry, 0);
-    this.plantSpots.push({ x, z });
+    const item = plant.userData.editItem;
+    const spot = { x, z };
+    this.plantSpots.push(spot);
+    if (item) item.plantSpot = spot;
     if (label) {
       const api = plant.userData.api;
-      this._hotspot(x, z, 0.55, 1.0, {
+      const hs = this._hotspot(x, z, 0.55, 1.0, {
         id: `plant-${x}-${z}`,
         label,
         hint: "Klik untuk menyiram",
@@ -551,6 +744,7 @@ export class Building {
           return "Sudah disiram — terima kasih 🌿";
         },
       });
+      if (item) (item.extras || (item.extras = [])).push(hs);
     }
     return plant;
   }
@@ -575,7 +769,7 @@ export class Building {
       const footprint = obj.userData.footprint || { w: 0.7, d: 0.7 };
       const size = THREE.MathUtils.clamp(Math.max(footprint.w || 0.7, footprint.d || 0.7) * 0.72, 0.6, 1.05);
       const y = Math.max(0.68, item.y + 0.66);
-      this._hotspot(item.x, item.z, y, size, {
+      item.hotspot = this._hotspot(item.x, item.z, y, size, {
         id: `inspect-prop-${this._interactionId++}`,
         label: `${label} · ${roomName}`,
         hint: "Klik untuk memeriksa detail dan status objek",
@@ -670,11 +864,14 @@ export class Building {
 
   _splitLive(container, parts) {
     container.updateWorldMatrix(true, true);
+    const item = container.userData.editItem;
     for (const p of parts) {
       if (!p || !p.parent) continue;
       p.matrixWorld.decompose(p.position, p.quaternion, p.scale);
       container.remove(p);
       this.holder.add(p);
+      // bagian yang dilepas (mis. lampu meja) tetap ikut saat meja dipindah
+      if (item) (item.extras || (item.extras = [])).push(p);
     }
   }
 
@@ -687,6 +884,9 @@ export class Building {
     delete ws.userData.update;
     delete monitor.userData.update;
 
+    const item = ws.userData.editItem;
+    const extras = item ? (item.extras || (item.extras = [])) : null;
+
     this._interactive(parts.lamp, {
       id: `lamp-${key}`,
       label: "Lampu meja",
@@ -695,13 +895,14 @@ export class Building {
       onClick: (self) => (self.userData.api.toggle() ? "Lampu meja nyala" : "Lampu meja mati"),
     });
 
-    this._hotspot(mwp.x, mwp.z, 0.95, 0.8, {
+    const monHs = this._hotspot(mwp.x, mwp.z, 0.95, 0.8, {
       id: `monitor-${key}`,
       label: "Layar telemetri",
       hint: "Klik untuk ganti tampilan",
       radius: 1.0,
       onClick: () => { monitor.userData.api.cycle(); return "Layar berganti"; },
     });
+    if (extras) extras.push(monHs);
 
     const peripherals = [
       [parts.keyboard, "Keyboard", "Periksa keyboard workstation"],
@@ -712,23 +913,32 @@ export class Building {
     for (const [part, label, message] of peripherals) {
       if (!part) continue;
       const pos = part.getWorldPosition(new THREE.Vector3());
-      this._hotspot(pos.x, pos.z, 0.91, 0.42, {
+      const hs = this._hotspot(pos.x, pos.z, 0.91, 0.42, {
         id: `${label.toLowerCase().replace(/\s+/g, "-")}-${key}`,
         label: `${label} · workstation`,
         hint: "Klik untuk inspeksi",
         radius: 0.55,
         onClick: () => message,
       });
+      if (extras) extras.push(hs);
     }
   }
 
   _mergeStatic() {
+    if (this.staticMeshes || this._mergedSources.length) this._disposeMerged();
+
     const mergeGroup = new THREE.Group();
     const all = [...this.holder.children, ...this.staticGroup.children];
     for (const child of all) {
       if (this._isLive(child)) {
         if (child.parent !== this.holder) this.holder.add(child);
+      } else if (child.visible === false) {
+        // perabot yang dihapus di Mode Edit: biarkan tinggal di grupnya,
+        // jangan digabung (kalau tidak, isinya tetap ikut ter-render).
+        continue;
       } else {
+        // simpan grup asal supaya bisa dipulihkan saat masuk Mode Edit
+        this._mergedSources.push({ obj: child, group: child.parent });
         mergeGroup.add(child);
       }
     }
@@ -771,9 +981,15 @@ export class Building {
         const merged = mergeGeometries(geoms, false);
         if (!merged) throw new Error("merge returned null");
         for (const g of geoms) g.dispose();
-        out.add(new THREE.Mesh(merged, mat));
+        const mesh = new THREE.Mesh(merged, mat);
+        mesh.userData._merged = true;
+        out.add(mesh);
       } catch (err) {
-        for (const g of geoms) out.add(new THREE.Mesh(g, mat));
+        for (const g of geoms) {
+          const mesh = new THREE.Mesh(g, mat);
+          mesh.userData._merged = true;
+          out.add(mesh);
+        }
       }
     }
     for (const c of passthroughClones) out.add(c);
@@ -785,6 +1001,539 @@ export class Building {
     this.holder.traverse((o) => {
       if (o.userData && o.userData.update) this.tickers.push(o);
     });
+  }
+
+  /**
+   * Bongkar hasil merge: buang mesh gabungan (hanya geometry milik kita yang
+   * dibuang — passthrough clone memakai geometry asli) lalu kembalikan
+   * perabot ke grup asalnya supaya bisa dipilih & digeser satu per satu.
+   */
+  _disposeMerged() {
+    const out = this.staticMeshes;
+    if (out) {
+      out.traverse((o) => {
+        if (o.isMesh && o.userData._merged && o.geometry) o.geometry.dispose();
+      });
+      this.scene.remove(out);
+      this.staticMeshes = null;
+    }
+    for (const s of this._mergedSources) {
+      if (s.obj.parent !== s.group) s.group.add(s.obj);
+    }
+    this._mergedSources = [];
+  }
+
+  /* ------------------------------------------------------------ edit mode */
+
+  /** Masuk/keluar Mode Edit: bongkar merge agar perabot bisa dipilih. */
+  setEditMode(on) {
+    const next = !!on;
+    if (next === this.editMode) return;
+    this.editMode = next;
+    if (next) this._disposeMerged();
+    else this._mergeStatic();
+  }
+
+  /** Semua perabot yang boleh diedit (kecuali NPC). */
+  editList() {
+    const out = [];
+    for (const list of [this.placedProps, this.staticProps]) {
+      for (const item of list) {
+        if (!item.obj || item.obj.userData.liveMarker) continue;
+        out.push(item);
+      }
+    }
+    return out;
+  }
+
+  _syncObstacle(item) {
+    const o = item.obstacle;
+    if (!o) return;
+    const f = item.fp;
+    if (!f) { o.centerX = item.x; o.centerZ = item.z; return; }
+    const q = ((Math.round(item.ry / (Math.PI / 2)) % 4) + 4) % 4;
+    const swap = q % 2 === 1;
+    const hw = (swap ? f.d : f.w) / 2;
+    const hd = (swap ? f.w : f.d) / 2;
+    o.minX = item.x - hw; o.maxX = item.x + hw;
+    o.minZ = item.z - hd; o.maxZ = item.z + hd;
+    o.centerX = item.x; o.centerZ = item.z;
+    this._nav = null; // grid navigasi dibangun ulang
+  }
+
+  /** Pindah perabot di bidang lantai; bagian lepas/hotspot/kursi ikut. */
+  moveProp(item, x, z) {
+    const dx = x - item.x;
+    const dz = z - item.z;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dz) < 1e-9) return;
+    item.obj.position.x = x;
+    item.obj.position.z = z;
+    if (item.extras) {
+      for (const e of item.extras) { e.position.x += dx; e.position.z += dz; }
+    }
+    if (item.hotspot) { item.hotspot.position.x += dx; item.hotspot.position.z += dz; }
+    if (item.plantSpot) { item.plantSpot.x = x; item.plantSpot.z = z; }
+    if (item.seats) {
+      for (const s of item.seats) {
+        s.x = x; s.z = z;
+        s.sit.x = x + Math.sin(s.yaw) * SIT_FWD;
+        s.sit.z = z + Math.cos(s.yaw) * SIT_FWD;
+      }
+    }
+    item.x = x; item.z = z;
+    this._syncObstacle(item);
+  }
+
+  /** Putar perabot mengelilingi pusatnya; extras & kursi ikut berputar. */
+  rotateProp(item, ry) {
+    const d = ry - item.ry;
+    if (Math.abs(d) < 1e-9) return;
+    item.obj.rotation.y = ry;
+    if (item.extras) {
+      for (const e of item.extras) this._orbit(e, item.x, item.z, d);
+    }
+    if (item.hotspot) this._orbit(item.hotspot, item.x, item.z, d);
+    if (item.seats) {
+      for (const s of item.seats) {
+        s.yaw = ry;
+        s.sit.x = s.x + Math.sin(ry) * SIT_FWD;
+        s.sit.z = s.z + Math.cos(ry) * SIT_FWD;
+      }
+    }
+    item.ry = ry;
+    this._syncObstacle(item);
+  }
+
+  _orbit(o, cx, cz, d) {
+    const dx = o.position.x - cx;
+    const dz = o.position.z - cz;
+    const cos = Math.cos(d);
+    const sin = Math.sin(d);
+    o.position.x = cx + dx * cos - dz * sin;
+    o.position.z = cz + dx * sin + dz * cos;
+    o.rotation.y += d;
+  }
+
+  /* ----------------------------------------------------- duplikat & hapus */
+
+  /** Aktif/nonaktif collider sebuah perabot tanpa membuang recordnya. */
+  _setObstacleActive(item, on) {
+    const o = item.obstacle;
+    if (!o) return;
+    const i = this.obstacles.indexOf(o);
+    if (on && i < 0) this.obstacles.push(o);
+    else if (!on && i >= 0) this.obstacles.splice(i, 1);
+    if (on) this._syncObstacle(item);
+    this._nav = null;
+  }
+
+  /** Daftar-hotspot: pasang/lepas objek dari target raycast interaksi. */
+  _setInteractiveActive(obj, on) {
+    if (!obj || !obj.userData || !obj.userData.interactive) return;
+    const i = this.interactives.indexOf(obj);
+    if (on && i < 0) this.interactives.push(obj);
+    else if (!on && i >= 0) this.interactives.splice(i, 1);
+  }
+
+  /**
+   * "Hapus" perabot: disembunyikan + collider/hotspot/kursinya dilepas.
+   * Record tetap hidup supaya tombol Reset bisa mengembalikannya.
+   */
+  removeProp(item) {
+    if (!item || item.removed) return;
+    item.removed = true;
+    item.obj.visible = false;
+    this._setObstacleActive(item, false);
+    if (item.hotspot) {
+      item.hotspot.visible = false;
+      this._setInteractiveActive(item.hotspot, false);
+    }
+    if (item.extras) {
+      for (const e of item.extras) {
+        e.visible = false;
+        this._setInteractiveActive(e, false);
+      }
+    }
+    if (item.plantSpot) {
+      const i = this.plantSpots.indexOf(item.plantSpot);
+      if (i >= 0) this.plantSpots.splice(i, 1);
+    }
+    if (item.seats) {
+      for (const s of item.seats) {
+        const i = this.seats.indexOf(s);
+        if (i >= 0) this.seats.splice(i, 1);
+      }
+    }
+    this._nav = null;
+  }
+
+  /** Kebalikan dari removeProp (dipakai "Reset pilihan" / "Reset semua"). */
+  restoreProp(item) {
+    if (!item || !item.removed) return;
+    item.removed = false;
+    item.obj.visible = true;
+    this._setObstacleActive(item, true);
+    if (item.hotspot) {
+      item.hotspot.visible = true;
+      this._setInteractiveActive(item.hotspot, true);
+    }
+    if (item.extras) {
+      for (const e of item.extras) {
+        e.visible = true;
+        this._setInteractiveActive(e, true);
+      }
+    }
+    if (item.plantSpot && !this.plantSpots.includes(item.plantSpot)) {
+      this.plantSpots.push(item.plantSpot);
+    }
+    if (item.seats) {
+      for (const s of item.seats) if (!this.seats.includes(s)) this.seats.push(s);
+    }
+  }
+
+  /** Klon visual tanpa menyentuh userData (isinya bisa melingkar). */
+  _cloneVisual(obj) {
+    const saved = [];
+    obj.traverse((n) => {
+      if (n.userData && Object.keys(n.userData).length) {
+        saved.push([n, n.userData]);
+        n.userData = {};
+      }
+    });
+    let clone;
+    try {
+      clone = obj.clone(true);
+    } finally {
+      for (const [n, u] of saved) n.userData = u;
+    }
+    // apa pun perilaku three-nya, userData klon harus benar-benar bersih
+    clone.traverse((n) => { n.userData = {}; });
+    return clone;
+  }
+
+  _nextCopyId() {
+    let id;
+    do { id = `c${++this._copySeq}`; } while (this._editById.has(id));
+    return id;
+  }
+
+  /**
+   * Buat duplikat dari sebuah perabot (record base-nya dipertahankan sebagai
+   * `srcId` supaya bisa dibangun ulang saat boot). `id` dipakai saat memuat
+   * simpanan; kalau null → dihasilkan otomatis.
+   */
+  _makeCopy(srcItem, x, z, ry, id = null) {
+    if (!srcItem) return null;
+    // selalu klon dari perabot ASLI (bukan duplikat) supaya rantai tidak panjang
+    let base = srcItem.srcId ? this._editById.get(srcItem.srcId) : null;
+    if (!base || base.removed) base = srcItem;
+
+    const clone = this._cloneVisual(base.obj);
+    clone.visible = true; // kalau sumbernya sedang dihapus, klon tetap tampil
+    const finalId = id || this._nextCopyId();
+    const item = this._register(
+      clone, x, z, ry, srcItem.y, srcItem.fp, this.holder, this.placedProps, finalId,
+    );
+    item.isCopy = true;
+    item.srcId = base.id;
+    item.label = srcItem.label;
+    const m = /^c(\d+)$/.exec(finalId);
+    if (m) this._copySeq = Math.max(this._copySeq, Number(m[1]));
+
+    // bagian lepas yang kelihatan (mis. lampu meja) ikut tersalin — kutip
+    // hotspot tembus-pandang tidak perlu diduplikat.
+    const cdx = x - srcItem.x;
+    const cdz = z - srcItem.z;
+    const cd = ry - srcItem.ry;
+    if (srcItem.extras) {
+      const extras = [];
+      for (const e of srcItem.extras) {
+        if (!e || e.material === this._hotspotMat) continue;
+        const ce = this._cloneVisual(e);
+        ce.position.set(e.position.x + cdx, e.position.y, e.position.z + cdz);
+        if (Math.abs(cd) > 1e-9) this._orbit(ce, x, z, cd);
+        this.holder.add(ce);
+        extras.push(ce);
+      }
+      if (extras.length) item.extras = extras;
+    }
+
+    // kursi ikut tersalin → NPC boleh duduk di duplikatnya juga
+    if (srcItem.seats) {
+      item.seats = [];
+      for (const s of srcItem.seats) {
+        const ns = {
+          id: `${s.type}-${this.seats.length}`,
+          x, z, yaw: ry, type: s.type, taken: null,
+          obstacle: item.obstacle,
+          sit: { x: x + Math.sin(ry) * SIT_FWD, z: z + Math.cos(ry) * SIT_FWD },
+        };
+        item.seats.push(ns);
+        this.seats.push(ns);
+      }
+    }
+
+    // hotspot inspeksi sendiri supaya duplikat tetap bisa diklik
+    const room = this.room(this.roomAt(x, z));
+    const roomName = room?.name || "Studio";
+    const label = item.label || "Furnitur kantor";
+    const f = item.fp || { w: 0.7, d: 0.7 };
+    const size = THREE.MathUtils.clamp(Math.max(f.w || 0.7, f.d || 0.7) * 0.72, 0.6, 1.05);
+    item.hotspot = this._hotspot(x, z, Math.max(0.68, item.y + 0.66), size, {
+      id: `inspect-copy-${finalId}`,
+      label: `${label} · ${roomName}`,
+      hint: "Klik untuk memeriksa detail dan status objek",
+      radius: 1.0,
+      onClick: () => {
+        item.state = (item.state + 1) % 3;
+        return [
+          `${label}: siap digunakan di area ${roomName}.`,
+          `${label}: detail material dan kondisi sudah diperiksa.`,
+          `${label}: kembali ke status siap digunakan.`,
+        ][item.state];
+      },
+    });
+
+    this._copies.push(item);
+    this._nav = null;
+    return item;
+  }
+
+  /** Ruang kosong dari perabot lain (tembok diabaikan — benda menempel
+   *  dinding tetap boleh diduplikat di sepanjang dinding yang sama). */
+  _spotFree(x, z, r) {
+    if (x < this.bounds.x0 + 0.4 || x > this.bounds.x1 - 0.4 ||
+        z < this.bounds.z0 + 0.4 || z > this.bounds.z1 - 0.4) return false;
+    for (const b of this.obstacles) {
+      if (b.kind !== "prop") continue;
+      const cx = THREE.MathUtils.clamp(x, b.minX, b.maxX);
+      const cz = THREE.MathUtils.clamp(z, b.minZ, b.maxZ);
+      if ((x - cx) * (x - cx) + (z - cz) * (z - cz) < r * r) return false;
+    }
+    return true;
+  }
+
+  /** Duplikat dengan mencari tempat kosong di sekeliling perabot asalnya. */
+  copyProp(item) {
+    if (!item) return null;
+    const f = item.fp || { w: 0.7, d: 0.7 };
+    const reach = Math.max(f.w || 0.7, f.d || 0.7) / 2 + 0.5;
+    const b = this.bounds;
+    // benda yang menempel dinding digeser di sepanjang dinding itu saja,
+    // supaya duplikatnya tidak "melayang" di depan dinding.
+    const q = ((Math.round(item.ry / (Math.PI / 2)) % 4) + 4) % 4;
+    const onWall = item.wallLocked || this._nearWall(item.x, item.z);
+    const OFFS = onWall
+      ? (q % 2 === 0 ? [[1, 0], [-1, 0]] : [[0, 1], [0, -1]])
+      : [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+
+    let spot = null;
+    for (const [ox, oz] of OFFS) {
+      const x = THREE.MathUtils.clamp(item.x + ox * reach, b.x0 + 0.6, b.x1 - 0.6);
+      const z = THREE.MathUtils.clamp(item.z + oz * reach, b.z0 + 0.6, b.z1 - 0.6);
+      if (Math.hypot(x - item.x, z - item.z) < 0.3) continue;
+      const ok = onWall ? this._spotFree(x, z, 0.3) : this.isFree(x, z, 0.34);
+      if (!ok) continue;
+      spot = { x, z };
+      break;
+    }
+    if (!spot) {
+      spot = {
+        x: THREE.MathUtils.clamp(item.x + reach, b.x0 + 0.6, b.x1 - 0.6),
+        z: item.z,
+      };
+    }
+    return this._makeCopy(item, spot.x, spot.z, item.ry, null);
+  }
+
+  /** Buang satu duplikat dari dunia (geometry-nya dipakai bersama). */
+  _destroyCopy(item) {
+    if (!item) return;
+    if (item.hotspot) {
+      this._setInteractiveActive(item.hotspot, false);
+      item.hotspot.parent?.remove(item.hotspot);
+      item.hotspot = null;
+    }
+    if (item.obstacle) {
+      const i = this.obstacles.indexOf(item.obstacle);
+      if (i >= 0) this.obstacles.splice(i, 1);
+      item.obstacle = null;
+    }
+    if (item.seats) {
+      for (const s of item.seats) {
+        const i = this.seats.indexOf(s);
+        if (i >= 0) this.seats.splice(i, 1);
+      }
+      item.seats = null;
+    }
+    item.obj.parent?.remove(item.obj);
+    item.obj.userData.editItem = null;
+    item.obj.userData.editId = null;
+    this._editItems.delete(item.obj);
+    this._editById.delete(item.id);
+    const pi = this.placedProps.indexOf(item);
+    if (pi >= 0) this.placedProps.splice(pi, 1);
+    item.removed = true;
+    this._nav = null;
+  }
+
+  deleteProp(item) {
+    if (!item) return false;
+    if (item.isCopy) {
+      this._destroyCopy(item);
+      const ci = this._copies.indexOf(item);
+      if (ci >= 0) this._copies.splice(ci, 1);
+      return true;
+    }
+    if (item.removed) return false;
+    this.removeProp(item);
+    return true;
+  }
+
+  /** Buang semua duplikat (dipakai Reset semua / sebelum impor). */
+  _clearCopies() {
+    for (const item of this._copies.slice()) this._destroyCopy(item);
+    this._copies = [];
+  }
+
+  /** Material yang paling banyak dipakai di dalam sebuah perabot. */
+  _dominantMaterial(obj) {
+    const count = new Map();
+    obj.traverse((o) => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+      count.set(o.material, (count.get(o.material) || 0) + 1);
+    });
+    let best = null;
+    let bestN = 0;
+    for (const [m, n] of count) {
+      if (n > bestN) { best = m; bestN = n; }
+    }
+    return best;
+  }
+
+  /** Ganti material utama sebuah perabot (tanpa merusak aksen layar/lampu). */
+  setPropMaterial(item, matKey) {
+    const mat = MAT[matKey];
+    if (!mat) return;
+    if (!item.baseMat) item.baseMat = this._dominantMaterial(item.obj);
+    const from = item.curMat || item.baseMat;
+    if (from && from !== mat) {
+      item.obj.traverse((o) => {
+        if (o.isMesh && !Array.isArray(o.material) && o.material === from) o.material = mat;
+      });
+    }
+    item.curMat = mat;
+    item.matKey = matKey;
+  }
+
+  /** Kembalikan satu perabot ke posisi/rotasi/material asal. */
+  resetProp(item) {
+    if (item.removed) this.restoreProp(item);
+    this.moveProp(item, item.home.x, item.home.z);
+    this.rotateProp(item, item.home.ry);
+    if (item.curMat && item.curMat !== item.baseMat && item.baseMat) {
+      item.obj.traverse((o) => {
+        if (o.isMesh && !Array.isArray(o.material) && o.material === item.curMat) {
+          o.material = item.baseMat;
+        }
+      });
+    }
+    item.curMat = item.baseMat;
+    item.matKey = null;
+  }
+
+  resetAllEdits() {
+    for (const item of this.editList()) {
+      if (item.isCopy) continue; // duplikat dibuang seluruhnya
+      this.resetProp(item);
+    }
+    this._clearCopies();
+  }
+
+  /** Ringkasan perubahan untuk disimpan (hanya perabot yang berubah). */
+  serializeEdits() {
+    const items = {};
+    const add = [];
+    const del = [];
+    for (const item of this.editList()) {
+      if (item.removed) {
+        if (!item.isCopy) del.push(item.id);
+        continue;
+      }
+      if (item.isCopy) {
+        add.push({
+          id: item.id,
+          src: item.srcId,
+          x: +item.home.x.toFixed(4),
+          z: +item.home.z.toFixed(4),
+          ry: +item.home.ry.toFixed(4),
+        });
+      }
+      const h = item.home;
+      const moved = Math.abs(item.x - h.x) > 1e-4 || Math.abs(item.z - h.z) > 1e-4;
+      const rotated = Math.abs(this._angleDiff(item.ry, h.ry)) > 1e-4;
+      if (!moved && !rotated && !item.matKey) continue;
+      const e = { x: +item.x.toFixed(4), z: +item.z.toFixed(4), ry: +item.ry.toFixed(4) };
+      if (item.matKey) e.mat = item.matKey;
+      items[item.id] = e;
+    }
+    const out = { v: 1, items };
+    if (add.length) out.add = add;
+    if (del.length) out.del = del;
+    return out;
+  }
+
+  _angleDiff(a, b) {
+    let d = (a - b) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+
+  /** Terapkan hasil simpanan ke dunia (dipakai saat boot). */
+  applyEdits(data) {
+    if (!data) return 0;
+    // mulai dari kondisi bersih: pulihkan yang dihapus, buang semua duplikat
+    this.resetAllEdits();
+    let n = 0;
+
+    // 1) hapus perabot yang sebelumnya dihapus
+    if (Array.isArray(data.del)) {
+      for (const id of data.del) {
+        const item = this._editById.get(id);
+        if (item && !item.isCopy) { this.removeProp(item); n++; }
+      }
+    }
+
+    // 2) bangun ulang duplikat (dari perabot aslinya)
+    if (Array.isArray(data.add)) {
+      for (const a of data.add) {
+        if (!a || typeof a.id !== "string" || typeof a.src !== "string") continue;
+        const src = this._editById.get(a.src);
+        if (!src || src.isCopy) continue;
+        const x = Number(a.x) || 0;
+        const z = Number(a.z) || 0;
+        const ry = Number(a.ry) || 0;
+        if (this._makeCopy(src, x, z, ry, a.id)) n++;
+      }
+    }
+
+    // 3) posisi/rotasi/material
+    if (data.items) {
+      for (const [id, e] of Object.entries(data.items)) {
+        if (!e) continue;
+        const item = this._editById.get(id);
+        if (!item || item.removed) continue;
+        if (typeof e.x === "number" && typeof e.z === "number") this.moveProp(item, e.x, e.z);
+        if (typeof e.ry === "number") this.rotateProp(item, e.ry);
+        if (e.mat) this.setPropMaterial(item, e.mat);
+        n++;
+      }
+    }
+
+    this._nav = null;
+    if (this.staticMeshes) this._mergeStatic();
+    return n;
   }
 
   /* ------------------------------------------------- navigation helpers */
@@ -846,8 +1595,9 @@ export class Building {
   }
 
   resolveCollisions(v3, radius = 0.3, ignoreObstacle = null) {
+    const ign = ignoreList(ignoreObstacle);
     for (const b of this.obstacles) {
-      if (b === ignoreObstacle) continue;
+      if (isIgnored(b, ign)) continue;
       const cx = THREE.MathUtils.clamp(v3.x, b.minX, b.maxX);
       const cz = THREE.MathUtils.clamp(v3.z, b.minZ, b.maxZ);
       const dx = v3.x - cx;
@@ -875,8 +1625,9 @@ export class Building {
   }
 
   isFree(x, z, radius = 0.35, ignoreObstacle = null) {
+    const ign = ignoreList(ignoreObstacle);
     for (const b of this.obstacles) {
-      if (b === ignoreObstacle) continue;
+      if (isIgnored(b, ign)) continue;
       const cx = THREE.MathUtils.clamp(x, b.minX, b.maxX);
       const cz = THREE.MathUtils.clamp(z, b.minZ, b.maxZ);
       if ((x - cx) ** 2 + (z - cz) ** 2 < radius * radius) return false;
@@ -885,29 +1636,136 @@ export class Building {
   }
 
   /**
-   * Move in swept micro-steps. Every position is checked before commit, so
-   * fast movement and diagonal cornering cannot tunnel through obstacles.
-   * A blocked diagonal may slide along either free axis.
+   * Apa yang menghalangi titik (x,z)? Dipakai AI untuk memutuskan langkah:
+   *   { type: "solid" } → dinding / sekat kaca / perabot  → PANTANG ditembus,
+   *                        jadi AI menyusun ulang rute (bukan mendorong).
+   *   { type: "body"  } → karakter lain                    → AI menyalip / mengalah.
+   * Semua penghalang di sini sudah bertanda `solid` saat dibuat, dan
+   * daftarnya hidup — jadi begitu perabot dipindah / diduplikat / dihapus
+   * di Mode Edit, jawabannya langsung berubah.
    */
-  moveSafely(v3, dx, dz, radius = 0.3, ignoreObstacle = null, mover = null) {
+  blockerAt(x, z, radius = 0.3, ignoreObstacle = null, mover = null) {
+    const ign = ignoreList(ignoreObstacle);
+    for (let i = 0; i < this.obstacles.length; i++) {
+      const b = this.obstacles[i];
+      if (isIgnored(b, ign)) continue;
+      const cx = x > b.maxX ? b.maxX : (x < b.minX ? b.minX : x);
+      const cz = z > b.maxZ ? b.maxZ : (z < b.minZ ? b.minZ : z);
+      const dx = x - cx;
+      const dz = z - cz;
+      if (dx * dx + dz * dz < radius * radius) {
+        return {
+          type: "solid",
+          kind: b.kind,
+          blocked: b.blocked !== false,
+          propType: b.type || null,
+          seatable: !!b.seatable,
+          obstacleClass: b.obstacleClass || (b.kind === "wall" ? "wall" : "prop"),
+          label: b.label || (b.kind === "wall" ? "Dinding" : "Perabot"),
+          obstacle: b,
+        };
+      }
+    }
+    const bodies = this.dynamicBodies;
+    if (bodies) {
+      for (let i = 0; i < bodies.length; i++) {
+        const o = bodies[i];
+        if (!o || o === mover) continue;
+        const gap = radius + 0.29;
+        const dx = x - o.position.x;
+        const dz = z - o.position.z;
+        if (dx * dx + dz * dz < gap * gap) {
+          return { type: "body", label: o.name || "Rekan kerja", body: o };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Paksa grid navigasi dibangun ulang (setelah perabot diedit). */
+  refreshNav() {
+    this._nav = null;
+  }
+
+  /** Ada karakter lain yang terlalu dekat dengan (x,z)? (tabrakan badan) */
+  _bodyBlocked(x, z, radius, mover = null) {
+    const bodies = this.dynamicBodies;
+    if (!bodies) return false;
+    for (let i = 0; i < bodies.length; i++) {
+      const o = bodies[i];
+      if (!o || o === mover) continue;
+      const minD = radius + 0.29;
+      const ox = x - o.position.x;
+      const oz = z - o.position.z;
+      if (ox * ox + oz * oz < minD * minD) return true;
+    }
+    return false;
+  }
+
+  /** Titik ini bebas dari karakter lain? (dipakai saat memilih tujuan) */
+  _bodyFree(x, z, gap = 0.9, mover = null) {
+    const bodies = this.dynamicBodies;
+    if (!bodies) return true;
+    for (let i = 0; i < bodies.length; i++) {
+      const o = bodies[i];
+      if (!o || o === mover) continue;
+      const dx = x - o.position.x;
+      const dz = z - o.position.z;
+      if (dx * dx + dz * dz < gap * gap) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Gerak bertahap (swept). Setiap posisi diperiksa SEBELUM dikomit, jadi
+   * badan tidak bisa menembus dinding sekat, perabot, atau karakter lain —
+   * bahkan saat lari atau menyerong. Kalau langkah lurus terhalang, badan
+   * meluncur di sumbu yang masih bebas (ubah haluan, bukan memaksa maju).
+   * @returns {number} jarak yang benar-benar ditempuh (meter)
+   */
+  sweepMove(v3, dx, dz, radius = 0.29, ignoreObstacle = null, mover = null) {
     const distance = Math.hypot(dx, dz);
-    if (distance < 1e-8) return v3;
-    const steps = Math.max(1, Math.ceil(distance / Math.max(0.055, radius * 0.38)));
+    if (distance < 1e-8) return 0;
+    // langkah mikro ≤ 0.11 m → tak ada celah yang bisa ditembus
+    const stepLen = Math.min(0.11, Math.max(0.05, radius * 0.38));
+    const steps = Math.max(1, Math.ceil(distance / stepLen));
     const sx = dx / steps;
     const sz = dz / steps;
-    const canOccupy = (x, z) => {
-      if (x < this.bounds.x0 + radius || x > this.bounds.x1 - radius ||
-          z < this.bounds.z0 + radius || z > this.bounds.z1 - radius) return false;
-      if (!this.isFree(x, z, radius, ignoreObstacle)) return false;
-      for (const other of this.dynamicBodies) {
-        if (!other || other === mover) continue;
-        const minD = radius + 0.29;
-        const ox = x - other.position.x;
-        const oz = z - other.position.z;
-        if (ox * ox + oz * oz < minD * minD) return false;
+    const ign = ignoreList(ignoreObstacle);
+
+    // Kalau badan sudah berada DI DALAM sebuah collider (mis. perabotnya
+    // dipindah saat Mode Edit), biarkan keluar dari collider itu saja —
+    // bukan lalu menembus collider lain.
+    let escape = null;
+    if (!this.isFree(v3.x, v3.z, Math.min(radius, 0.2), ignoreObstacle)) {
+      for (const b of this.obstacles) {
+        if (isIgnored(b, ign)) continue;
+        if (v3.x > b.minX && v3.x < b.maxX && v3.z > b.minZ && v3.z < b.maxZ) { escape = b; break; }
+      }
+    }
+
+    const r2 = radius * radius;
+    const freeOf = (x, z) => {
+      for (let i = 0; i < this.obstacles.length; i++) {
+        const b = this.obstacles[i];
+        if (b === escape || isIgnored(b, ign)) continue;
+        const cx = x > b.maxX ? b.maxX : (x < b.minX ? b.minX : x);
+        const cz = z > b.maxZ ? b.maxZ : (z < b.minZ ? b.minZ : z);
+        const ddx = x - cx;
+        const ddz = z - cz;
+        if (ddx * ddx + ddz * ddz < r2) return false;
       }
       return true;
     };
+    const canOccupy = (x, z) => {
+      if (x < this.bounds.x0 + radius || x > this.bounds.x1 - radius ||
+          z < this.bounds.z0 + radius || z > this.bounds.z1 - radius) return false;
+      if (!freeOf(x, z)) return false;
+      return !this._bodyBlocked(x, z, radius, mover);
+    };
+
+    const fromX = v3.x;
+    const fromZ = v3.z;
     for (let i = 0; i < steps; i++) {
       const nx = v3.x + sx;
       const nz = v3.z + sz;
@@ -927,6 +1785,12 @@ export class Building {
         v3.z = cz;
       }
     }
+    return Math.hypot(v3.x - fromX, v3.z - fromZ);
+  }
+
+  /** Versi lama: mengembalikan v3 (dipakai leash staf & pemanggil lain). */
+  moveSafely(v3, dx, dz, radius = 0.3, ignoreObstacle = null, mover = null) {
+    this.sweepMove(v3, dx, dz, radius, ignoreObstacle, mover);
     return v3;
   }
 
@@ -955,8 +1819,134 @@ export class Building {
         walk[j * nx + i] = this.isFree(x, z, R) ? 1 : 0;
       }
     }
-    this._nav = { cell, x0, z0, nx, nz, walk };
+
+    /* Peta "kelegaan" (clearance) — jarak tiap sel ke sel tak-jalan terdekat,
+       dihitung dengan chamfer 2-lintasan. Dipakai A* untuk memilih jalur
+       yang tidak menempel dinding/perabot, jadi karakter tidak menyusur
+       sudut dan tidak menyenggol benda di tepian. Nilai dalam 1/10 sel. */
+    const CAP = 60;              // 6 sel ≈ 1,5 m
+    const D1 = 10;               // 1 sel
+    const D2 = 14;               // √2 sel
+    const clear = new Uint8Array(nx * nz);
+    for (let k = 0; k < clear.length; k++) clear[k] = walk[k] ? CAP : 0;
+    for (let j = 0; j < nz; j++) {
+      for (let i = 0; i < nx; i++) {
+        const k = j * nx + i;
+        if (!walk[k]) continue;
+        let v = clear[k];
+        if (i > 0 && clear[k - 1] + D1 < v) v = clear[k - 1] + D1;
+        if (j > 0 && clear[k - nx] + D1 < v) v = clear[k - nx] + D1;
+        if (i > 0 && j > 0 && clear[k - nx - 1] + D2 < v) v = clear[k - nx - 1] + D2;
+        if (i < nx - 1 && j > 0 && clear[k - nx + 1] + D2 < v) v = clear[k - nx + 1] + D2;
+        clear[k] = v;
+      }
+    }
+    for (let j = nz - 1; j >= 0; j--) {
+      for (let i = nx - 1; i >= 0; i--) {
+        const k = j * nx + i;
+        if (!walk[k]) continue;
+        let v = clear[k];
+        if (i < nx - 1 && clear[k + 1] + D1 < v) v = clear[k + 1] + D1;
+        if (j < nz - 1 && clear[k + nx] + D1 < v) v = clear[k + nx] + D1;
+        if (i < nx - 1 && j < nz - 1 && clear[k + nx + 1] + D2 < v) v = clear[k + nx + 1] + D2;
+        if (i > 0 && j < nz - 1 && clear[k + nx - 1] + D2 < v) v = clear[k + nx - 1] + D2;
+        clear[k] = v;
+      }
+    }
+
+    /* Label KOMPONEN: kelompok sel yang saling terhubung. Dipakai supaya
+       rute tidak pernah gagal membabi-buta: kalau tujuan berada di area
+       yang tak terjangkau (kantong di belakang perabot), karakter berjalan
+       ke titik terdekat yang masih sekomponen dengan dirinya. */
+    const comp = new Int32Array(nx * nz).fill(-1);
+    const queue = new Int32Array(nx * nz);
+    let compCount = 0;
+    for (let s = 0; s < comp.length; s++) {
+      if (!walk[s] || comp[s] >= 0) continue;
+      const id = compCount++;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = s;
+      comp[s] = id;
+      while (head < tail) {
+        const k = queue[head++];
+        const i = k % nx;
+        const j = (k / nx) | 0;
+        if (i > 0 && walk[k - 1] && comp[k - 1] < 0) { comp[k - 1] = id; queue[tail++] = k - 1; }
+        if (i < nx - 1 && walk[k + 1] && comp[k + 1] < 0) { comp[k + 1] = id; queue[tail++] = k + 1; }
+        if (j > 0 && walk[k - nx] && comp[k - nx] < 0) { comp[k - nx] = id; queue[tail++] = k - nx; }
+        if (j < nz - 1 && walk[k + nx] && comp[k + nx] < 0) { comp[k + nx] = id; queue[tail++] = k + nx; }
+      }
+    }
+
+    let mainComp = -1;
+    let mainSize = -1;
+    const sizes = new Int32Array(compCount);
+    for (let k = 0; k < comp.length; k++) {
+      const c = comp[k];
+      if (c >= 0) sizes[c]++;
+    }
+    for (let c = 0; c < compCount; c++) {
+      if (sizes[c] > mainSize) { mainSize = sizes[c]; mainComp = c; }
+    }
+
+    this._nav = { cell, x0, z0, nx, nz, walk, clear, cap: CAP, comp, compCount, mainComp };
     return this._nav;
+  }
+
+  /**
+   * Apakah (x,z) benar-benar punya sel jalan di dekatnya (bisa dipijak)?
+   * `mainOnly` = harus tersambung ke jaringan utama (bukan kantong buntu).
+   */
+  walkableAt(x, z, tol = 0.22, mainOnly = false) {
+    const nav = this._navEnsure();
+    const { cell, x0, z0, nx, nz, walk, comp, mainComp } = nav;
+    const ci = Math.floor((x - x0) / cell);
+    const cj = Math.floor((z - z0) / cell);
+    for (let dj = -1; dj <= 1; dj++) {
+      for (let di = -1; di <= 1; di++) {
+        const i = ci + di;
+        const j = cj + dj;
+        if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
+        const k = j * nx + i;
+        if (!walk[k]) continue;
+        if (mainOnly && comp[k] !== mainComp) continue;
+        const cx = x0 + (i + 0.5) * cell;
+        const cz = z0 + (j + 0.5) * cell;
+        if (di === 0 && dj === 0) return true;
+        if ((cx - x) ** 2 + (cz - z) ** 2 <= tol * tol) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Sel jalan SEKOMPONEN `comp` yang paling dekat dengan (x,z). */
+  _nearestInComp(x, z, nav, comp, maxRadius = 3.0) {
+    const { cell, x0, z0, nx, nz, walk } = nav;
+    const its = nav.comp;
+    if (comp < 0) return null;
+    const ci = THREE.MathUtils.clamp(Math.floor((x - x0) / cell), 0, nx - 1);
+    const cj = THREE.MathUtils.clamp(Math.floor((z - z0) / cell), 0, nz - 1);
+    const hit = (i, j) => {
+      const k = j * nx + i;
+      return walk[k] && its[k] === comp ? { i: k, x: x0 + (i + 0.5) * cell, z: z0 + (j + 0.5) * cell } : null;
+    };
+    const first = hit(ci, cj);
+    if (first) return first;
+    const maxR = Math.ceil(maxRadius / cell);
+    for (let r = 1; r <= maxR; r++) {
+      for (let dj = -r; dj <= r; dj++) {
+        for (let di = -r; di <= r; di++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          const i = ci + di;
+          const j = cj + dj;
+          if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
+          const found = hit(i, j);
+          if (found) return found;
+        }
+      }
+    }
+    return null;
   }
 
   /** Sel jalan-pakai terdekat dari titik mana pun ( Spiral search kecil). */
@@ -1010,13 +2000,36 @@ export class Building {
   }
 
   /** A* 8-arah di atas grid; mengembalikan deretan indeks sel atau null. */
-  _navSearch(nav, startI, goalI) {
-    const { nx, nz, walk } = nav;
+  _navSearch(nav, startI, goalI, avoid = null) {
+    const { nx, nz, walk, clear, cap, x0, z0, cell } = nav;
     const total = nx * nz;
     const gCost = new Float32Array(total).fill(Infinity);
     const parent = new Int32Array(total).fill(-1);
     const goalX = goalI % nx;
     const goalZ = (goalI / nx) | 0;
+
+    /**
+     * Biaya ekstra sebuah sel:
+     *  • kelegaan — menjauhi dinding/perabot (biar tidak menyusur sudut)
+     *  • kerumunan — menghindari karakter lain yang sedang berdiri di jalur
+     */
+    const stepCost = (nI) => {
+      let p = 0;
+      const c = clear[nI];
+      if (c < cap) p += (cap - c) * 0.0016;
+      if (avoid) {
+        const wx = x0 + ((nI % nx) + 0.5) * cell;
+        const wz = z0 + (((nI / nx) | 0) + 0.5) * cell;
+        for (let a = 0; a < avoid.length; a++) {
+          const o = avoid[a];
+          const ox = o.position.x - wx;
+          const oz = o.position.z - wz;
+          const d2 = ox * ox + oz * oz;
+          if (d2 < 2.25) p += (1.5 - Math.sqrt(d2)) * 0.6;
+        }
+      }
+      return p;
+    };
 
     // binary heap kecil (indeks & skor paralel)
     const hI = [];
@@ -1071,7 +2084,7 @@ export class Building {
         if (!walk[nI]) continue;
         // larang memotong sudut: kedua tetangga ortogonal harus jalan
         if (dx !== 0 && dz !== 0 && (!walk[cz * nx + X] || !walk[Z * nx + cx])) continue;
-        const ng = gCost[i] + cost;
+        const ng = gCost[i] + cost + stepCost(nI);
         if (ng < gCost[nI]) {
           gCost[nI] = ng;
           parent[nI] = i;
@@ -1093,16 +2106,41 @@ export class Building {
    * selain itu A* grid → sederhanakan. Karakter otomatis menghindari
    * tembok & semua perabot alih-alih memaksakan jalan menempel.
    */
-  route(from, target) {
+  route(from, target, mover = null) {
+    if (!from || !target) return [];
     const direct = [{ x: target.x, z: target.z }];
     if (this._lineFree(from.x, from.z, target.x, target.z, 0.30)) return direct;
 
     const nav = this._navEnsure();
+
+    // Kerumunan: karakter lain (selain penggerak) jadi biaya ekstra di A*,
+    // jadi NPC memilih lorong yang tidak penuh orang.
+    let avoid = null;
+    const bodies = this.dynamicBodies;
+    if (bodies && bodies.length) {
+      avoid = [];
+      for (const o of bodies) {
+        if (!o || o === mover) continue;
+        avoid.push(o);
+      }
+      if (!avoid.length) avoid = null;
+    }
+
     const start = this._nearestWalkable(from.x, from.z, nav);
-    const goal = this._nearestWalkable(target.x, target.z, nav);
+    let goal = this._nearestWalkable(target.x, target.z, nav);
     if (!start || !goal) return []; // Never force a direct path when no safe path exists.
 
-    const cells = start.i !== goal.i ? this._navSearch(nav, start.i, goal.i) : null;
+    // Tujuan di area lain yang tak terjangkau (kantong di belakang perabot)?
+    // Jangan menyerah: dekati sejauh jaringan izinkan — jadi NPC tidak
+    // berhenti mencoba jalan yang mustahil sampai tujuannya dibatalkan.
+    const startComp = nav.comp ? nav.comp[start.i] : -1;
+    if (nav.comp && startComp >= 0 && nav.comp[goal.i] !== startComp) {
+      const near = this._nearestInComp(target.x, target.z, nav, startComp, 3.0);
+      if (!near) return [];
+      goal = near;
+    }
+
+    const cells = start.i !== goal.i ? this._navSearch(nav, start.i, goal.i, avoid) : null;
     if (!cells) {
       return this._lineFree(start.x, start.z, goal.x, goal.z, 0.24)
         ? [{ x: goal.x, z: goal.z }]
@@ -1143,6 +2181,58 @@ export class Building {
     return pts;
   }
 
+  /**
+   * Titik berdiri yang aman di dekat (x,z): bebas perabot & tembok, tidak
+   * menempel karakter lain, dan (default) masih di ruangan yang sama.
+   */
+  freeSpotAround(x, z, opts = {}) {
+    const radius = opts.radius ?? 0.34;
+    const gap = opts.gap ?? 0.75;
+    const sameRoom = opts.sameRoom !== false;
+    const home = this.roomAt(x, z);
+    const bd = this.bounds;
+    const start = opts.start ?? 0.6;
+    const maxR = opts.maxR ?? 2.0;
+    for (let r = start; r <= maxR; r += 0.3) {
+      const steps = Math.max(8, Math.round(r * 8));
+      const phase = this.rng() * Math.PI * 2;
+      for (let i = 0; i < steps; i++) {
+        const a = phase + (i / steps) * Math.PI * 2;
+        const px = x + Math.sin(a) * r;
+        const pz = z + Math.cos(a) * r;
+        if (px < bd.x0 + 0.4 || px > bd.x1 - 0.4 || pz < bd.z0 + 0.4 || pz > bd.z1 - 0.4) continue;
+        if (sameRoom && this.roomAt(px, pz) !== home) continue;
+        if (!this.isFree(px, pz, radius)) continue;
+        if (!this.walkableAt(px, pz, 0.22, true)) continue;
+        if (!this._bodyFree(px, pz, gap)) continue;
+        return { x: px, z: pz };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Titik berdiri di depan perabot berlabel tertentu (POI dinamis) — NPC
+   * otomatis mencari perabot yang dipindah / diduplikat di Mode Edit.
+   */
+  poiNear(label, from = null, opts = {}) {
+    let best = null;
+    let bestD = Infinity;
+    const v = new THREE.Vector3();
+    for (const o of this.interactives) {
+      const meta = o.userData.interactive;
+      if (!meta || !meta.label || String(meta.label).indexOf(label) === -1) continue;
+      o.getWorldPosition(v);
+      const d = from ? (v.x - from.x) ** 2 + (v.z - from.z) ** 2 : 0;
+      if (d < bestD) { bestD = d; best = { x: v.x, z: v.z }; }
+    }
+    if (!best) return null;
+    const spot = this.freeSpotAround(best.x, best.z, opts);
+    if (!spot) return null;
+    spot.yaw = Math.atan2(best.x - spot.x, best.z - spot.z);
+    return spot;
+  }
+
   randomSpot(roomId = null, out = { x: 0, z: 0 }) {
     for (let attempt = 0; attempt < 14; attempt++) {
       const room = roomId
@@ -1153,7 +2243,7 @@ export class Building {
       const x = room.x0 + inset + this.rng() * Math.max(0.5, room.x1 - room.x0 - inset * 2);
       const z = room.z0 + inset + this.rng() * Math.max(0.5, room.z1 - room.z0 - inset * 2);
       if (this.roomAt(x, z) !== room.id) continue;
-      if (this.isFree(x, z, 0.55)) {
+      if (this.isFree(x, z, 0.55) && this._bodyFree(x, z, 0.8) && this.walkableAt(x, z, 0.22, true)) {
         out.x = x; out.z = z;
         return out;
       }
@@ -1162,6 +2252,10 @@ export class Building {
     return out;
   }
 
+  /**
+   * Klaim satu kursi. Kursi yang paling jarang dipakai didahulukan supaya
+   * SEMUA kursi (semua tipe) kebagian diduduki — bukan cuma yang dekat.
+   */
   claimSeat(type, who, roomId) {
     const free = this.seats.filter((s) =>
       s.type === type
@@ -1170,19 +2264,71 @@ export class Building {
       && (!roomId || this.roomAt(s.x, s.z) === roomId)
       && (!s.taken || s.taken === who));
     if (!free.length) return null;
-    const seat = free[Math.floor(Math.random() * free.length)];
+    let min = Infinity;
+    for (const s of free) min = Math.min(min, s.uses || 0);
+    const pool = free.filter((s) => (s.uses || 0) === min);
+    const seat = pool[Math.floor(Math.random() * pool.length)];
     seat.taken = who;
+    seat.takenAt = this._clock;
+    seat.uses = (seat.uses || 0) + 1;
+    return seat;
+  }
+
+  /** Kursi apa pun yang masih kosong (semua tipe dudukan bisa diduduki). */
+  claimAnySeat(who, { exclude = ["reception"], roomId = null } = {}) {
+    const free = this.seats.filter((s) =>
+      !exclude.includes(s.type)
+      && (!roomId || this.roomAt(s.x, s.z) === roomId)
+      && (!s.taken || s.taken === who));
+    if (!free.length) return null;
+    let min = Infinity;
+    for (const s of free) min = Math.min(min, s.uses || 0);
+    const pool = free.filter((s) => (s.uses || 0) === min);
+    const seat = pool[Math.floor(Math.random() * pool.length)];
+    seat.taken = who;
+    seat.takenAt = this._clock;
+    seat.uses = (seat.uses || 0) + 1;
     return seat;
   }
 
   releaseSeat(seat, who) {
-    if (seat && seat.taken === who) seat.taken = null;
+    if (seat && seat.taken === who) {
+      seat.taken = null;
+      seat.takenAt = 0;
+    }
+  }
+
+  /** Kursi apa yang sedang dipakai `who` (untuk dipakai pemain/NPC lain)? */
+  seatOf(who) {
+    for (const s of this.seats) if (s.taken === who) return s;
+    return null;
+  }
+
+  /**
+   * Jaring pengaman: klaim kursi yang "bocor" (pemiliknya sudah tidak ada
+   * atau keburu lama) dilepas lagi. Tanpa ini, kursi bisa terkunci selamanya
+   * dan tidak ada seorang pun yang bisa duduk di sana.
+   */
+  _releaseStaleSeats() {
+    for (const s of this.seats) {
+      if (!s.taken) continue;
+      const owner = s.taken;
+      const gone = !this.dynamicBodies?.includes(owner) && !(owner?.brain);
+      const stale = this._clock - (s.takenAt || 0) > 90;
+      if (gone || stale) {
+        s.taken = null;
+        s.takenAt = 0;
+      }
+    }
   }
 
   approachTo(seat, radii = [0.78, 0.92, 1.08, 1.24]) {
     const room = this.roomAt(seat.x, seat.z);
     const base = seat.yaw ?? 0;
     const target = seat.sit || seat;
+    // Garis & titik duduk boleh menyelip ke meja yang ditutup kursi, tapi
+    // titik pendekatannya WAJIB tempat yang benar-benar bisa dipijak.
+    const ign = this.seatIgnore(seat);
     for (const r of radii) {
       for (let i = 0; i < 12; i++) {
         const step = Math.ceil(i / 2) * (Math.PI / 6) * (i % 2 ? 1 : -1);
@@ -1191,8 +2337,9 @@ export class Building {
         const z = seat.z + Math.cos(a) * r;
         if (this.roomAt(x, z) !== room) continue;
         if (!this.isFree(x, z, 0.30)) continue;
-        if (!this._lineFree(x, z, target.x, target.z, 0.24, seat.obstacle)) continue;
-        if (!this.isFree(target.x, target.z, 0.24, seat.obstacle)) continue;
+        if (!this.walkableAt(x, z, 0.22, true)) continue;   // harus tersambung ke jalur utama
+        if (!this._lineFree(x, z, target.x, target.z, 0.24, ign)) continue;
+        if (!this.isFree(target.x, target.z, 0.24, ign)) continue;
         return { x, z };
       }
     }
@@ -1202,9 +2349,16 @@ export class Building {
   /* --------------------------------------------------------------- loop */
 
   update(dt, elapsed) {
+    this._clock += dt;
     this.dynamicBodies = (this.crew?.members ?? []).concat(
       (this.staffRoster ?? []).map((s) => s.critter),
     );
+    // kursi yang klaimnya bocor dibebaskan tiap detik
+    this._seatSweep -= dt;
+    if (this._seatSweep <= 0) {
+      this._seatSweep = 1;
+      this._releaseStaleSeats();
+    }
     if (Math.abs(this.targetNightness - this.nightness) > 0.001) {
       const k = 1 - Math.exp(-2.2 * dt);
       this.nightness += (this.targetNightness - this.nightness) * k;

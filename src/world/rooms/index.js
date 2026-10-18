@@ -20,6 +20,8 @@ import { build as buildLobby } from "./lobby.js";
 import { build as buildStaff } from "./staff.js";
 import { build as buildHr } from "./hr.js";
 import { build as buildCeo } from "./ceo.js";
+import { build as buildCourtyard } from "./courtyard.js";
+import { build as buildCorridor } from "./corridor.js";
 
 /** Urutan membangun: urut saja — antar-ruangan tidak saling bergantung. */
 export const ROOM_MODULES = [
@@ -31,6 +33,8 @@ export const ROOM_MODULES = [
   buildStaff,
   buildHr,
   buildCeo,
+  buildCourtyard,
+  buildCorridor,
 ];
 
 /** Pasang seluruh furniture semua ruangan ke building. */

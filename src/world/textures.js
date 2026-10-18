@@ -428,6 +428,74 @@ export function rugAssets(opts = {}) {
   };
 }
 
+/* --------------------------------------------------------------------- *
+ *  Courtyard surfaces (outdoor garden + gravel walkway)
+ * --------------------------------------------------------------------- */
+
+export function grassTexture({ size = 512, base = "#4a6636", seed = 141 } = {}) {
+  const { canvas, ctx } = surface(size);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
+  const rnd = mulberry32(seed);
+
+  // short lawn blades
+  for (let i = 0; i < 4200; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const l = 0.24 + rnd() * 0.46;
+    ctx.strokeStyle = `hsla(${86 + rnd() * 28}, ${28 + rnd() * 28}%, ${l * 100}%, ${0.16 + rnd() * 0.3})`;
+    ctx.lineWidth = 0.7 + rnd() * 1.3;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (rnd() - 0.5) * 5, y - 2 - rnd() * 5);
+    ctx.stroke();
+  }
+
+  // soft dry/wet patches so the lawn reads organic, never flat
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const r = 18 + rnd() * 72;
+    const grd = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const dark = rnd() > 0.5;
+    grd.addColorStop(0, dark ? "rgba(18,32,12,0.30)" : "rgba(156,184,96,0.20)");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  grainPass(ctx, size, size, 0.08, seed + 5, 1.4);
+  return canvas;
+}
+
+export function gravelTexture({ size = 512, base = "#9a9287", seed = 57 } = {}) {
+  const { canvas, ctx } = surface(size);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
+  const rnd = mulberry32(seed);
+  const stones = ["#cdc7bb", "#8b8378", "#6f6a62", "#b3ab9d", "#5f5b55", "#ded7c9"];
+
+  for (let i = 0; i < 2600; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const r = 1.3 + rnd() * 4.6;
+    ctx.fillStyle = stones[(rnd() * stones.length) | 0];
+    ctx.globalAlpha = 0.5 + rnd() * 0.5;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * (0.6 + rnd() * 0.6), rnd() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+    // small highlight on top of each pebble
+    ctx.globalAlpha = 0.18 + rnd() * 0.2;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.2, y - r * 0.3, r * 0.55, r * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  grainPass(ctx, size, size, 0.05, seed + 3, 1.6);
+  return canvas;
+}
+
 export function ceilingPanelTexture({ size = 512, seed = 91 } = {}) {
   const { canvas, ctx } = surface(size);
   ctx.fillStyle = "#f2f0eb";
@@ -939,6 +1007,26 @@ export const TEX = {
       heightCanvas.ctx.drawImage(mapCanvas, 0, 0);
       const map = makeTexture(mapCanvas, { srgb: true, repeat: [4, 4] });
       const normalMap = makeTexture(heightToNormal(heightCanvas.canvas, 0.62), { repeat: [4, 4] });
+      return { map, normalMap };
+    });
+  },
+  get grass() {
+    return once("grass", () => {
+      const mapCanvas = grassTexture({ seed: 141 });
+      const heightCanvas = surface(mapCanvas.width);
+      heightCanvas.ctx.drawImage(mapCanvas, 0, 0);
+      const map = makeTexture(mapCanvas, { srgb: true, repeat: [8, 8] });
+      const normalMap = makeTexture(heightToNormal(heightCanvas.canvas, 1.1), { repeat: [8, 8] });
+      return { map, normalMap };
+    });
+  },
+  get gravel() {
+    return once("gravel", () => {
+      const mapCanvas = gravelTexture({ seed: 57 });
+      const heightCanvas = surface(mapCanvas.width);
+      heightCanvas.ctx.drawImage(mapCanvas, 0, 0);
+      const map = makeTexture(mapCanvas, { srgb: true, repeat: [6, 6] });
+      const normalMap = makeTexture(heightToNormal(heightCanvas.canvas, 1.5), { repeat: [6, 6] });
       return { map, normalMap };
     });
   },

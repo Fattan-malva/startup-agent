@@ -1,71 +1,132 @@
 /* ===================================================================== *
- *  Ruang Meeting — meja rapat utama, kursi tip "meeting" untuk klaim
- *  rapat (Building.claimSeat dibatasi ke ruangan ini).
+ *  Ruang Meeting — sayap utara-barat (x -16..-5.5, z -10..-3.1).
+ *
+ *  Layout:
+ *    - meja rapat 4.6 m di tengah, 5 kursi tiap sisi + 1 kursi kepala
+ *      di ujung timur (di luar jalur pintu x -6.95..-5.65)
+ *    - papan tulis besar di dinding utara, layar presentasi di dinding
+ *      barat (menghadap ke dalam ruangan)
+ *    - 2 kredenza penyimpanan + lukisan + 3 lampu gantung interaktif
+ *  Pintu ada di dinding selatan z = -3.1 (x = -6.3, menghadap koridor).
  * ===================================================================== */
+import * as THREE from "three";
+
+import { MAT } from "../materials.js";
 import {
+  rbox,
+  shade,
   createMeetingTable,
   createOfficeChair,
   createWhiteboard,
   createWallArt,
   createStorageCabinet,
-  createBin,
   createPendantLamp,
+  createBin,
 } from "../props.js";
 import { WALL_H } from "../layout.js";
 
-export function build(b) {
-  // Room tetap selebar layout lama (9 m, x -10..-1) — sekat kaca baru di
-  // x = -1 (muka -1.07) HANYA memindahkan bin pojok, sisanya utuh.
-  const mcx = -5.5;
-  const mcz = -3.9;
+/* Layar presentasi dinding — bezel tipis + panel gelap yang menghadap
+ * ke dalam ruangan (bukan TV lounge, jadi tanpa stand meja). */
+function createWallScreen({ w = 1.9, h = 1.05 } = {}) {
+  const g = new THREE.Group();
+  g.name = "Layar presentasi";
+  g.userData.interactionLabel = "Layar presentasi";
 
+  const bezel = rbox(w + 0.06, h + 0.06, 0.06, 0.014, MAT.blackMetal, 0.005);
+  g.add(bezel);
+
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshStandardMaterial({
+      color: 0x0c1a26,
+      roughness: 0.2,
+      metalness: 0.25,
+      emissive: 0x1c4a6b,
+      emissiveIntensity: 0.22,
+    }),
+  );
+  screen.position.z = 0.034;
+  g.add(screen);
+
+  shade(g);
+  g.userData.parts = { screen: screen.material };
+  g.userData.api = {
+    on: true,
+    toggle() {
+      this.on = !this.on;
+      screen.material.emissiveIntensity = this.on ? 0.22 : 0;
+      return this.on;
+    },
+  };
+  return g;
+}
+
+export function build(b) {
+  const cx = -10.75;
+  const cz = -6.55;
+
+  /* Meja rapat — 4.6 × 1.3, sumbu panjang mengikuti x. */
   b._static(
-    createMeetingTable({ w: 4.8, d: 1.2, h: 0.75 }),
-    mcx, mcz, 0, 0, { w: 4.8, d: 1.2 },
+    createMeetingTable({ w: 4.6, d: 1.3, h: 0.75 }),
+    cx, cz, 0, 0, { w: 4.6, d: 1.3 },
   );
 
-  const sideSeatXs = [-1.92, -0.96, 0, 0.96, 1.92];
+  /* 5 kursi tiap sisi panjang (z -7.67 & -5.43) + 1 kursi kepala timur. */
+  const sideXs = [-1.8, -0.9, 0, 0.9, 1.8];
   for (const dz of [-1.12, 1.12]) {
     const yaw = dz > 0 ? Math.PI : 0;
-    for (let i = 0; i < sideSeatXs.length; i++) {
-      const dx = sideSeatXs[i];
-      const color = (i + (dz > 0 ? 1 : 0)) % 2 === 0 ? "navy" : "charcoal";
-      b._static(createOfficeChair({ color }), mcx + dx, mcz + dz, yaw);
-      b._seat(mcx + dx, mcz + dz, yaw, "meeting");
+    for (const dx of sideXs) {
+      b._static(createOfficeChair({ color: dz > 0 ? "charcoal" : "navy" }), cx + dx, cz + dz, yaw);
+      b._seat(cx + dx, cz + dz, yaw, "meeting");
     }
   }
+  b._static(createOfficeChair({ color: "navy" }), -7.85, cz, -Math.PI / 2);
+  b._seat(-7.85, cz, -Math.PI / 2, "meeting");
 
-  const headX = mcx + 2.4 + 0.65;
-  const headYaw = -Math.PI / 2;
-  b._static(createOfficeChair({ color: "charcoal" }), headX, mcz, headYaw);
-  b._seat(headX, mcz, headYaw, "meeting");
-
-  const board = createWhiteboard({ w: 2.4, h: 1.1 });
-  b._static(board, mcx, -6.78, 0, 0.72, { w: 2.5, d: 0.16 });
+  /* Papan tulis di dinding utara (muka dinding -9.93). */
+  const board = createWhiteboard({ w: 2.6, h: 1.3 });
+  b._static(board, cx, -9.86, 0, 0.78, { w: 2.7, d: 0.16 });
   b._interactive(board, {
-    id: "board-meeting", label: "Papan agenda meeting",
-    hint: "Klik untuk melihat agenda", radius: 1.5,
-    onClick: () => "Agenda: prioritas sprint · desain produk · evaluasi rilis",
+    id: "board-meeting",
+    label: "Papan tulis meeting",
+    hint: "Klik untuk melihat agenda",
+    radius: 1.5,
+    onClick: () => "Agenda: review sprint · roadmap Q3 · alokasi tim 📝",
   });
 
-  b._static(createWallArt({ w: 0.7, h: 0.9, variant: 2 }), -8.6, -6.78, 0, 0.7, { w: 0.8, d: 0.1 });
-  b._static(createWallArt({ w: 0.7, h: 0.9, variant: 4 }), -2.4, -6.78, 0, 0.7, { w: 0.8, d: 0.1 });
+  /* Layar presentasi di dinding barat (muka dinding -15.93). */
+  const screen = createWallScreen({ w: 1.9, h: 1.05 });
+  b._static(screen, -15.86, cz, Math.PI / 2, 1.28);
+  b._interactive(screen, {
+    id: "screen-meeting",
+    label: "Layar presentasi",
+    hint: "Klik untuk nyala / mati",
+    radius: 1.0,
+    onClick: (self) => (self.userData.api.toggle() ? "Layar presentasi nyala" : "Layar presentasi mati"),
+  });
 
-  b._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "wood" }), -9.4, -5.8, Math.PI / 2);
-  b._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "light" }), -9.4, -2.0, Math.PI / 2);
+  /* Kredenza penyimpanan di dinding utara, mengapit papan tulis. */
+  b._static(createStorageCabinet({ w: 1.35, h: 0.62, d: 0.46 }), -15.1, -9.66, 0, 0, { w: 1.42, d: 0.5 });
+  b._static(createStorageCabinet({ w: 1.35, h: 0.62, d: 0.46 }), -8.5, -9.66, 0, 0, { w: 1.42, d: 0.5 });
 
-  b._plant(-8.7, -1.5, 0, { variant: 1, scale: 0.7, seed: 31 });
-  // Bin meeting — pojok tenggara; digeser sedikit dari sekat kaca (muka -1.07).
-  b._static(createBin(), -1.5, -1.5, 0);
+  /* Lukisan kecil di dinding utara mengapit papan tulis. */
+  b._static(createWallArt({ w: 0.62, h: 0.8, variant: 1 }), -13.55, -9.86, 0, 0.95, { w: 0.7, d: 0.1 });
+  b._static(createWallArt({ w: 0.62, h: 0.8, variant: 3 }), -7.0, -9.86, 0, 0.95, { w: 0.7, d: 0.1 });
 
-  const pendantA = createPendantLamp();
-  const pendantB = createPendantLamp();
-  const pendantC = createPendantLamp();
-  // kord lampu 0.7 m — pas sampai plafon (WALL_H)
-  b._static(pendantA, mcx - 1.5, mcz, 0, WALL_H - 0.7);
-  b._static(pendantB, mcx, mcz, 0, WALL_H - 0.7);
-  b._static(pendantC, mcx + 1.5, mcz, 0, WALL_H - 0.7);
-  b._interactive(pendantA, { id: "pendant-meeting-a", label: "Lampu rapat A", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu A nyala" : "Lampu A mati" });
-  b._interactive(pendantB, { id: "pendant-meeting-b", label: "Lampu rapat B", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu B nyala" : "Lampu B mati" });
-  b._interactive(pendantC, { id: "pendant-meeting-c", label: "Lampu rapat C", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu C nyala" : "Lampu C mati" });
+  /* 3 lampu gantung di atas meja — interaktif. */
+  [-1.5, 0, 1.5].forEach((dx, i) => {
+    const lamp = createPendantLamp();
+    b._static(lamp, cx + dx, cz, 0, WALL_H - 0.72);
+    b._interactive(lamp, {
+      id: `pendant-meeting-${i}`,
+      label: "Lampu gantung rapat",
+      hint: "Klik untuk nyala / mati",
+      radius: 0.85,
+      onClick: (self) => (self.userData.api.toggle() ? "Lampu rapat nyala" : "Lampu rapat mati"),
+    });
+  });
+
+  b._plant(-15.35, -3.85, 0, { variant: 0, scale: 0.7, seed: 40 });
+  b._plant(-6.05, -9.2, 0, { variant: 1, scale: 0.62, seed: 41 });
+  b._static(createBin(), -8.8, -3.65, 0);
 }

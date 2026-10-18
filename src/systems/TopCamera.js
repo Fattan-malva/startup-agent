@@ -58,6 +58,7 @@ export class TopCamera {
     this.mode = "iso"; // "iso" | "fps"
     this.body = null; // the critter you are driving
     this.viewmodel = null;
+    this.suppressDragPan = false; // dipakai Mode Edit saat men-drag perabot
     this.fpsYaw = 0;
     this.fpsPitch = -0.07;
     this.fpsCamera = new THREE.PerspectiveCamera(FPS_FOV, 16 / 9, 0.05, 160);
@@ -289,7 +290,7 @@ export class TopCamera {
     }
 
     // drag grabs the floor and pulls it along with the cursor
-    if (input.dragging && (delta.x || delta.y)) {
+    if (input.dragging && (delta.x || delta.y) && !this.suppressDragPan) {
       const dx = (this._R.x * delta.x - this._F.x * delta.y) * perPixel;
       const dz = (this._R.y * delta.x - this._F.y * delta.y) * perPixel;
       if (this.followTarget) {
