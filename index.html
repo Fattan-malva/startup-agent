@@ -110,6 +110,7 @@
       font-variant-numeric: tabular-nums;
     }
   </style>
+  <script src="https://unpkg.com/lucide@latest" defer></script>
 </head>
 
 <body>
@@ -148,6 +149,8 @@
       <div class="stat"><span class="stat-k">populasi</span><span id="st-pop" class="stat-v">0</span></div>
       <div class="stat"><span class="stat-k">calls</span><span id="st-calls" class="stat-v">0</span></div>
       <div class="stat"><span class="stat-k">tris</span><span id="st-tris" class="stat-v">0</span></div>
+      <button class="chip stat-view" type="button" data-action="view-cycle" id="btn-view-cycle"
+        title="Ganti arah kamera (4 sudut)"><i data-lucide="compass"></i> <span id="view-cycle-label">Arah: Tg</span></button>
     </aside>
 
     <!-- roster / team panel -->
@@ -170,6 +173,7 @@
         </button>
       </div>
       <p id="edit-target" class="edit-target">Klik perabot untuk memilih</p>
+      <p id="edit-save-state" class="edit-save-state">Menyimpan otomatis ke src/world/layout.default.json</p>
 
       <div class="edit-row">
         <span class="dock-label">Putar</span>
@@ -183,7 +187,7 @@
 
       <div class="edit-row">
         <span class="dock-label">Pindah</span>
-        <button class="chip" type="button" data-action="edit-snap" id="btn-snap" title="Magnet grid 0,25 m">Snap 0,25 m</button>
+        <button class="chip" type="button" data-action="edit-snap" id="btn-snap" title="Magnet grid per perabot">Snap petak</button>
       </div>
 
       <div class="edit-row">
@@ -239,27 +243,14 @@
         <div class="dock-group dock-group--cam">
           <span class="dock-label">Kamera</span>
           <div class="chips">
-            <button class="chip" type="button" data-action="zoom" data-value="in">+</button>
-            <button class="chip" type="button" data-action="zoom" data-value="out">−</button>
-            <button class="chip" type="button" data-action="rotate" data-value="left">⟲</button>
-            <button class="chip" type="button" data-action="rotate" data-value="right">⟳</button>
-            <button class="chip" type="button" data-action="zoom" data-value="overview">Lantai</button>
+            <button class="chip" type="button" data-action="zoom" data-value="in" title="Perbesar"><i data-lucide="zoom-in"></i></button>
+            <button class="chip" type="button" data-action="zoom" data-value="out" title="Perkecil"><i data-lucide="zoom-out"></i></button>
+            <button class="chip" type="button" data-action="rotate" data-value="left" title="Putar kiri"><i data-lucide="rotate-ccw"></i></button>
+            <button class="chip" type="button" data-action="rotate" data-value="right" title="Putar kanan"><i data-lucide="rotate-cw"></i></button>
+            <button class="chip" type="button" data-action="zoom" data-value="overview" title="Lantai"><i data-lucide="layout-grid"></i></button>
           </div>
         </div>
 
-        <div class="dock-group dock-group--cam">
-          <span class="dock-label">Arah</span>
-          <div class="chips">
-            <button class="chip" type="button" data-action="view" data-value="45"
-              title="Kamera dari tenggara (arah awal)">Tg</button>
-            <button class="chip" type="button" data-action="view" data-value="135"
-              title="Kamera dari timur laut">Tl</button>
-            <button class="chip" type="button" data-action="view" data-value="225"
-              title="Kamera dari barat laut — lawan arah awal">Bl</button>
-            <button class="chip" type="button" data-action="view" data-value="315"
-              title="Kamera dari barat daya">Bd</button>
-          </div>
-        </div>
 
         <div class="dock-group">
           <span class="dock-label">Suasana</span>

@@ -123,8 +123,7 @@ export class Interaction {
         critter,
       };
     }
-    const prop = this._interactiveOf(obj);
-    if (prop) return prop.userData.interactive;
+    // Furnitur tidak lagi menampilkan tooltip — hanya karakter.
     return null;
   }
 

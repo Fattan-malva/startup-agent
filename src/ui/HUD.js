@@ -45,6 +45,7 @@ export class HUD {
       editbar: byId("editbar"),
       editBtn: byId("btn-edit"),
       editTarget: byId("edit-target"),
+      editSaveState: byId("edit-save-state"),
       editMats: byId("edit-mats"),
       editSnap: byId("btn-snap"),
       editFile: byId("edit-file"),
@@ -243,6 +244,19 @@ export class HUD {
   setEditTarget(text) {
     if (!this.dom.editTarget) return;
     if (this.dom.editTarget.textContent !== text) this.dom.editTarget.textContent = text;
+  }
+
+  setEditSave(text, ok = null) {
+    const el = this.dom.editSaveState;
+    if (!el) return;
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle("is-ok", ok === true);
+    el.classList.toggle("is-bad", ok === false);
+  }
+
+  setViewCycle(text) {
+    const label = document.getElementById("view-cycle-label");
+    if (label && label.textContent !== text) label.textContent = text;
   }
 
   setEditSnap(on) {

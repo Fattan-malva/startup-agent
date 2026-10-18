@@ -244,6 +244,21 @@ async function boot() {
           if (Number.isFinite(deg)) rig.targetYaw = (deg * Math.PI) / 180;
           break;
         }
+        case "view-cycle": {
+          const deg = ((THREE.MathUtils.radToDeg(rig.targetYaw) % 360) + 360) % 360;
+          const VIEW_LABELS = ["Tg", "Tl", "Bl", "Bd"];
+          let idx = 0, best = Infinity;
+          for (let i = 0; i < VIEW_ANGLES.length; i++) {
+            const a = VIEW_ANGLES[i];
+            const d = Math.abs(((deg - a + 540) % 360) - 180);
+            if (d < best) { best = d; idx = i; }
+          }
+          const next = VIEW_ANGLES[(idx + 1) % VIEW_ANGLES.length];
+          rig.targetYaw = (next * Math.PI) / 180;
+          const nextIdx = VIEW_ANGLES.indexOf(next);
+          hud.setViewCycle(`Arah: ${VIEW_LABELS[nextIdx]}`);
+          break;
+        }
         case "time":
           setTime(value);
           break;
@@ -322,8 +337,7 @@ async function boot() {
           edit.resetAll();
           break;
         case "edit-save":
-          edit.save();
-          hud.toast("Layout disimpan di browser", 2000);
+          edit.saveNow(true);
           break;
         case "edit-export":
           edit.exportEdits();
@@ -503,15 +517,15 @@ async function boot() {
           triangles: info.triangles,
         });
 
-        // tandai tombol arah kamera yang paling dekat dengan yaw sekarang
+        // Sinkronkan label tombol arah kamera dengan yaw sekarang
         const deg = ((THREE.MathUtils.radToDeg(rig.targetYaw) % 360) + 360) % 360;
-        let bestA = null;
-        let bestD = Infinity;
+        const VIEW_LABELS = ["Tg", "Tl", "Bl", "Bd"];
+        let bestA = VIEW_ANGLES[0], bestD = Infinity;
         for (const a of VIEW_ANGLES) {
           const d = Math.abs(((deg - a + 540) % 360) - 180);
           if (d < bestD) { bestD = d; bestA = a; }
         }
-        hud.setActive("view", bestD <= 3 ? String(bestA) : "");
+        if (bestD <= 5) hud.setViewCycle(`Arah: ${VIEW_LABELS[VIEW_ANGLES.indexOf(bestA)]}`);
       }
       rosterAccum += dt;
       if (rosterAccum > 0.5) {
@@ -523,6 +537,7 @@ async function boot() {
     /* ----------------------------------------------------------------- go */
 
     hud.setProgress(1, "Siap");
+    try { window.lucide?.createIcons?.(); } catch { /* lucide belum termuat */ }
     hud.setActive("time", "0");
     hud.setControlling(null);
     hud.toggleRoster(true);

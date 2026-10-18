@@ -278,6 +278,7 @@ kbd {
   display: grid;
   gap: 5px;
   min-width: 156px;
+  z-index: 10;
 }
 
 .stat {
@@ -299,6 +300,16 @@ kbd {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
+}
+
+.stat-view {
+  margin-top: 4px;
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
 }
 
 /* --------------------------------------------------------------- stack */
@@ -411,6 +422,14 @@ kbd {
   padding: 4px 9px;
   font-size: 10.5px;
   letter-spacing: 0.05em;
+}
+
+.chip svg,
+.stat-view svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+  vertical-align: middle;
 }
 
 .chip.is-active {
@@ -837,7 +856,7 @@ kbd {
 
 /* ------------------------------------------------------------- roster */
 .roster {
-  top: 132px;
+  top: 180px;
   right: 18px;
   width: 244px;
   max-height: min(56vh, 460px);
@@ -1198,6 +1217,17 @@ kbd {
   color: var(--ink-soft);
   min-height: 30px;
 }
+.edit-save-state {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--ink-dim, #7e858f);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.edit-save-state.is-ok { color: #35d07a; }
+.edit-save-state.is-bad { color: #ff4d4d; }
 
 .edit-row {
   display: flex;
