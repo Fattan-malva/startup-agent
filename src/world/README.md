@@ -1,7 +1,22 @@
 # Office World
 
-Denah menggunakan bangunan persegi panjang 20 × 14 unit dunia, satu koridor lurus selebar 1,6 unit, dan lima ruang fungsi saja: Lobby, Ruang Meeting, Cafe, CEO Room, serta Staff Room. Partisi dan ambang pintu tegak lurus dan mengikuti denah; jalur koridor dibiarkan bebas.
+Denah blok utama 20 × 14 unit + sayap timur (LEBAR sayap 6.2, DEEP z -7..7) — tapak total tidak lagi persegi murni. Koridor utama lebar nominal 2.1 m (boundary z ±1.05), lalu BELOK ke selatan di sayap timur (arm x 14.6..16.2) menuju door Human Resource. Delapan ruang fungsi: Lobby, Ruang Meeting, Cafe, CEO Room, Staff Room, Developer Room (sayap timur utara, staff-nya WAJIB baju hitam), Human Resource (sayap timur selatan), dan koridor. Partisi, pintu, dan ambang tegak lurus mengikuti denah; nav A* otomatis dari BOUNDS + obstacle tembok.
 
-Furnitur berasal dari fungsi yang tersedia di `props.js`. Model `createOfficeChair()` dipertahankan tanpa perubahan. Titik masuk, anchor dalam ruangan, posisi pintu, serta target navigasi AI telah diselaraskan ke layout yang baru.
+## Struktur per-ruangan
 
-Karakter menggunakan avatar manusia prosedural casual modern dengan kepala yang lebih proporsional, sambungan kepala/leher dengan overlap, geometri sphere lebih halus, overlap sendi kaki yang diperkuat, dan kecepatan jalan lebih lambat.
+Furnitur TIDAK lagi ada di `Building.js` — setiap ruangan punya filenya sendiri di `src/world/rooms/`:
+
+```
+src/world/rooms/
+  index.js       → katalog ROOM_MODULES + furnishRooms(b)
+  meeting.js     cafe.js      studio.js    lobby.js
+  staff.js       ceo.js       developer.js hr.js
+```
+
+Cara menambah ruangan baru:
+1. daftarkan room di `src/world/layout.js` (ROOMS + WALLS + ROOM_ANCHORS),
+2. buat `src/world/rooms/<id>.js` dengan `export function build(b)` yang memakai helper Building (`b._static`, `b._place`, `b._seat`, `b._deskChair`, `b._plant`, `b._interactive`, `b._deskParts`, `b._splitLive`, `b._spawnStaffCritter` — opsional `species: "people"` untuk baju warna; default `"staff"` = hitam total),
+3. tambahkan ke `ROOM_MODULES` di `src/world/rooms/index.js`,
+4. (opsional) tambah label sign di `Building._roomSigns`.
+
+Furnitur berasal dari fungsi di `props.js`; helper TV/PlayStation/konter pantry/meja resepsionis hidup di module room miliknya (`cafe.js`, `lobby.js`). Karakter menggunakan avatar manusia prosedural casual modern dengan kepala proporsional, overlap leher, sendi bulat mulus, dan duduk yang mengikuti rute A*.

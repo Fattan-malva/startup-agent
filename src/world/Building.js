@@ -1,4 +1,4 @@
-import * as THREE from "three";
+﻿import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { MAT } from "./materials.js";
@@ -7,38 +7,9 @@ import { Critter } from "../character/Critter.js";
 import { StaffBrain } from "../systems/AI.js";
 import {
   box,
-  cyl,
   rbox,
-  sphere,
-  shade,
-  createBin,
-  createBookshelf,
-  createClock,
-  createFridge,
-  createMagazineRack,
-  createPrinterStation,
-  createSideTable,
-  createStorageCabinet,
-  createWallShelf,
-  createArmchair,
-  createOttoman,
-  createBench,
-  createAcousticPanel,
-  createCoffeeMachine,
-  createCoffeeTable,
-  createDivider,
-  createFloorLamp,
-  createMeetingTable,
-  createMug,
-  createMonitor,
   createOfficeChair,
-  createPendantLamp,
   createPlant,
-  createSofa,
-  createWallArt,
-  createWaterCooler,
-  createWhiteboard,
-  createWorkstation,
 } from "./props.js";
 import {
   BOUNDS,
@@ -50,9 +21,10 @@ import {
   ROOM_ANCHORS,
   ENTRANCE,
 } from "./layout.js";
+import { furnishRooms } from "./rooms/index.js";
 
 /* ===================================================================== *
- *  Building — one floor of Critter Corp.
+ *  Building â€” one floor of Critter Corp.
  * ===================================================================== */
 
 const SIT_FWD = 0.16;
@@ -195,17 +167,22 @@ export class Building {
     }
 
     const thresholdMat = MAT.brass || MAT.steel;
-    for (const x of [-6.5, 1.5, 6.5]) {
+    // North doors: meeting (-6.5), cafe (1.5), studio (6.5), developer (13.1).
+    for (const x of [-6.5, 1.5, 6.5, 13.1]) {
       const strip = box(1.16, 0.018, 0.075, thresholdMat);
-      strip.position.set(x, 0.018, -0.79);
+      strip.position.set(x, 0.018, -1.04);
       this.staticGroup.add(strip);
     }
     // South doors: lobby (-6.5), staff (0), CEO (8.5).
     for (const x of [-6.5, 0, 8.5]) {
       const strip = box(1.16, 0.018, 0.075, thresholdMat);
-      strip.position.set(x, 0.018, 0.79);
+      strip.position.set(x, 0.018, 1.04);
       this.staticGroup.add(strip);
     }
+    // Wing door â€” HUMAN RESOURCE, di dinding vertikal x = 14.6 (z 1.95).
+    const hrStrip = box(0.075, 0.018, 1.16, thresholdMat);
+    hrStrip.position.set(14.6, 0.018, 1.95);
+    this.staticGroup.add(hrStrip);
     const entranceStrip = box(0.075, 0.018, 1.38, thresholdMat);
     entranceStrip.position.set(-9.94, 0.018, 4.5);
     this.staticGroup.add(entranceStrip);
@@ -336,12 +313,15 @@ export class Building {
     };
 
     const signs = [
-      { title: "RUANG MEETING", sub: "MEETING ROOM", x: -6.5, z: -0.73, ry: 0, face: 1 },
-      { title: "CAFE", sub: "BAR & LOUNGE", x: 1.5, z: -0.73, ry: 0, face: 1 },
-      { title: "STUDIO KREATIF", sub: "CREATIVE LAB", x: 6.5, z: -0.73, ry: 0, face: 1 },
-      { title: "LOBBY", sub: "RECEPTION", x: -6.5, z: 0.73, ry: Math.PI, face: -1 },
-      { title: "STAFF ROOM", sub: "8 WORKSTATIONS", x: 0, z: 0.73, ry: Math.PI, face: -1 },
-      { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: 8.5, z: 0.73, ry: Math.PI, face: -1 },
+      { title: "RUANG MEETING", sub: "MEETING ROOM", x: -6.5, z: -0.98, ry: 0, face: 1 },
+      { title: "CAFE", sub: "BAR & LOUNGE", x: 1.5, z: -0.98, ry: 0, face: 1 },
+      { title: "STUDIO KREATIF", sub: "CREATIVE LAB", x: 6.5, z: -0.98, ry: 0, face: 1 },
+      { title: "DEV ROOM", sub: "ENGINEERING", x: 13.1, z: -0.98, ry: 0, face: 1 },
+      { title: "LOBBY", sub: "RECEPTION", x: -6.5, z: 0.98, ry: Math.PI, face: -1 },
+      { title: "STAFF ROOM", sub: "8 WORKSTATIONS", x: 0, z: 0.98, ry: Math.PI, face: -1 },
+      { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: 8.5, z: 0.98, ry: Math.PI, face: -1 },
+      // Sign door HR nempel dinding vertikal x=14.6 â†’ offset ke arah timur.
+      { title: "HUMAN RESOURCE", sub: "PEOPLE & CULTURE", x: 14.67, z: 1.95, ry: Math.PI / 2, face: 0, ox: 0.045 },
     ];
 
     for (const s of signs) {
@@ -358,7 +338,9 @@ export class Building {
           metalness: 0.15,
         }),
       );
-      plate.position.set(s.x, 1.29, s.z + s.face * 0.03);
+      // plate menghadap dari dinding: offset via s.face (*0.03 di sumbu z)
+      // atau s.ox untuk dinding vertikal (offset sumbu x).
+      plate.position.set(s.x + (s.ox || 0), 1.29, s.z + (s.oz ?? s.face * 0.03));
       plate.rotation.y = s.ry;
       this.staticGroup.add(plate);
     }
@@ -495,7 +477,7 @@ export class Building {
         radius: 0.85,
         onClick: () => {
           api?.water?.();
-          return "Sudah disiram — terima kasih 🌿";
+          return "Sudah disiram â€” terima kasih ðŸŒ¿";
         },
       });
     }
@@ -524,7 +506,7 @@ export class Building {
       const y = Math.max(0.68, item.y + 0.66);
       this._hotspot(item.x, item.z, y, size, {
         id: `inspect-prop-${this._interactionId++}`,
-        label: `${label} · ${roomName}`,
+        label: `${label} Â· ${roomName}`,
         hint: "Klik untuk memeriksa detail dan status objek",
         radius: 1.0,
         onClick: () => {
@@ -541,298 +523,15 @@ export class Building {
   }
 
   _furnish() {
-    /* ================= RUANG MEETING ================= */
-    const mcx = -5.5;
-    const mcz = -3.9;
-
-    this._static(
-      createMeetingTable({ w: 4.8, d: 1.2, h: 0.75 }),
-      mcx, mcz, 0, 0, { w: 4.8, d: 1.2 },
-    );
-
-    const sideSeatXs = [-1.92, -0.96, 0, 0.96, 1.92];
-    for (const dz of [-0.9, 0.9]) {
-      const yaw = dz > 0 ? Math.PI : 0;
-      for (let i = 0; i < sideSeatXs.length; i++) {
-        const dx = sideSeatXs[i];
-        const color = (i + (dz > 0 ? 1 : 0)) % 2 === 0 ? "navy" : "charcoal";
-        this._static(createOfficeChair({ color }), mcx + dx, mcz + dz, yaw);
-        this._seat(mcx + dx, mcz + dz, yaw, "meeting");
-      }
-    }
-
-    const headX = mcx + 2.4 + 0.65;
-    const headYaw = -Math.PI / 2;
-    this._static(createOfficeChair({ color: "charcoal" }), headX, mcz, headYaw);
-    this._seat(headX, mcz, headYaw, "meeting");
-
-    const board = createWhiteboard({ w: 2.4, h: 1.1 });
-    this._static(board, mcx, -6.78, 0, 0.72, { w: 2.5, d: 0.16 });
-    this._interactive(board, {
-      id: "board-meeting", label: "Papan agenda meeting",
-      hint: "Klik untuk melihat agenda", radius: 1.5,
-      onClick: () => "Agenda: prioritas sprint · desain produk · evaluasi rilis",
-    });
-
-    this._static(createWallArt({ w: 0.7, h: 0.9, variant: 2 }), -8.6, -6.78, 0, 0.7, { w: 0.8, d: 0.1 });
-    this._static(createWallArt({ w: 0.7, h: 0.9, variant: 4 }), -2.4, -6.78, 0, 0.7, { w: 0.8, d: 0.1 });
-
-    this._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "wood" }), -9.4, -5.8, Math.PI / 2);
-    this._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "light" }), -9.4, -2.0, Math.PI / 2);
-
-    this._plant(-9.2, -1.5, 0, { variant: 1, scale: 0.7, seed: 31 });
-    // Bin meeting — pojok tenggara (dekat pintu, sisi timur).
-    this._static(createBin(), -1.2, -1.15, 0);
-
-    const pendantA = createPendantLamp();
-    const pendantB = createPendantLamp();
-    const pendantC = createPendantLamp();
-    this._static(pendantA, mcx - 1.5, mcz, 0, 2.15);
-    this._static(pendantB, mcx, mcz, 0, 2.15);
-    this._static(pendantC, mcx + 1.5, mcz, 0, 2.15);
-    this._interactive(pendantA, { id: "pendant-meeting-a", label: "Lampu rapat A", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu A nyala" : "Lampu A mati" });
-    this._interactive(pendantB, { id: "pendant-meeting-b", label: "Lampu rapat B", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu B nyala" : "Lampu B mati" });
-    this._interactive(pendantC, { id: "pendant-meeting-c", label: "Lampu rapat C", hint: "Klik untuk nyala / mati", radius: 0.75, onClick: (self) => self.userData.api.toggle() ? "Lampu C nyala" : "Lampu C mati" });
-
-    /* ================= CAFE ================= */
-    const counter = this._kitchenCounter();
-    this._static(counter, 0.5, -6.35, 0);
-    this._splitLive(counter, [counter.userData.parts.machine]);
-
-    const fridge = createFridge({ w: 0.55, h: 1.4, d: 0.55 });
-    this._static(fridge, -0.6, -6.35, 0);
-    this._interactive(fridge, {
-      id: "cafe-fridge", label: "Kulkas cafe",
-      hint: "Klik untuk membuka / menutup", radius: 0.7,
-      onClick: (self) => self.userData.api.toggle() ? "Kulkas dibuka" : "Kulkas ditutup",
-    });
-
-    const tv = createTV({ w: 1.4, h: 0.85 });
-    this._static(tv, 2.2, -6.85, 0, 1.15, { w: 1.5, d: 0.2 });
-    this._interactive(tv, {
-      id: "cafe-tv", label: "TV lounge",
-      hint: "Klik untuk ganti channel", radius: 1.2,
-      onClick: () => "Channel: gameplay tournament · 4K 60 fps",
-    });
-
-    const ps = createPlayStation();
-    this._static(ps, 2.2, -6.65, 0, 0.55, { w: 0.4, d: 0.25 });
-    this._interactive(ps, {
-      id: "cafe-ps", label: "PlayStation",
-      hint: "Klik untuk menyalakan", radius: 0.7,
-      onClick: () => "PS: game siap dimainkan",
-    });
-
-    // Carpet L-shape — digeser ke dalam supaya tidak menyentuh dinding koridor.
-    const carpet = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.0), MAT.rug);
-    carpet.rotation.x = -Math.PI / 2;
-    carpet.position.set(0.3, 0.012, -2.5);
-    carpet.receiveShadow = true;
-    this.staticGroup.add(carpet);
-
-    // L-sofa A — sisi koridor, back DI DALAM room (tidak menembus dinding).
-    // Back sofa = z_back; center z = -1.55 → back di -1.125, dinding inner -0.87. Aman.
-    const sofaA = createSofa({ width: 2.0, depth: 0.85 });
-    this._static(sofaA, 0.05, -1.55, Math.PI, 0, { w: 2.1, d: 0.95 });
-    this._seat(0.05, -1.55, Math.PI, "lounge");
-
-    // L-sofa B — sisi barat, footprint FIX (pre-swap salah sebelumnya).
-    // fp {w:2.4, d:0.85} dibaca _static dengan swap ry=π/2 → world 0.85 × 2.4.
-    const sofaB = createSofa({ width: 2.4, depth: 0.85 });
-    this._static(sofaB, -0.4, -2.45, Math.PI / 2, 0, { w: 2.4, d: 0.85 });
-    this._seat(-0.4, -2.45, Math.PI / 2, "lounge");
-
-    // Coffee table — digeser bersama sofa supaya tidak menembus sofa.
-    this._static(createCoffeeTable({ r: 0.38 }), 0.5, -2.5, 0);
-
-    this._plant(2.6, -1.3, 0, { variant: 0, scale: 0.7, seed: 32 });
-    // Bin cafe — pojok tenggara.
-    this._static(createBin(), 2.7, -1.15, 0);
-
-    // Barista cafe — keliling cafe & duduk di sofanya, tapi selalu kembali
-    // ke belakang konter.
-    this._spawnStaffCritter({
-      id: "barista",
-      name: "Barista",
-      tieColor: 0x4f9b78,
-      department: { id: "cafe", name: "Cafe" },
-      variant: 0,
-      x: 0.5, z: -5.45, yaw: 0,
-      hotspotLabel: "Barista cafe",
-      hotspotHint: "Klik untuk memesan kopi",
-      hotspotMessage: "Barista: pesanan dicatat, silakan tunggu di lounge ☕",
-      radius: 1.1,
-      room: "cafe",
-      homeStatus: "Menyeduh kopi ☕",
-    });
-
-    /* ================= LOBBY ================= */
-    const reception = this._receptionDesk();
-    this._place(reception, -8.35, 2.45, 0, 0, { w: 2.6, d: 0.9 });
-    const recMon = createMonitor({ width: 0.5 });
-    this._place(recMon, -9.02, 2.45, 0, 0.78);
-    this._interactive(recMon, {
-      id: "monitor-reception", label: "Sistem registrasi tamu", hint: "Klik untuk mengganti tampilan", radius: 0.85,
-      onClick: () => { recMon.userData.api.cycle(); return "Daftar tamu diperbarui"; },
-    });
-    this._deskChair(-8.35, 2.45, Math.PI, { color: "navy", type: "reception", gap: 0.78 });
-
-    // Resepsionis lobby — keliling lobby & duduk di kursi receptionisnya
-    this._spawnStaffCritter({
-      id: "receptionist",
-      name: "Resepsionis",
-      tieColor: 0x477da6,
-      department: { id: "lobby", name: "Lobby" },
-      variant: 1,
-      x: -7.85, z: 3.6, yaw: -Math.PI / 3,
-      hotspotLabel: "Resepsionis lobby",
-      hotspotHint: "Klik untuk bertanya",
-      hotspotMessage: "Resepsionis: selamat datang di Critter Corp. Ada yang bisa dibantu?",
-      radius: 1.4,
-      room: "lobby",
-      seatType: "reception",
-      homeStatus: "Menunggu tamu 🛎️",
-    });
-
-    this._static(createSofa({ width: 1.72, depth: 0.78 }), -5.35, 5.95, Math.PI);
-    this._seat(-5.35, 5.95, Math.PI, "lounge");
-    this._static(createCoffeeTable({ r: 0.34 }), -5.35, 4.72, 0);
-    this._static(createArmchair({ color: "sand" }), -4.05, 4.95, -Math.PI / 2);
-    this._seat(-4.05, 4.95, -Math.PI / 2, "lounge");
-    this._static(createBench({ w: 0.95, d: 0.38, h: 0.44 }), -8.55, 5.8, 0);
-    this._static(createBookshelf({ width: 0.82, height: 1.45, depth: 0.28, shelves: 4 }), -9.48, 6.05, Math.PI / 2);
-    this._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), -6.55, 6.1, 0);
-    this._static(createWallArt({ w: 0.62, h: 0.78, variant: 3 }), -6.2, 6.82, Math.PI, 0.65, { w: 0.1, d: 0.78 });
-    this._plant(-9.25, 1.2, 0, { variant: 0, scale: 0.72, seed: 55 });
-    this._static(createMagazineRack({ w: 0.5, h: 0.68, d: 0.24 }), -3.55, 2.0, Math.PI / 2);
-    // Bin lobby — pojok timur laut (dekat pintu, tapi jauh dari door).
-    this._static(createBin(), -3.3, 1.1, 0);
-
-    /* ================= STAFF ROOM =================
-       8 workstation: 4 kolom × 2 baris. Space antar meja ±0.8 m sekarang,
-       karena staff room diperluas ke x = -3 … 7. */
-    const staffXs = [-1.85, 0.72, 3.28, 5.85];
-    const staffRows = [
-      { z: 2.7, ry: 0, color: "navy" },
-      { z: 5.8, ry: Math.PI, color: "charcoal" },
-    ];
-
-    let staffIdx = 0;
-    for (const row of staffRows) {
-      for (const x of staffXs) {
-        const ws = createWorkstation({ desk: { width: 1.75 } });
-        this._place(ws, x, row.z, row.ry, 0, { w: 1.8, d: 1.2 });
-        this._deskParts(ws, `staff-${String.fromCharCode(97 + staffIdx)}`);
-        this._deskChair(x, row.z, row.ry, {
-          color: staffIdx % 2 === 0 ? "navy" : "charcoal",
-          gap: 0.78,
-          type: "desk",
-        });
-        staffIdx++;
-      }
-    }
-
-    const printer = createPrinterStation({ w: 0.72, h: 0.68, d: 0.5 });
-    this._static(printer, 6.2, 1.5, -Math.PI / 2);
-    this._interactive(printer, {
-      id: "printer-staff", label: "Printer staff", hint: "Klik untuk mencetak dokumen", radius: 0.72,
-      onClick: () => `Printer mencetak halaman #${printer.userData.api.print()}`,
-    });
-
-    this._static(
-      createStorageCabinet({ w: 0.78, h: 1.18, d: 0.34, color: "light" }),
-      -2.5, 1.5, Math.PI / 2,
-    );
-
-    this._static(createWallShelf({ w: 0.9, d: 0.22, shelves: 2 }), 0.4, 6.82, Math.PI, 1.08, { w: 0.9, d: 0.18 });
-    this._static(createWallArt({ w: 0.55, h: 0.7, variant: 1 }), 3.5, 6.82, Math.PI, 0.63, { w: 0.1, d: 0.7 });
-    this._plant(5.6, 6.5, 0, { variant: 1, scale: 0.62, seed: 61 });
-    // Bin staff — pojok barat daya.
-    this._static(createBin(), -2.7, 6.5, 0);
-
-    /* ================= STUDIO KREATIF ================= */
-    this._static(
-      createMeetingTable({ w: 2.8, d: 1.3, h: 0.75 }),
-      6.35, -3.55, 0, 0, { w: 2.8, d: 1.3 },
-    );
-
-    const studioSeatXs = [5.25, 7.45];
-    for (const dz of [-0.82, 0.82]) {
-      const yaw = dz > 0 ? Math.PI : 0;
-      for (const x of studioSeatXs) {
-        this._static(
-          createOfficeChair({ color: dz > 0 ? "charcoal" : "navy" }),
-          x, -3.55 + dz, yaw,
-        );
-        this._seat(x, -3.55 + dz, yaw, "meeting");
-      }
-    }
-
-    const studioBoard = createWhiteboard({ w: 2.2, h: 1.0 });
-    this._static(studioBoard, 6.35, -6.78, 0, 0.72, { w: 2.3, d: 0.16 });
-    this._interactive(studioBoard, {
-      id: "board-studio",
-      label: "Papan ide studio",
-      hint: "Klik untuk melihat moodboard",
-      radius: 1.4,
-      onClick: () => "Moodboard: eksplorasi warna, material, dan konsep kampanye",
-    });
-
-    this._static(createAcousticPanel({ w: 0.52, h: 0.86, color: "sage" }), 4.2, -6.78, 0, 0.7, { w: 0.6, d: 0.1 });
-    this._static(createAcousticPanel({ w: 0.52, h: 0.86, color: "rust" }), 8.5, -6.78, 0, 0.7, { w: 0.6, d: 0.1 });
-
-    this._static(
-      createStorageCabinet({ w: 0.85, h: 1.18, d: 0.36, color: "light" }),
-      3.45, -2.0, Math.PI / 2,
-    );
-    this._static(
-      createBookshelf({ width: 0.9, height: 1.55, depth: 0.3, shelves: 4 }),
-      9.45, -3.2, -Math.PI / 2,
-    );
-
-    this._static(createArmchair({ color: "olive" }), 8.55, -1.75, -Math.PI / 2);
-    this._seat(8.55, -1.75, -Math.PI / 2, "lounge");
-    this._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 9.45, -1.75, 0);
-    this._static(createFloorLamp(), 9.45, -5.8, 0);
-
-    const studioRug = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 2.8), MAT.rug);
-    studioRug.rotation.x = -Math.PI / 2;
-    studioRug.position.set(6.35, 0.014, -3.55);
-    studioRug.receiveShadow = true;
-    this.staticGroup.add(studioRug);
-
-    this._plant(3.55, -6.2, 0, { variant: 1, scale: 0.68, seed: 88 });
-    this._plant(9.35, -6.25, 0, { variant: 0, scale: 0.62, seed: 89 });
-    this._static(createWallArt({ w: 0.62, h: 0.78, variant: 2 }), 9.78, -4.8, -Math.PI / 2, 0.68, { w: 0.1, d: 0.78 });
-    // Bin studio — pojok barat laut (dekat dinding koridor, bukan di pintu).
-    this._static(createBin(), 3.5, -1.1, 0);
-
-    /* ================= CEO ROOM =================
-       Ruang lebih kecil (x = 7..10), door di x = 8.5. Sofa/coffee/armchair
-       dan dekorasi disesuaikan dengan lebar baru. */
-    const execDesk = createWorkstation();
-    this._place(execDesk, 8.35, 2.65, Math.PI / 2, 0, { w: 2.05, d: 1.25 });
-    this._deskParts(execDesk, "ceo-desk");
-    this._deskChair(8.35, 2.65, Math.PI / 2, { color: "charcoal", gap: 0.78, type: "ceo" });
-
-    this._static(createSofa({ width: 1.42, depth: 0.72 }), 7.85, 5.85, Math.PI);
-    this._seat(7.85, 5.85, Math.PI, "lounge");
-    this._static(createCoffeeTable({ r: 0.29 }), 7.85, 4.72, 0);
-    this._static(createArmchair({ color: "navy" }), 9.0, 4.95, -Math.PI / 2);
-    this._seat(9.0, 4.95, -Math.PI / 2, "lounge");
-
-    this._static(createStorageCabinet({ w: 0.82, h: 1.18, d: 0.34, color: "wood" }), 9.52, 1.5, Math.PI / 2);
-    this._static(createBookshelf({ width: 0.84, height: 1.52, depth: 0.28, shelves: 4 }), 9.52, 6.15, Math.PI / 2);
-    this._static(createWallArt({ w: 0.55, h: 0.72, variant: 4 }), 8.5, 6.82, Math.PI, 0.64, { w: 0.1, d: 0.72 });
-    this._plant(7.35, 6.6, 0, { variant: 2, scale: 0.64, seed: 70 });
-    // Bin CEO — pojok barat daya, jauh dari pintu (door di x=8.5).
-    this._static(createBin(), 7.3, 1.05, 0);
+    // Furniture per-ruangan penuh ada di src/world/rooms/*.js
+    furnishRooms(this);
   }
 
   /* ------------------------------------------------- staff critter (NPC) */
 
   _spawnStaffCritter({
     id,
+    species = "staff",    // "staff" = baju hitam (developer room); lainnya normal
     name,
     tieColor,
     department,
@@ -843,12 +542,12 @@ export class Building {
     hotspotMessage,
     radius = 1.2,
     room,
-    seatType = null,      // mis. "reception" → staf duduk di kursi posnya
+    seatType = null,      // mis. "reception" â†’ staf duduk di kursi posnya
     homeStatus = null,
     wanderRadius = 5,     // radius merdeka berkeliling (di clamp ruangan saja)
   }) {
     const critter = new Critter({
-      species: "staff",
+      species,
       name,
       tieColor,
       department,
@@ -886,102 +585,6 @@ export class Building {
     critter.brain = brain;
 
     return critter;
-  }
-
-  /* ------------------------------------------------- reception counter */
-
-  _kitchenCounter() {
-    const g = new THREE.Group();
-    g.name = "Konter pantry";
-    g.userData.interactionLabel = "Konter pantry";
-    const w = 2.2;
-    const h = 0.9;
-    const d = 0.62;
-
-    const carcass = rbox(w, h - 0.04, d, 0.02, MAT.plasticWhite, 0.01);
-    carcass.position.set(0, (h - 0.04) / 2, 0);
-    g.add(carcass);
-
-    const top = rbox(w + 0.06, 0.05, d + 0.05, 0.02, MAT.concrete, 0.008);
-    top.position.set(0, h - 0.025, 0);
-    g.add(top);
-
-    for (let i = 0; i < 3; i++) {
-      const door = rbox(w / 3 - 0.05, h - 0.12, 0.02, 0.008, MAT.darkWood, 0.005);
-      door.position.set(-w / 3 + i * (w / 3), (h - 0.06) / 2, d / 2 + 0.005);
-      g.add(door);
-      const handle = cyl(0.008, 0.008, 0.16, MAT.chrome, 10);
-      handle.rotation.z = Math.PI / 2;
-      handle.position.set(-w / 3 + i * (w / 3) + w / 6 - 0.08, h - 0.18, d / 2 + 0.03);
-      g.add(handle);
-    }
-
-    const splash = rbox(w, 0.5, 0.03, 0.01, MAT.concrete, 0.005);
-    splash.position.set(0, h + 0.25, -d / 2 + 0.02);
-    g.add(splash);
-
-    const shelf = rbox(w - 0.3, 0.04, 0.24, 0.01, MAT.darkWood, 0.005);
-    shelf.position.set(0, h + 0.68, -d / 2 + 0.16);
-    g.add(shelf);
-    for (let i = 0; i < 4; i++) {
-      const mug = createMug({ color: [0xe8e3d8, 0xa8543a, 0x46506b, 0xd8cbb6][i] });
-      mug.position.set(-0.7 + i * 0.45, h + 0.7, -d / 2 + 0.16);
-      g.add(mug);
-    }
-
-    const machine = createCoffeeMachine();
-    machine.position.set(-0.55, h, 0.02);
-    machine.rotation.y = 0.06;
-    g.add(machine);
-    this._interactive(machine, {
-      id: "coffee",
-      label: "Espresso machine",
-      hint: "Klik untuk menarik satu shot",
-      radius: 0.9,
-      onClick: (self) => { self.userData.api.brew(4); return "Menarik double shot… ☕"; },
-    });
-
-    const kettle = new THREE.Group();
-    const kb = cyl(0.075, 0.09, 0.2, MAT.chrome, 22);
-    kb.position.y = 0.1;
-    kettle.add(kb);
-    const spout = cyl(0.016, 0.022, 0.1, MAT.chrome, 10);
-    spout.rotation.z = 0.9;
-    spout.position.set(0.09, 0.14, 0);
-    kettle.add(spout);
-    const lid = cyl(0.055, 0.055, 0.03, MAT.blackMetal, 20);
-    lid.position.y = 0.21;
-    kettle.add(lid);
-    kettle.position.set(0.42, h, 0.0);
-    shade(kettle);
-    g.add(kettle);
-
-    shade(g);
-    g.userData.footprint = { w: 2.2, d: 0.62 };
-    g.userData.parts = { machine };
-    return g;
-  }
-
-  _receptionDesk() {
-    const g = new THREE.Group();
-    g.name = "Meja resepsionis";
-    g.userData.interactionLabel = "Meja resepsionis";
-    const w = 2.6, h = 1.1, d = 0.9;
-    const body = rbox(w, h - 0.06, d, 0.05, MAT.darkWood, 0.02);
-    body.position.y = (h - 0.06) / 2;
-    g.add(body);
-    const top = rbox(w + 0.08, 0.06, d + 0.08, 0.02, MAT.deskTop, 0.01);
-    top.position.y = h - 0.03;
-    g.add(top);
-    const front = rbox(w - 0.1, 0.4, 0.04, 0.02, MAT.wallAccent, 0.01);
-    front.position.set(0, 0.55, d / 2 + 0.01);
-    g.add(front);
-    const label = rbox(1.0, 0.18, 0.02, 0.01, MAT.brass, 0.005);
-    label.position.set(0, 0.55, d / 2 + 0.03);
-    g.add(label);
-    shade(g);
-    g.userData.footprint = { w: 2.6, d: 0.9 };
-    return g;
   }
 
   /* ------------------------------------------------------------- merge */
@@ -1040,7 +643,7 @@ export class Building {
       const pos = part.getWorldPosition(new THREE.Vector3());
       this._hotspot(pos.x, pos.z, 0.91, 0.42, {
         id: `${label.toLowerCase().replace(/\s+/g, "-")}-${key}`,
-        label: `${label} · workstation`,
+        label: `${label} Â· workstation`,
         hint: "Klik untuk inspeksi",
         radius: 0.55,
         onClick: () => message,
@@ -1253,7 +856,7 @@ export class Building {
     return null;
   }
 
-  /** Benang penglihatan: apakah garis A→B bebas rintangan? */
+  /** Benang penglihatan: apakah garis Aâ†’B bebas rintangan? */
   _lineFree(ax, az, bx, bz, radius = 0.30) {
     const d = Math.hypot(bx - ax, bz - az);
     const steps = Math.max(1, Math.ceil(d / 0.14));
@@ -1361,7 +964,7 @@ export class Building {
 
   /**
    * Rute pintar dari posisi `from` ke `target`: garis lurus bila bebas,
-   * selain itu A* grid → sederhanakan. Karakter otomatis menghindari
+   * selain itu A* grid â†’ sederhanakan. Karakter otomatis menghindari
    * tembok & semua perabot alih-alih memaksakan jalan menempel.
    */
   route(from, target) {
@@ -1386,7 +989,7 @@ export class Building {
     const simp = this._simplify(pts).slice(1); // buang sel posisi awal
     const out = simp.map((p) => ({ x: p.x, z: p.z }));
 
-    // tujuan presisi hanya jika memang bisa dipijak (kursi ≠ titik jalan);
+    // tujuan presisi hanya jika memang bisa dipijak (kursi â‰  titik jalan);
     // kalau tidak, rute berhenti di sel terdekat dan duduk menyusul lewat seatInto
     if (this.isFree(target.x, target.z, 0.18)) out.push({ x: target.x, z: target.z });
     return out.length ? out : fallback;
@@ -1491,82 +1094,3 @@ export class Building {
   }
 }
 
-/* ===================================================================== *
- *  Local helpers (TV, PS, lunch table for the pantry)
- * ===================================================================== */
-
-function createTable(w, d, h) {
-  const g = new THREE.Group();
-  g.name = "Meja makan";
-  g.userData.interactionLabel = "Meja makan";
-  const top = rbox(w, 0.05, d, 0.02, MAT.deskTop, 0.01);
-  top.position.y = h - 0.025;
-  g.add(top);
-  const legGeo = new THREE.CylinderGeometry(0.035, 0.035, h - 0.05, 12);
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    const leg = new THREE.Mesh(legGeo, MAT.steel);
-    leg.position.set(sx * (w / 2 - 0.1), (h - 0.05) / 2, sz * (d / 2 - 0.1));
-    g.add(leg);
-  }
-  shade(g);
-  g.userData.footprint = { w, d };
-  return g;
-}
-
-function createTV({ w = 1.4, h = 0.85 } = {}) {
-  const g = new THREE.Group();
-  g.name = "TV";
-  g.userData.interactionLabel = "TV";
-
-  const bezel = rbox(w + 0.05, h + 0.05, 0.06, 0.015, MAT.blackMetal, 0.005);
-  g.add(bezel);
-
-  const screenMat = new THREE.MeshStandardMaterial({
-    color: 0x081020,
-    roughness: 0.15,
-    metalness: 0.4,
-    emissive: 0x2a6d9a,
-    emissiveIntensity: 0.18,
-  });
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(w, h), screenMat);
-  screen.position.z = 0.031;
-  g.add(screen);
-
-  const stand = rbox(0.24, 0.02, 0.16, 0.008, MAT.blackMetal, 0.003);
-  stand.position.y = -h / 2 - 0.04;
-  g.add(stand);
-
-  shade(g);
-  g.userData.parts = { screen: screenMat };
-  g.userData.api = {
-    toggle() {
-      screenMat.emissiveIntensity = screenMat.emissiveIntensity > 0 ? 0 : 0.18;
-      return screenMat.emissiveIntensity > 0;
-    },
-  };
-  return g;
-}
-
-function createPlayStation() {
-  const g = new THREE.Group();
-  g.name = "PlayStation";
-  g.userData.interactionLabel = "PlayStation";
-
-  const body = rbox(0.32, 0.055, 0.24, 0.012, MAT.plasticDark, 0.005);
-  body.position.y = 0.0275;
-  g.add(body);
-
-  const stripe = rbox(0.30, 0.008, 0.22, 0.004, MAT.plasticWhite, 0.002);
-  stripe.position.y = 0.028;
-  g.add(stripe);
-
-  const led = box(0.06, 0.004, 0.002, MAT.ledStrip);
-  led.position.set(-0.06, 0.03, 0.122);
-  g.add(led);
-
-  shade(g);
-  g.userData.footprint = { w: 0.35, d: 0.28 };
-  return g;
-}
-
-export { BOUNDS, WALL_H, WALL_T };
