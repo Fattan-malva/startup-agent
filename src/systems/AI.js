@@ -49,7 +49,16 @@ export class Brain {
   _beginTravel(goal) {
     this.goal = goal;
     this.stage = "travel";
-    const target = goal.target;
+    let target = goal.target;
+    if (goal.seat) {
+      target = this.b.approachTo(goal.seat);
+      if (!target) {
+        this._finish();
+        this.c.status = "Kursi tidak dapat dijangkau";
+        return;
+      }
+      goal.approach = target;
+    }
     const dist = Math.hypot(target.x - this.c.position.x, target.z - this.c.position.z);
     this.c.status = goal.travelStatus || "Ke suatu tempat";
     this._walkTo(target, dist > 6, goal.via || null);
@@ -74,26 +83,26 @@ export class Brain {
    */
   _approachAndSit(seat) {
     const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
-    const dist = Math.hypot(spot.x - this.c.position.x, spot.z - this.c.position.z);
-    if (dist > 0.3) {
-      // langkah lurus ke pad HANYA kalau garisnya benar-benar bebas, sah
-      // kalau tidak bebas (ada meja/kursi di antara) → rute A* ulang.
-      // Guard: kalau rute berulang kali tak bisa menutupi pad, izin
-      this.goal.sitRetries = this.goal.sitRetries || 0;
-      if (!this.b._lineFree(this.c.position.x, this.c.position.z, spot.x, spot.z, 0.26)
-          && this.goal.sitRetries < 3) {
-        this.goal.sitNear = true;
-        this.goal.sitRetries++;
+    const clearToSeat = this.b._lineFree(
+      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, seat.obstacle,
+    ) && this.b.isFree(spot.x, spot.z, 0.24, seat.obstacle);
+    if (!clearToSeat) {
+      const approach = this.b.approachTo(seat);
+      const path = approach ? this.b.route(this.c.position, approach) : [];
+      if (path.length && Math.hypot(approach.x - this.c.position.x, approach.z - this.c.position.z) > 0.25) {
+        this.goal.approach = approach;
         this.stage = "travel";
-        this.c.status = "Menuju kursi";
-        const path = this.b.route(this.c.position, spot);
+        this.c.status = "Mencari akses ke kursi";
         this.c.pose("stand");
         this.c.followPath(path, false);
         return;
       }
+      this._finish();
+      this.c.status = "Kursi terhalang";
+      return;
     }
-    // sudah benar-benar dekat → langkah pendek masuk kursi lalu duduk
-    this.c.seatInto(spot.x, spot.z, this.goal.yaw);
+    // Final movement ignores this seat's own collider only, never tables/walls.
+    this.c.seatInto(spot.x, spot.z, seat.yaw ?? this.goal?.yaw, seat);
   }
 
   /**
@@ -244,6 +253,11 @@ export class Brain {
 
     if (this.stage === "travel") {
       this.c.lookAt(null, null);
+      if (this.c.pathDone && this.c.pathFailed) {
+        this._finish();
+        this.c.status = "Jalur terhalang";
+        return;
+      }
       if (this.c.pathDone) {
         // arrived
         switch (this.goal.type) {
@@ -356,7 +370,17 @@ export class StaffBrain {
     this.goal = { target, seat, yaw, type };
     this.stage = "travel";
     this.c.status = status;
-    const t = seat ? (seat.sit || seat) : target;
+    const t = seat ? this.b.approachTo(seat) : target;
+    if (!t) {
+      this._releaseSeat();
+      this.goal = null;
+      this.stage = "idle";
+      this.c.status = "Kursi tidak dapat dijangkau";
+      this.cool = 2;
+      this.c.moveDir(0, 0);
+      return;
+    }
+    if (seat) this.goal.approach = t;
     const path = this.b.route(this.c.position, t);
     this.c.pose("stand");
     this.c.followPath(path, false);
@@ -420,22 +444,25 @@ export class StaffBrain {
   /** Sama seperti Brain: dekati kursi lewat rute normal dulu, baru duduk. */
   _approachAndSit(seat) {
     const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
-    const dist = Math.hypot(spot.x - this.c.position.x, spot.z - this.c.position.z);
-    if (dist > 0.3) {
-      this.goal.sitRetries = this.goal.sitRetries || 0;
-      if (!this.b._lineFree(this.c.position.x, this.c.position.z, spot.x, spot.z, 0.26)
-          && this.goal.sitRetries < 3) {
-        this.goal.sitNear = true;
-        this.goal.sitRetries++;
+    const clearToSeat = this.b._lineFree(
+      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, seat.obstacle,
+    ) && this.b.isFree(spot.x, spot.z, 0.24, seat.obstacle);
+    if (!clearToSeat) {
+      const approach = this.b.approachTo(seat);
+      const path = approach ? this.b.route(this.c.position, approach) : [];
+      if (path.length && Math.hypot(approach.x - this.c.position.x, approach.z - this.c.position.z) > 0.25) {
+        this.goal.approach = approach;
         this.stage = "travel";
-        this.c.status = "Menuju kursi";
-        const path = this.b.route(this.c.position, spot);
+        this.c.status = "Mencari akses ke kursi";
         this.c.pose("stand");
         this.c.followPath(path, false);
         return;
       }
+      this._finish();
+      this.c.status = "Kursi terhalang";
+      return;
     }
-    this.c.seatInto(spot.x, spot.z, seat.yaw);
+    this.c.seatInto(spot.x, spot.z, seat.yaw ?? this.goal?.yaw, seat);
   }
 
   _finish() {
@@ -455,6 +482,11 @@ export class StaffBrain {
       return;
     }
     if (this.stage === "travel") {
+      if (this.c.pathDone && this.c.pathFailed) {
+        this._finish();
+        this.c.status = "Jalur terhalang";
+        return;
+      }
       if (this.c.pathDone) {
         const g = this.goal;
         if (g?.seat) this._startAct(10 + Math.random() * 16, "Duduk santai", "sit");
@@ -594,9 +626,12 @@ export class Meeting {
       if (p.mode === "sit" && p.seat) {
         const spot = { x: p.seat.sit?.x ?? p.seat.x, z: p.seat.sit?.z ?? p.seat.z };
         const dist = Math.hypot(spot.x - c.position.x, spot.z - c.position.z);
-        if (dist <= 0.3) {
+        const clearToSeat = this.b._lineFree(
+          c.position.x, c.position.z, spot.x, spot.z, 0.24, p.seat.obstacle,
+        ) && this.b.isFree(spot.x, spot.z, 0.24, p.seat.obstacle);
+        if (dist <= 0.3 && clearToSeat) {
           p.homeYaw = p.seat.yaw;
-          c.seatInto(spot.x, spot.z, p.seat.yaw);
+          c.seatInto(spot.x, spot.z, p.seat.yaw, p.seat);
           c.status = "Duduk rapat 🪑";
           p.stage = "settled";
           continue;
@@ -604,16 +639,25 @@ export class Meeting {
         if (c.pathDone && !c.path) {
           p.retries++;
           if (p.retries > 3) {
-            // kart pad tak terjangkau rute → masuk saja daripada stuck
-            p.homeYaw = p.seat.yaw;
-            c.seatInto(spot.x, spot.z, p.seat.yaw);
-            c.status = "Duduk rapat 🪑";
+            // If no safe approach exists, remain standing instead of clipping.
+            this.b.releaseSeat(p.seat, c);
+            p.seat = null;
+            p.mode = "stand";
             p.stage = "settled";
+            c.status = "Berdiri — kursi terhalang";
             continue;
           }
-          const path = this.b.route(c.position, spot);
-          c.followPath(path, false);
-          p.stage = "travel";
+          const approach = this.b.approachTo(p.seat);
+          const path = approach ? this.b.route(c.position, approach) : [];
+          if (path.length) {
+            p.approach = approach;
+            c.followPath(path, false);
+            p.stage = "travel";
+          } else {
+            p.mode = "stand";
+            p.stage = "settled";
+            c.status = "Berdiri — kursi terhalang";
+          }
         }
         continue;
       }

@@ -1,22 +1,14 @@
 # Startup Agent — Compact Office World
 
-Proyek office simulator 3D berbasis Three.js. Denah sekarang sengaja dibuat **persegi panjang, ortogonal, ringkas, dan presisi**, bukan world abstrak. Ukuran bangunan adalah 20 × 14 unit dunia dengan satu koridor lurus selebar 1,6 unit.
+Proyek office simulator 3D berbasis Three.js. Gedung memakai denah ortogonal berbentuk L dengan koridor tengah dan delapan ruang: Lobby, Ruang Meeting, Cafe, Studio Kreatif, Developer Room, Staff Room, CEO Room, dan Human Resource. Tiap ruang dirakit dari modul tersendiri di `src/world/rooms/`.
 
-## Lima ruang
+## Layout dan furnitur
 
-- **Lobby** — meja resepsionis, monitor registrasi, sofa tunggu, kursi tamu, meja kopi, rak, dan tanaman.
-- **Ruang Meeting** — meja rapat enam kursi, papan agenda, kabinet, dan dekorasi dinding.
-- **Cafe** — counter kopi, kulkas, dispenser, dua meja kecil, empat kursi, dan perlengkapan cafe.
-- **CEO Room** — workstation eksekutif, kursi kerja, sofa tamu, meja kopi, kabinet, rak buku, dan tanaman.
-- **Staff Room** — dua workstation lengkap, kursi ergonomis, printer bersama, kabinet, rak, dan tempat sampah.
+Penempatan memakai koordinat dunia dan footprint collider yang menjadi acuan navigasi. Furniture yang menjadi tempat duduk menggunakan tinggi permukaan sekitar **0,505 unit**, selaras dengan dudukan kursi ergonomis. Sofa di cafe dipisah agar tidak saling tumpang tindih; meja rapat/studio dan kursinya diberi clearance; workstation developer direnggangkan dan meja CEO digeser untuk membuka akses pintu.
 
-Semua pintu ruang terhubung ke koridor tengah. Anchor navigasi dan lokasi masuk diselaraskan dengan pintu, serta koridor sengaja tidak dipenuhi furnitur agar karakter dapat melintas.
+## Karakter dan navigasi
 
-## Karakter
-
-Avatar robot eksternal telah diganti dengan karakter manusia prosedural bergaya casual modern. Kepala sedikit diperbesar agar proporsional, leher dibuat dengan geometri kapsul yang menumpang tindih ke kepala dan torso, detail permukaan kepala lebih halus, sambungan kaki diperkuat untuk mengurangi celah ketika bergerak, dan kecepatan jalan diturunkan menjadi 1,85 unit/detik (lari 4 unit/detik).
-
-Model kursi kantor yang sudah ada dipertahankan: fungsi `createOfficeChair()` dalam `src/world/props.js` tidak diubah.
+Avatar manusia prosedural bergaya casual modern bergerak menggunakan A* di grid 0,25 unit. Collision checks membatasi gerak terhadap dinding, sekat, dan footprint furnitur. Rute yang tidak dapat ditemukan tidak boleh berubah menjadi gerakan langsung menembus rintangan. Gerakan antar-character juga diuji sepanjang lintasan dan diselesaikan tanpa mendorong tubuh menembus geometri statis.
 
 ## Menjalankan di Windows
 

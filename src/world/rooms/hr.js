@@ -26,7 +26,7 @@ export function build(b) {
   const ws = createWorkstation();
   b._place(ws, 16.7, 2.7, Math.PI / 2, 0, { w: 2.05, d: 1.25 });
   b._deskParts(ws, "hr-desk");
-  b._deskChair(16.7, 2.7, Math.PI / 2, { color: "charcoal", gap: 0.78, type: "desk" });
+  b._deskChair(16.7, 2.7, Math.PI / 2, { color: "charcoal", gap: 1.08, type: "desk" });
 
   /* Papan kebijakan — dinding utara (di atas muka dinding z=1.12) */
   const hrBoard = createWhiteboard({ w: 1.7, h: 0.95 });
@@ -49,7 +49,7 @@ export function build(b) {
   /* Storage & rak dokumen — mengintai di muka kaca barat */
   b._static(
     createStorageCabinet({ w: 0.78, h: 1.18, d: 0.34, color: "light" }),
-    15.85, 3.35, Math.PI / 2,
+    15.8, 3.35, Math.PI / 2,
   );
   b._static(
     createBookshelf({ width: 0.84, height: 1.52, depth: 0.28, shelves: 4 }),
@@ -57,7 +57,7 @@ export function build(b) {
   );
 
   /* Decor */
-  b._static(createWallArt({ w: 0.55, h: 0.72, variant: 2 }), 19.7, 1.22, 0, 0.64, { w: 0.1, d: 0.72 });
+  b._static(createWallArt({ w: 0.55, h: 0.72, variant: 2 }), 19.7, 1.22, 0, 0.64, { w: 0.62, d: 0.1 });
   b._plant(21.0, 6.5, 0, { variant: 2, scale: 0.62, seed: 77 });
   b._plant(15.95, 5.85, 0, { variant: 0, scale: 0.6, seed: 78 });
   // Bin HR — dekat door timur (door z≈1.95), di luar jalur masuk.

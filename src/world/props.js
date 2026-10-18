@@ -749,7 +749,8 @@ export function createSofa({ width = 2.1, depth = 0.9 } = {}) {
   const g = new THREE.Group();
   g.name = "Sofa";
   g.userData.interactionLabel = "Sofa";
-  const seatY = 0.4;
+  // Cushion top aligns with the ergonomic office-chair seat at y=0.505.
+  const seatY = 0.365;
 
   const base = rbox(width, 0.16, depth, 0.05, MAT.fabricNavy, 0.03);
   put(base, 0, seatY - 0.08, 0);
@@ -801,6 +802,8 @@ export function createCoffeeTable({ r = 0.45 } = {}) {
   const g = new THREE.Group();
   g.name = "Meja kopi";
   g.userData.interactionLabel = "Meja kopi";
+  // Conservative square footprint around the circular tabletop and legs.
+  g.userData.footprint = { w: r * 2 + 0.12, d: r * 2 + 0.12 };
   const top = cyl(r, r, 0.04, MAT.deskTop, 40);
   put(top, 0, 0.4, 0);
   g.add(top);
@@ -1653,7 +1656,7 @@ export function createArmchair({ color = "navy" } = {}) {
   put(base, 0, 0.29, 0);
   g.add(base);
   const seat = rbox(0.86, 0.19, 0.76, 0.085, fabric, 0.025);
-  put(seat, 0, 0.47, 0.015);
+  put(seat, 0, 0.41, 0.015);
   g.add(seat);
   const back = rbox(0.86, 0.76, 0.2, 0.07, fabric, 0.022);
   put(back, 0, 0.86, -0.28);
@@ -1761,7 +1764,7 @@ export function createWallShelf({ w = 1.0, d = 0.24, shelves = 2 } = {}) {
   return g;
 }
 
-export function createBench({ w = 1.35, d = 0.44, h = 0.46 } = {}) {
+export function createBench({ w = 1.35, d = 0.44, h = 0.48 } = {}) {
   const g = new THREE.Group();
   g.name = "Bangku koridor";
   g.userData.interactionLabel = "Bangku koridor";

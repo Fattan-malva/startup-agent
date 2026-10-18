@@ -85,9 +85,17 @@ export class Player {
     if (!this.controlled) return;
     if (this.rig.firstPerson) return; // walking is WASD when you are inside
     this.walkTarget = { x: point.x, z: point.z };
-    // hitung rute sekali saat tujuan ditetapkan (A*), bukan tiap frame
+    // Compute a safe route once. An unreachable point should stop here,
+    // never fall back to a direct line through furniture or partitions.
     this._walkPath = this.building.route(this.controlled.position, this.walkTarget);
     this.controlled.followPath(this._walkPath, false);
+    if (!this._walkPath.length) {
+      this.walkTarget = null;
+      this._walkPath = null;
+      this.fx?.setWalkTarget(null);
+      this.hud?.toast("Tujuan tidak dapat dijangkau tanpa menabrak objek", 2400);
+      return;
+    }
     this.fx?.setWalkTarget(point);
   }
 
@@ -126,6 +134,14 @@ export class Player {
       c.moveDir(dx, dz, this.input.running);
       c.status = this.input.running ? "Buru-buru! 🏃" : "Berkeliling";
     } else if (this.walkTarget && this._walkPath) {
+      if (c.pathDone && c.pathFailed) {
+        this.walkTarget = null;
+        this._walkPath = null;
+        this.fx?.setWalkTarget(null);
+        c.moveDir(0, 0);
+        c.status = "Jalur terhalang";
+        return;
+      }
       const path = this._walkPath;
       const last = path[path.length - 1];
       const arrived = Math.hypot(last.x - c.position.x, last.z - c.position.z) < 0.3
@@ -139,6 +155,14 @@ export class Player {
       } else if (c.pathDone && !c.path) {
         // jalur habis tapi belum di titik akhir → hitung ulang sekali
         this._walkPath = this.building.route(c.position, this.walkTarget);
+        if (!this._walkPath.length) {
+          this.walkTarget = null;
+          this._walkPath = null;
+          this.fx?.setWalkTarget(null);
+          c.moveDir(0, 0);
+          c.status = "Jalur terhalang";
+          return;
+        }
         c.followPath(this._walkPath, false);
         c.status = "Jalan ke tujuan";
       }

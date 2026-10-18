@@ -22,6 +22,8 @@ export class Crew {
     this.onFootstep = onFootstep;
     this.members = [];
     this.brains = new Map();
+    this.building.crew = this;
+    this.building.dynamicBodies = (this.building.staffRoster ?? []).map((s) => s.critter);
     this._nameIdx = Math.floor(Math.random() * NAMES.length);
   }
 
@@ -43,13 +45,15 @@ export class Crew {
       variant: Math.floor(Math.random() * 5),
     });
 
-    const spawnAt = at || this._randomSpawn();
+    const requested = at || this._randomSpawn();
+    const spawnAt = this._findSafeSpawn(requested);
     critter.teleport(spawnAt.x, spawnAt.z, spawnAt.yaw ?? Math.random() * Math.PI * 2);
     critter.onFootstep = (c) => this.onFootstep?.(c);
     critter.root.userData.critter = critter;
 
     this.scene.add(critter.root);
     this.members.push(critter);
+    this._syncDynamicBodies();
     const brain = new Brain(critter, { building: this.building, crew: this });
     critter.brain = brain;
     this.brains.set(critter, brain);
@@ -57,8 +61,49 @@ export class Crew {
   }
 
   _randomSpawn() {
-    const spot = this.building.randomSpot(null, { x: 0, z: 0 });
-    return { x: spot.x, z: spot.z, yaw: Math.random() * Math.PI * 2 };
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const spot = this.building.randomSpot(null, { x: 0, z: 0 });
+      if (this._isSpawnFree(spot.x, spot.z)) {
+        return { x: spot.x, z: spot.z, yaw: Math.random() * Math.PI * 2 };
+      }
+    }
+    return { ...this.building.entrance, yaw: this.building.entrance.yaw };
+  }
+
+  _syncDynamicBodies() {
+    this.building.dynamicBodies = this.members.concat(
+      (this.building.staffRoster ?? []).map((s) => s.critter),
+    );
+  }
+
+  _isSpawnFree(x, z, radius = 0.29, ignore = null) {
+    if (!this.building.isFree(x, z, radius)) return false;
+    const minDistance = radius + 0.29;
+    for (const other of this.building.dynamicBodies ?? []) {
+      if (!other || other === ignore) continue;
+      const dx = x - other.position.x;
+      const dz = z - other.position.z;
+      if (dx * dx + dz * dz < minDistance * minDistance) return false;
+    }
+    return true;
+  }
+
+  _findSafeSpawn(preferred) {
+    if (this._isSpawnFree(preferred.x, preferred.z)) return preferred;
+    // Search nearby without teleporting an entering player into a colleague.
+    for (let radius = 0.45; radius <= 2.7; radius += 0.3) {
+      for (let i = 0; i < 24; i++) {
+        const angle = (i / 24) * Math.PI * 2;
+        const x = preferred.x + Math.cos(angle) * radius;
+        const z = preferred.z + Math.sin(angle) * radius;
+        if (this._isSpawnFree(x, z)) return { x, z, yaw: preferred.yaw };
+      }
+    }
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const spot = this.building.randomSpot(null, { x: 0, z: 0 });
+      if (this._isSpawnFree(spot.x, spot.z)) return { ...spot, yaw: preferred.yaw };
+    }
+    return preferred;
   }
 
   /** Populate the office with `count` random critters. */
@@ -132,62 +177,24 @@ export class Crew {
   }
 
   update(dt, elapsed) {
+    this._syncDynamicBodies();
     for (const c of this.members) {
       if (!c.controlled) this.brains.get(c)?.update(dt);
       c.update(dt, elapsed, this.building);
     }
-    this.separate();
+    // Movement is swept against every other body before positions are committed.
+    // Do not post-push overlapping bodies: that can shove them through furniture.
   }
 
   /* ------------------------------------------------- anti tembus karakter */
 
   /**
-   * Anti tembus antar karakter: pasangan yang tumpang tindih saling digeser
-   * keluar (masing-masing setengah jarak tumpang tindih), jadi saat
-   * ditabrak badannya Bergeser ke samping, bukan menembus.
-   * Yang duduk / sedang masuk kursi jadi jangkar: yang jalan-lah yang
-   * terdorong penuh, supaya orang yang duduk tidak lepas dari kursi.
+   * Compatibility hook: collision is enforced before movement by
+   * Building.moveSafely(). Post-movement teleport pushes are intentionally
+   * avoided because they can move a body through a wall or desk.
    */
-  separate(radius = 0.27) {
-    const bodies = this.members.concat(
-      (this.building.staffRoster ?? []).map((s) => s.critter),
-    );
-    const min = radius * 2;
-    for (let i = 0; i < bodies.length; i++) {
-      const a = bodies[i];
-      if (a._forced === "Death") continue;
-      const aAnchor = a.sitting || a._seating;
-      for (let j = i + 1; j < bodies.length; j++) {
-        const b = bodies[j];
-        if (b._forced === "Death") continue;
-        const bAnchor = b.sitting || b._seating;
-        if (aAnchor && bAnchor) continue;
-        let dx = b.position.x - a.position.x;
-        let dz = b.position.z - a.position.z;
-        let d = Math.hypot(dx, dz);
-        if (d >= min) continue;
-        if (d < 1e-5) {
-          const ang = (a.variant + 1) * 2.4;
-          dx = Math.cos(ang) * 1e-3;
-          dz = Math.sin(ang) * 1e-3;
-          d = 1e-3;
-        }
-        const push = (min - d) / d;
-        if (aAnchor) {
-          b.position.x += dx * push;
-          b.position.z += dz * push;
-        } else if (bAnchor) {
-          a.position.x -= dx * push;
-          a.position.z -= dz * push;
-        } else {
-          const half = push * 0.5;
-          a.position.x -= dx * half;
-          a.position.z -= dz * half;
-          b.position.x += dx * half;
-          b.position.z += dz * half;
-        }
-      }
-    }
+  separate() {
+    this._syncDynamicBodies();
   }
 
   roster() {

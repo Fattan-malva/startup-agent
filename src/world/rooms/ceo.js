@@ -33,9 +33,9 @@ import { WALL_H } from "../layout.js";
 export function build(b) {
   /* Meja eksekutif — lebar 2.5, menghadap barat (kaca muka 7.07) */
   const execDesk = createWorkstation({ desk: { width: 2.4 } });
-  b._place(execDesk, 8.6, 2.7, Math.PI / 2, 0, { w: 2.5, d: 1.3 });
+  b._place(execDesk, 8.25, 2.7, Math.PI / 2, 0, { w: 2.5, d: 1.3 });
   b._deskParts(execDesk, "ceo-desk");
-  b._deskChair(8.6, 2.7, Math.PI / 2, { color: "charcoal", gap: 0.78, type: "ceo" });
+  b._deskChair(8.25, 2.7, Math.PI / 2, { color: "charcoal", gap: 1.12, type: "ceo" });
 
   // SATU kursi tamu saja — condong ke sisi tembok kaca timur (x=15.4),
   // selaras pusat meja — BUKAN di jalur pintu (x 8.85..10.15).
@@ -63,13 +63,13 @@ export function build(b) {
   b._seat(11.2, 4.15, 0, "lounge");
   b._static(createCoffeeTable({ r: 0.38 }), 11.2, 5.15, 0);
   const armW = createArmchair({ color: "sand" });
-  b._static(armW, 9.0, 5.15, Math.PI / 2);
-  b._seat(9.0, 5.15, Math.PI / 2, "lounge");
+  b._static(armW, 9.65, 5.15, Math.PI / 2);
+  b._seat(9.65, 5.15, Math.PI / 2, "lounge");
   const armE = createArmchair({ color: "sand" });
-  b._static(armE, 13.4, 5.15, -Math.PI / 2);
-  b._seat(13.4, 5.15, -Math.PI / 2, "lounge");
-  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 9.15, 6.35, 0);
-  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 13.4, 6.35, 0);
+  b._static(armE, 12.75, 5.15, -Math.PI / 2);
+  b._seat(12.75, 5.15, -Math.PI / 2, "lounge");
+  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 9.8, 6.35, 0);
+  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 12.6, 6.35, 0);
 
   /* Lemari + rak buku ×3 — dinding timur (muka 15.33).
    * Rotasi -π/2: punggung ke kaca, rak terbuka ke dalam room. */
@@ -100,7 +100,7 @@ export function build(b) {
   /* Dua lampu gantung — atas meja & lounge, interaktif */
   const lampDesk = createPendantLamp();
   const lampLounge = createPendantLamp();
-  b._static(lampDesk, 8.6, 2.7, 0, WALL_H - 0.7);
+  b._static(lampDesk, 8.25, 2.7, 0, WALL_H - 0.7);
   b._static(lampLounge, 11.2, 5.15, 0, WALL_H - 0.7);
   b._interactive(lampDesk, {
     id: "pendant-ceo-desk", label: "Lampu meja CEO",

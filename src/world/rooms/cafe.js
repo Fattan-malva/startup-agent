@@ -165,15 +165,20 @@ export function build(b) {
   b._splitLive(counter, [counter.userData.parts.machine]);
 
   const fridge = createFridge({ w: 0.55, h: 1.4, d: 0.55 });
-  b._static(fridge, -0.6, -6.35, 0);
+  // Keep the fridge off the glass partition and away from the counter's end.
+  b._static(fridge, 8.3, -5.9, 0);
   b._interactive(fridge, {
     id: "cafe-fridge", label: "Kulkas cafe",
     hint: "Klik untuk membuka / menutup", radius: 0.7,
     onClick: (self) => self.userData.api.toggle() ? "Kulkas dibuka" : "Kulkas ditutup",
   });
 
+  // Low media cabinet supports the TV and console; leave a clear gap to the pantry.
+  const mediaCabinet = createStorageCabinet({ w: 1.35, h: 0.56, d: 0.38, color: "wood" });
+  b._static(mediaCabinet, 2.5, -6.55, 0, 0, { w: 1.42, d: 0.44 });
+
   const tv = createTV({ w: 1.4, h: 0.85 });
-  b._static(tv, 2.2, -6.85, 0, 1.15, { w: 1.5, d: 0.2 });
+  b._static(tv, 2.5, -6.85, 0, 1.15);
   b._interactive(tv, {
     id: "cafe-tv", label: "TV lounge",
     hint: "Klik untuk ganti channel", radius: 1.2,
@@ -181,7 +186,9 @@ export function build(b) {
   });
 
   const ps = createPlayStation();
-  b._static(ps, 2.2, -6.65, 0, 0.55, { w: 0.4, d: 0.25 });
+  // This prop rests on the media cabinet, so it must not create a floor collider.
+  ps.userData.footprint = null;
+  b._static(ps, 2.5, -6.55, 0, 0.56);
   b._interactive(ps, {
     id: "cafe-ps", label: "PlayStation",
     hint: "Klik untuk menyalakan", radius: 0.7,
@@ -198,22 +205,22 @@ export function build(b) {
   // L-sofa A — sisi koridor, back DI DALAM room (tidak menembus dinding).
   // Back sofa = z_back; center z = -1.75 → back di -1.325, dinding inner -1.12. Aman.
   const sofaA = createSofa({ width: 2.0, depth: 0.85 });
-  b._static(sofaA, 0.05, -1.75, Math.PI, 0, { w: 2.1, d: 0.95 });
-  b._seat(0.05, -1.75, Math.PI, "lounge");
+  b._static(sofaA, 0.25, -1.95, Math.PI, 0, { w: 2.1, d: 0.95 });
+  b._seat(0.25, -1.95, Math.PI, "lounge");
 
   // L-sofa B — sisi barat, footprint FIX (pre-swap salah sebelumnya).
   // fp {w:2.4, d:0.85} dibaca _static dengan swap ry=π/2 → world 0.85 × 2.4.
   const sofaB = createSofa({ width: 2.4, depth: 0.85 });
-  b._static(sofaB, -0.4, -2.85, Math.PI / 2, 0, { w: 2.4, d: 0.85 });
-  b._seat(-0.4, -2.85, Math.PI / 2, "lounge");
+  b._static(sofaB, -0.35, -3.8, Math.PI / 2, 0, { w: 2.4, d: 0.85 });
+  b._seat(-0.35, -3.8, Math.PI / 2, "lounge");
 
   // Coffee table — digeser bersama sofa supaya tidak menembus sofa.
-  b._static(createCoffeeTable({ r: 0.38 }), 0.5, -2.75, 0);
+  b._static(createCoffeeTable({ r: 0.38 }), 0.65, -2.95, 0);
 
   /* Lounge timur — memanfaatkan cafe selebar 10 m (x -1..9) */
   const sofaC = createSofa({ width: 2.1, depth: 0.9 });
-  b._static(sofaC, 7.4, -2.9, -Math.PI / 2, 0, { w: 2.1, d: 0.95 });
-  b._seat(7.4, -2.9, -Math.PI / 2, "lounge");
+  b._static(sofaC, 7.4, -3.8, -Math.PI / 2, 0, { w: 2.1, d: 0.95 });
+  b._seat(7.4, -3.8, -Math.PI / 2, "lounge");
   b._static(createCoffeeTable({ r: 0.38 }), 6.4, -2.9, 0);
   const armC = createArmchair({ color: "sand" });
   b._static(armC, 7.5, -2.0, -Math.PI / 2);

@@ -27,14 +27,14 @@ import {
 export function build(b) {
   /* Workstation — benching 3 meja (1.55 m) menghadap dinding utara,
    * dipusatkan di 20.8 = tepat di depan pintu developer. */
-  const devXs = [19.35, 20.8, 22.25];
+  const devXs = [19.0, 20.8, 22.6];
   devXs.forEach((x, i) => {
     const ws = createWorkstation({ desk: { width: 1.55 } });
     b._place(ws, x, -5.75, 0, 0, { w: 1.55, d: 1.2 });
     b._deskParts(ws, `dev-${String.fromCharCode(97 + i)}`);
     b._deskChair(x, -5.75, 0, {
       color: i % 2 === 0 ? "navy" : "charcoal",
-      gap: 0.78,
+      gap: 1.05,
       type: "desk",
     });
   });
@@ -68,7 +68,7 @@ export function build(b) {
 
   /* Decor di dinding utara */
   b._static(createWallShelf({ w: 0.9, d: 0.22, shelves: 2 }), 20.0, -6.82, 0, 1.08, { w: 0.9, d: 0.18 });
-  b._static(createWallArt({ w: 0.62, h: 0.78, variant: 1 }), 21.6, -6.82, 0, 0.68, { w: 0.1, d: 0.78 });
+  b._static(createWallArt({ w: 0.62, h: 0.78, variant: 1 }), 21.6, -6.82, 0, 0.68, { w: 0.68, d: 0.1 });
 
   /* Lantai wood polos (senada Studio Kreatif) — tanpa karpet */
 
