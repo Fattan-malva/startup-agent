@@ -49,7 +49,7 @@ export function build(b) {
   /* Storage & rak dokumen — mengintai di muka kaca barat */
   b._static(
     createStorageCabinet({ w: 0.78, h: 1.18, d: 0.34, color: "light" }),
-    15.8, 3.35, Math.PI / 2,
+    15.8, 4.35, Math.PI / 2,
   );
   b._static(
     createBookshelf({ width: 0.84, height: 1.52, depth: 0.28, shelves: 4 }),
