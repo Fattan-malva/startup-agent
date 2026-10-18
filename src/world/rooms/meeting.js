@@ -14,6 +14,8 @@ import {
 import { WALL_H } from "../layout.js";
 
 export function build(b) {
+  // Room tetap selebar layout lama (9 m, x -10..-1) — sekat kaca baru di
+  // x = -1 (muka -1.07) HANYA memindahkan bin pojok, sisanya utuh.
   const mcx = -5.5;
   const mcz = -3.9;
 
@@ -53,8 +55,8 @@ export function build(b) {
   b._static(createStorageCabinet({ w: 1.0, h: 1.1, d: 0.4, color: "light" }), -9.4, -2.0, Math.PI / 2);
 
   b._plant(-9.2, -1.5, 0, { variant: 1, scale: 0.7, seed: 31 });
-  // Bin meeting — pojok tenggara (jauh dari muka dinding koridor -1.12).
-  b._static(createBin(), -1.2, -1.45, 0);
+  // Bin meeting — pojok tenggara; digeser sedikit dari sekat kaca (muka -1.07).
+  b._static(createBin(), -1.5, -1.5, 0);
 
   const pendantA = createPendantLamp();
   const pendantB = createPendantLamp();

@@ -299,13 +299,13 @@ export class Building {
     const signs = [
       { title: "RUANG MEETING", sub: "MEETING ROOM", x: -6.5, z: -0.98, ry: 0, face: 1 },
       { title: "CAFE", sub: "BAR & LOUNGE", x: 1.5, z: -0.98, ry: 0, face: 1 },
-      { title: "STUDIO KREATIF", sub: "CREATIVE LAB", x: 6.5, z: -0.98, ry: 0, face: 1 },
-      { title: "DEV ROOM", sub: "ENGINEERING", x: 13.1, z: -0.98, ry: 0, face: 1 },
+      { title: "STUDIO KREATIF", sub: "CREATIVE LAB", x: 12.5, z: -0.98, ry: 0, face: 1 },
+      { title: "DEV ROOM", sub: "ENGINEERING", x: 20.8, z: -0.98, ry: 0, face: 1 },
       { title: "LOBBY", sub: "RECEPTION", x: -6.5, z: 0.98, ry: Math.PI, face: -1 },
       { title: "STAFF ROOM", sub: "8 WORKSTATIONS", x: 0, z: 0.98, ry: Math.PI, face: -1 },
-      { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: 8.5, z: 0.98, ry: Math.PI, face: -1 },
-      // Sign door HR nempel dinding vertikal x=14.6 → offset ke arah timur.
-      { title: "HUMAN RESOURCE", sub: "PEOPLE & CULTURE", x: 14.67, z: 1.95, ry: Math.PI / 2, face: 0, ox: 0.045 },
+      { title: "CEO ROOM", sub: "PRIVATE OFFICE", x: 9.5, z: 0.98, ry: Math.PI, face: -1 },
+      // Sign door HR nempel dinding vertikal x=23.8 → offset ke arah timur.
+      { title: "HUMAN RESOURCE", sub: "PEOPLE & CULTURE", x: 23.87, z: 1.95, ry: Math.PI / 2, face: 0, ox: 0.045 },
     ];
 
     // Papan nama menempel DI TENGAH lintel pintu (bukan mepet bawah),

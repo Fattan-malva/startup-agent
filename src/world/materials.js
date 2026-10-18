@@ -85,6 +85,14 @@ export function buildMaterials() {
       envMapIntensity: 0.25,
     }),
 
+    // Karpet polos NAVY ( lounge cafe & studio kreatif ) — tanpa tekstur.
+    rugNavy: std({
+      color: 0x22406b,
+      roughness: 0.97,
+      metalness: 0,
+      envMapIntensity: 0.25,
+    }),
+
     terrazzo: std({
       map: terrazzo.map,
       normalMap: terrazzo.normalMap,

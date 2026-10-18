@@ -12,6 +12,8 @@ import {
   createFridge,
   createSofa,
   createCoffeeTable,
+  createArmchair,
+  createSideTable,
   createBin,
   createCoffeeMachine,
   createMug,
@@ -187,7 +189,7 @@ export function build(b) {
   });
 
   // Carpet L-shape — digeser ke dalam supaya tidak menyentuh dinding koridor.
-  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.0), MAT.rug);
+  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.0), MAT.rugNavy);
   carpet.rotation.x = -Math.PI / 2;
   carpet.position.set(0.3, 0.012, -2.7);
   carpet.receiveShadow = true;
@@ -208,9 +210,19 @@ export function build(b) {
   // Coffee table — digeser bersama sofa supaya tidak menembus sofa.
   b._static(createCoffeeTable({ r: 0.38 }), 0.5, -2.75, 0);
 
-  b._plant(2.6, -1.6, 0, { variant: 0, scale: 0.7, seed: 32 });
-  // Bin cafe — pojok tenggara, jauh dari muka dinding koridor.
-  b._static(createBin(), 2.7, -1.5, 0);
+  /* Lounge timur — memanfaatkan cafe selebar 10 m (x -1..9) */
+  const sofaC = createSofa({ width: 2.1, depth: 0.9 });
+  b._static(sofaC, 7.4, -2.9, -Math.PI / 2, 0, { w: 2.1, d: 0.95 });
+  b._seat(7.4, -2.9, -Math.PI / 2, "lounge");
+  b._static(createCoffeeTable({ r: 0.38 }), 6.4, -2.9, 0);
+  const armC = createArmchair({ color: "sand" });
+  b._static(armC, 7.5, -2.0, -Math.PI / 2);
+  b._seat(7.5, -2.0, -Math.PI / 2, "lounge");
+  b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 7.5, -3.1, 0);
+
+  b._plant(5.2, -1.55, 0, { variant: 0, scale: 0.7, seed: 32 });
+  // Bin cafe — pojok timur laut (jauh dari lane door cafe x 0.85..2.15).
+  b._static(createBin(), 8.6, -1.5, 0);
 
   // Barista cafe — keliling cafe & duduk di sofanya, tapi selalu kembali
   // ke belakang konter.
