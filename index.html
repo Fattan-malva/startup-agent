@@ -157,7 +157,7 @@
     <aside id="roster" class="panel roster" aria-label="Daftar pegawai">
       <div class="roster-head">
         <span class="roster-title">Tim</span>
-        <button class="card-close is-static" type="button" aria-label="Manajemen staf" data-action="staff-open" title="Manajemen staf HR">
+        <button class="roster-settings" type="button" aria-label="Manajemen staf" data-action="staff-open" title="Manajemen staf HR">
           <i data-lucide="settings"></i>
         </button>
         <button class="card-close is-static" type="button" aria-label="Tutup daftar" data-action="roster">
@@ -218,45 +218,100 @@
     </aside>
 
     <!-- staff management modal -->
+    <!-- staff management modal (maximized dashboard) -->
     <div id="staff-modal" class="modal" role="dialog" aria-modal="true" aria-label="Manajemen staf HR">
       <div class="modal-card staff-modal-card">
         <button class="card-close" type="button" aria-label="Tutup" data-action="staff-close">&times;</button>
         <p class="card-kicker">People Ops</p>
         <h2 class="modal-title">Manajemen staf</h2>
-        <p class="modal-lead">Kelola profil dan model karakter staf kantor.</p>
+        <p class="modal-lead">Kelola profil, model, dan penempatan staf kantor.</p>
         <div class="staff-modal-body">
           <aside class="staff-sidebar">
-            <button class="btn is-accent" type="button" data-action="staff-new">+ Staf baru</button>
+            <div class="staff-search">
+              <input id="staff-search" type="search" placeholder="Cari nama / jabatan…" aria-label="Cari staf" />
+            </div>
+            <div class="staff-stats">
+              <span id="staff-stat-total">Total: 0</span>
+              <span id="staff-stat-dept">Departemen: 0</span>
+            </div>
+            <button class="btn is-accent staff-new-btn" type="button" data-action="staff-new">+ Staf baru</button>
             <ul id="staff-list" class="staff-list"></ul>
           </aside>
           <section class="staff-content">
-            <div class="staff-tabs">
+            <div class="staff-tabs" style="flex-shrink:0;">
               <button class="seg-item is-active" type="button" data-action="staff-tab" data-value="profile">Profil</button>
               <button class="seg-item" type="button" data-action="staff-tab" data-value="model">Model</button>
+              <button class="seg-item" type="button" data-action="staff-tab" data-value="placement">Penempatan</button>
             </div>
-            <div id="staff-form-profile" class="staff-form">
-              <label>Nama <input id="staff-name" type="text" /></label>
-              <label>Jabatan <input id="staff-title" type="text" /></label>
-              <label>Departemen
-                <select id="staff-dept"></select>
-              </label>
-              <label>Meja
-                <select id="staff-desk"></select>
-              </label>
+            <div class="staff-form-wrapper" style="flex:1; overflow:auto; min-height:0;">
+              <div id="staff-form-profile" class="staff-form">
+                <div class="form-row">
+                  <label>ID <input id="staff-id" type="text" readonly /></label>
+                </div>
+                <label>Nama <input id="staff-name" type="text" placeholder="Nama lengkap" /></label>
+                <label>Jabatan <input id="staff-title" type="text" placeholder="Jabatan" /></label>
+                <label>Departemen
+                  <select id="staff-dept"></select>
+                </label>
+                <label>Status
+                  <select id="staff-status">
+                    <option value="active">Aktif</option>
+                    <option value="on-leave">Cuti</option>
+                    <option value="inactive">Tidak aktif</option>
+                  </select>
+                </label>
+              </div>
+              <div id="staff-form-model" class="staff-form" hidden>
+                <div class="form-row" style="flex-shrink:0;">
+                  <label>Spesies
+                    <select id="staff-species"></select>
+                  </label>
+                  <label>Warna dasi <input id="staff-tie" type="color" /></label>
+                </div>
+                <div class="form-row" style="flex-shrink:0;">
+                  <label>Kulit <input id="staff-skin" type="color" /></label>
+                  <label>Baju <input id="staff-shirt" type="color" /></label>
+                  <label>Celana <input id="staff-pants" type="color" /></label>
+                </div>
+                <label style="flex-shrink:0;">Aksesoris kepala
+                  <select id="staff-accessory">
+                    <option value="none">Tanpa</option>
+                    <option value="glasses">Kacamata</option>
+                    <option value="hat">Topi</option>
+                    <option value="headset">Headset</option>
+                  </select>
+                </label>
+                <div class="model-presets" style="flex-shrink:0;">
+                  <span class="preset-label">Preset cepat:</span>
+                  <button type="button" class="chip" data-action="staff-preset" data-value="dev">Dev</button>
+                  <button type="button" class="chip" data-action="staff-preset" data-value="design">Design</button>
+                  <button type="button" class="chip" data-action="staff-preset" data-value="exec">Eksekutif</button>
+                  <button type="button" class="chip" data-action="staff-preset" data-value="ops">Operasional</button>
+                </div>
+              </div>
+              <div id="staff-form-placement" class="staff-form" hidden>
+                <label style="flex-shrink:0;">Ruangan (otomatis dari departemen)
+                  <select id="staff-room" disabled></select>
+                </label>
+                <label style="flex-shrink:0;">Meja
+                  <select id="staff-desk"></select>
+                </label>
+                <label style="flex-shrink:0;">Radius keliling
+                  <input id="staff-wander" type="range" min="0.5" max="5" step="0.5" value="1.6" />
+                  <span id="staff-wander-val">1.6 m</span>
+                </label>
+                <div class="placement-preview" style="flex-shrink:0;">
+                  <canvas id="staff-map-canvas" width="200" height="160"></canvas>
+                </div>
+              </div>
             </div>
-            <div id="staff-form-model" class="staff-form" hidden>
-              <label>Spesies
-                <select id="staff-species"></select>
-              </label>
-              <label>Warna dasi <input id="staff-tie" type="color" /></label>
-            </div>
-            <div class="staff-actions">
+            <div class="staff-actions" style="flex-shrink:0; margin-top:10px;">
               <button class="btn" type="button" data-action="staff-save">Simpan</button>
               <button class="btn chip--danger" type="button" data-action="staff-delete">Hapus</button>
             </div>
           </section>
           <aside class="staff-preview">
-            <canvas id="staff-preview-canvas" class="viewchar-canvas" width="260" height="320"></canvas>
+            <canvas id="staff-preview-canvas" class="viewchar-canvas" width="300" height="360"></canvas>
             <div class="staff-preview-menus">
               <label>Kulit <input id="staff-skin" type="color" /></label>
               <label>Baju <input id="staff-shirt" type="color" /></label>
@@ -269,8 +324,16 @@
                   <option value="headset">Headset</option>
                 </select>
               </label>
+              <label>Animasi preview
+                <select id="staff-preview-anim">
+                  <option value="idle">Diam</option>
+                  <option value="wave">Melambai</option>
+                  <option value="thumbsup">Thumbs up</option>
+                  <option value="walk">Jalan</option>
+                </select>
+              </label>
             </div>
-            <p class="staff-preview-hint">Preview karakter</p>
+            <p class="staff-preview-hint">Drag putar · Scroll zoom</p>
           </aside>
         </div>
       </div>

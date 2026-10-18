@@ -105,8 +105,15 @@ async function boot() {
         }
       },
     });
-    crew.populateFromStaff();
+    try {
+      crew.populateFromStaff();
+      console.log('[Main] Crew populated successfully');
+    } catch (e) {
+      console.error('[Main] populateFromStaff failed:', e);
+      throw e;
+    }
     const staffModal = new StaffModal({ building, crew, hud });
+    console.log('[Main] StaffModal created');
 
     const meeting = new Meeting({ building, crew });
 

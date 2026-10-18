@@ -35,18 +35,34 @@ export class Crew {
   }
 
   /** Spawn a critter (with a brain) and drop it into the world. */
-  spawn({ species = null, name = null, department = null, tieColor = undefined, at = null, roomId = null, deskId = null, staffId = null } = {}) {
+  spawn({ species = null, name = null, department = null, tieColor = undefined, at = null, roomId = null, deskId = null, staffId = null, appearance = null } = {}) {
     const spec = species ? SPECIES.find((s) => s.id === species) || SPECIES[0] : SPECIES[Math.floor(Math.random() * SPECIES.length)];
     const dept = (typeof department === "string")
       ? (DEPARTMENTS.find((d) => d.name === department) || { name: department, tie: tieColor ?? 0x737f90 })
       : (department || DEPARTMENTS[Math.floor(Math.random() * DEPARTMENTS.length)]);
-    const critter = new Critter({
+    const appearanceObj = appearance || (spec.id && species ? {
       species: spec.id,
-      name: name || this._nextName(),
-      department: dept,
-      tieColor: tieColor ?? dept.tie,
-      variant: Math.floor(Math.random() * 5),
-    });
+      skin: "#dca787",
+      shirt: "#506a85",
+      pants: "#333943",
+      tieColor: dept.tie,
+      accessory: "none",
+    } : null);
+    
+    let critter;
+    try {
+      critter = new Critter({
+        species: spec.id,
+        name: name || this._nextName(),
+        department: dept,
+        tieColor: tieColor ?? dept.tie,
+        variant: Math.floor(Math.random() * 5),
+        appearance: appearanceObj,
+      });
+    } catch (e) {
+      console.error('[Crew] Failed to create critter:', e);
+      throw e;
+    }
     critter.roomId = roomId || null;
     critter.deskId = deskId || null;
     critter.staffId = staffId || null;
@@ -122,6 +138,17 @@ export class Crew {
   populateFromStaff() {
     for (const s of STAFF) {
       const m = s.model || {};
+      const appearance = {
+        species: m.species || "developer",
+        skin: m.skin || "#dca787",
+        shirt: m.shirt || "#506a85",
+        pants: m.pants || "#333943",
+        tieColor: m.tieColor || 0x477da6,
+        accessory: m.accessory || "none",
+        glasses: m.accessory === "glasses",
+        headphones: m.accessory === "headphones",
+        hat: m.accessory === "hat",
+      };
       this.spawn({
         species: m.species || null,
         name: s.name,
@@ -130,6 +157,7 @@ export class Crew {
         roomId: s.roomId,
         deskId: s.deskId,
         staffId: s.id,
+        appearance,
       });
     }
     return this;

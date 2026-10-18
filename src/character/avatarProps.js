@@ -3,6 +3,8 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { G, M, MB, add } from "./critterShared.js";
 
 export function buildProps(c) {
+  const a = c.appearance;
+  const accentHex = a.tieColor ?? 0x597ca7;
   const cup = new THREE.Group();
   cup.name = "Coffee cup";
   c.holdR.add(cup);
@@ -12,7 +14,7 @@ export function buildProps(c) {
   add(inner, G("avatar-cup-body", () => new THREE.CylinderGeometry(0.027, 0.021, 0.064, 20)), M(0xf1eee8));
   add(inner, G("avatar-cup-sleeve", () => new THREE.CylinderGeometry(0.026, 0.023, 0.027, 20)), M(0xa8764a), 0, -0.003, 0);
   add(inner, G("avatar-cup-lid", () => new THREE.CylinderGeometry(0.030, 0.028, 0.008, 20)), M(0x2b2d31), 0, 0.036, 0);
-  add(inner, G("avatar-cup-logo", () => new THREE.CircleGeometry(0.008, 16)), MB(c.tieColor ?? 0x597ca7), 0, -0.002, 0.024);
+  add(inner, G("avatar-cup-logo", () => new THREE.CircleGeometry(0.008, 16)), MB(accentHex), 0, -0.002, 0.024);
   cup.visible = false;
   c.cupProp = cup;
 

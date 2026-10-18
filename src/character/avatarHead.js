@@ -13,9 +13,11 @@ const skinShade = (hex, factor) => {
 };
 
 export function buildHead(c) {
-  const skin = M(c.skinHex ?? c.spec.skin ?? 0xe9b998);
-  const skinShadow = M(skinShade(c.skinHex ?? c.spec.skin ?? 0xe9b998, 0.86));
-  const hairHex = c.spec.hair ?? hairTones[(c.variant + (c.spec.palette || 0)) % hairTones.length];
+  const a = c.appearance;
+  const skinHex = a.skin ? parseInt(a.skin.replace("#", ""), 16) : 0xe9b998;
+  const skin = M(skinHex);
+  const skinShadow = M(skinShade(skinHex, 0.86));
+  const hairHex = a.hair ? parseInt(a.hair.replace("#", ""), 16) : hairTones[(c.variant + (a.palette || 0)) % hairTones.length];
   const hair = M(hairHex);
   const hairLight = M(skinShade(hairHex, 1.18));
 
@@ -59,7 +61,7 @@ export function buildHead(c) {
   const face = {};
   c.faceRig = face;
   const eyeWhite = M(0xfaf9f6);
-  const iris = M(c.spec.eyes ?? 0x493629);
+  const iris = M(a.eyes ? parseInt(a.eyes.replace("#", ""), 16) : 0x493629);
   const pupil = MB(0x121316);
   const highlight = MB(0xffffff);
   const browMat = M(skinShade(hairHex, 0.82));
@@ -121,7 +123,7 @@ export function buildHead(c) {
     seg(glasses, V(side * 0.055, 0.066, 0.078), V(side * 0.077, 0.061, 0.009), 0.0028, 0.0028, frameMat);
   }
   add(glasses, new RoundedBoxGeometry(0.014, 0.003, 0.003, 2, 0.001), frameMat, 0, 0.067, 0.081);
-  glasses.visible = c.variant % 4 === 2 || c.spec.glasses === true;
+  glasses.visible = a.glasses === true;
   head.add(glasses);
   c.glasses = glasses;
 
@@ -138,7 +140,7 @@ export function buildHead(c) {
       hpMat, side * 0.081, 0.058, 0, 1, 1, 1, 0, 0, Math.PI / 2);
     add(headphones, SPH(), M(0x555e6b), side * 0.090, 0.058, 0, 0.012, 0.022, 0.022);
   }
-  headphones.visible = c.variant % 4 === 1 || c.spec.headphones === true;
+  headphones.visible = a.headphones === true;
   head.add(headphones);
   c.headphonesProp = headphones;
 
@@ -146,10 +148,10 @@ export function buildHead(c) {
    *  Barista & resepsionis memakai topi hitam (cap dengan brim).
    *  Topi menutupi hair-cap dan mempertegas status "staff khusus".
    */
-  if (c.spec.hat) {
+  if (a.hat) {
     const hatMat = M(0x181a20, { roughness: 0.74, metalness: 0.06 });
     const brimMat = M(0x0a0b10, { roughness: 0.68, metalness: 0.10 });
-    const buttonMat = M(c.tieColor ?? 0x2a2d33, { roughness: 0.5, metalness: 0.2 });
+    const buttonMat = M(a.tieColor ?? 0x2a2d33, { roughness: 0.5, metalness: 0.2 });
 
     const hatGroup = new THREE.Group();
     hatGroup.name = "Staff cap";

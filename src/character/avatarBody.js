@@ -53,13 +53,12 @@ function makeIdCard(c, accent) {
 }
 
 export function buildBody(c) {
-  const paletteIndex = (c.variant * 2 + Math.max(0, c.spec.palette || 0)) % CLOTHING.length;
-  const outfitHex = c.spec.outfit ?? CLOTHING[paletteIndex];
-  // ← BARU: mendukung celana kustom (staff pakai celana hitam).
-  const pantsHex = c.spec.pants
-    ?? TROUSERS[(c.variant + Math.max(0, c.spec.palette || 0)) % TROUSERS.length];
-  const skinHex = c.spec.skin ?? 0xe9b998;
-  const accentHex = c.tieColor ?? 0x547da4;
+  const a = c.appearance;
+  const paletteIndex = (c.variant * 2 + Math.max(0, a.palette || 0)) % CLOTHING.length;
+  const outfitHex = a.shirt ? parseInt(a.shirt.replace("#", ""), 16) : CLOTHING[paletteIndex];
+  const pantsHex = a.pants ? parseInt(a.pants.replace("#", ""), 16) : TROUSERS[(c.variant + Math.max(0, a.palette || 0)) % TROUSERS.length];
+  const skinHex = a.skin ? parseInt(a.skin.replace("#", ""), 16) : 0xe9b998;
+  const accentHex = a.tieColor ?? 0x547da4;
   c.outfitHex = outfitHex;
   c.pantsHex = pantsHex;
   c.skinHex = skinHex;

@@ -46,101 +46,159 @@ function dampAngle(a, b, lambda, dt) {
 
 let ID = 0;
 
+function defaultAppearance() {
+  return {
+    species: "developer",
+    skin: "#dca787",
+    shirt: "#506a85",
+    pants: "#333943",
+    tieColor: 0x477da6,
+    hair: "#252321",
+    eyes: "#49362b",
+    accessory: "none",
+    glasses: false,
+    headphones: false,
+    hat: false,
+    palette: 0,
+  };
+}
+
 export class Critter {
   static get ready() { return Promise.resolve(); }
 
-  constructor({ species, name, tieColor, department, variant = 0 } = {}) {
-    this.spec = speciesById(species);
-    this.id = `critter-${++ID}`;
-    this.name = name || this.spec.name;
-    this.department = department || null;
-    this.speciesId = this.spec.id;
-    this.variant = variant;
-    this.tieColor = tieColor ?? this.spec.fur;
-    this.status = "Idle";
-    this.busy = false;
-    this.controlled = false;
-    this.speed = 0;
-    this.walkScale = 1;
-    this._stuck = 0;
-    this._blockedWish = null;
-    this._dodge = null;
-    this._yield = 0;
-    this._blockTries = 0;
-    this._slow = 1;
-    this.yaw = 0;
-    this.targetYaw = 0;
-    this.sitting = false;
-    this._seatTarget = null;
-    this._seating = false;
-    this._seatProgress = 0;
-    this._seatStartDist = 0.5;
-    this._noCollide = 0;
-    this.phase = 0;
-    this.look = null;
-    this.path = null;
-    this.pathIndex = 0;
-    this.pathDone = true;
-    this.pathFailed = false;
-    this._seatObstacle = null;
-    this._seatIgnore = null;      // kursi + meja yang menyelip saat duduk
-    this._seatIgnoreT = 0;        // batas waktu "menyelip" setelah berdiri
-    this._seatStuck = 0;
-    this._seatCenter = null;      // pusat kursi (untuk mencari jalan keluar)
-    this._seatYaw = 0;
-    this._exiting = false;        // sedang melangkah keluar dari kursi
-    this._exitPending = false;
-    this._exitSpot = null;
-    this._exitT = 0;
-    this._exitStuck = 0;
-    this._exitTry = 0;
-    this.running = false;
-    this.onFootstep = null;
-    this._stepSign = 1;
-    this._wish = new THREE.Vector2(0, 0);
-    this._wishLen = 0;
-    this._forced = null;
-    this._oneShot = null;
-    this._oneShotTime = 0;
-    this.gestureName = null;
-    this._expr = { Angry: 0, Surprised: 0, Sad: 0 };
-    this._exprTarget = { Angry: 0, Surprised: 0, Sad: 0 };
-    this.eyeY = BODY_HEIGHT * 0.86 * AVATAR_SCALE;
-    this._death = 0;
-    this._build();
+  constructor({ species, name, tieColor, department, variant = 0, appearance = null } = {}) {
+    try {
+      this.spec = speciesById(species);
+      this.id = `critter-${++ID}`;
+      this.name = name || this.spec.name;
+      this.department = department || null;
+      this.speciesId = this.spec.id;
+      this.variant = variant;
+      this.tieColor = tieColor ?? this.spec.fur;
+      this.status = "Idle";
+      this.busy = false;
+      this.controlled = false;
+      this.speed = 0;
+      this.walkScale = 1;
+      this._stuck = 0;
+      this._blockedWish = null;
+      this._dodge = null;
+      this._yield = 0;
+      this._blockTries = 0;
+      this._slow = 1;
+      this.yaw = 0;
+      this.targetYaw = 0;
+      this.sitting = false;
+      this._seatTarget = null;
+      this._seating = false;
+      this._seatProgress = 0;
+      this._seatStartDist = 0.5;
+      this._noCollide = 0;
+      this.phase = 0;
+      this.look = null;
+      this.path = null;
+      this.pathIndex = 0;
+      this.pathDone = true;
+      this.pathFailed = false;
+      this._seatObstacle = null;
+      this._seatIgnore = null;
+      this._seatIgnoreT = 0;
+      this._seatStuck = 0;
+      this._seatCenter = null;
+      this._seatYaw = 0;
+      this._exiting = false;
+      this._exitPending = false;
+      this._exitSpot = null;
+      this._exitT = 0;
+      this._exitStuck = 0;
+      this._exitTry = 0;
+      this.running = false;
+      this.onFootstep = null;
+      this._stepSign = 1;
+      this._wish = new THREE.Vector2(0, 0);
+      this._wishLen = 0;
+      this._forced = null;
+      this._oneShot = null;
+      this._oneShotTime = 0;
+      this.gestureName = null;
+      this._expr = { Angry: 0, Surprised: 0, Sad: 0 };
+      this._exprTarget = { Angry: 0, Surprised: 0, Sad: 0 };
+      this.eyeY = BODY_HEIGHT * 0.86 * AVATAR_SCALE;
+      this._death = 0;
+
+      // Appearance system — dynamic visual properties
+      this.appearance = appearance ? { ...defaultAppearance(), ...appearance } : defaultAppearance();
+      if (species) this.appearance.species = species;
+      if (tieColor != null) this.appearance.tieColor = tieColor;
+
+      this._build();
+    } catch (e) {
+      console.error('[Critter] Constructor failed:', e);
+      throw e;
+    }
   }
 
   _build() {
-    const root = new THREE.Group();
-    root.name = this.name;
-    root.userData.critter = this;
-    this.root = root;
+    try {
+      const root = new THREE.Group();
+      root.name = this.name;
+      root.userData.critter = this;
+      this.root = root;
 
-    // ── Skala karakter di sini ──────────────────────────────────────
-    const motion = new THREE.Group();
-    motion.name = "Avatar motion";
-    motion.scale.setScalar(AVATAR_SCALE);   // ← semua body/head/props ikut besar
-    root.add(motion);
-    this.motion = motion;
+      // ── Skala karakter di sini ──────────────────────────────────────
+      const motion = new THREE.Group();
+      motion.name = "Avatar motion";
+      motion.scale.setScalar(AVATAR_SCALE);
+      root.add(motion);
+      this.motion = motion;
 
-    const shadow = new THREE.Mesh(
-      G("avatar-shadow-plane", () => new THREE.PlaneGeometry(0.68, 0.68)),
-      shadowMaterial(),
-    );
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = 0.012;
-    // Bayangan ikut membesar supaya proporsional.
-    shadow.scale.set(1.42 * AVATAR_SCALE, 1.42 * AVATAR_SCALE, 1);
-    shadow.renderOrder = 1;
-    root.add(shadow);
-    this.shadow = shadow;
+      const shadow = new THREE.Mesh(
+        G("avatar-shadow-plane", () => new THREE.PlaneGeometry(0.68, 0.68)),
+        shadowMaterial(),
+      );
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.position.y = 0.012;
+      shadow.scale.set(1.42 * AVATAR_SCALE, 1.42 * AVATAR_SCALE, 1);
+      shadow.renderOrder = 1;
+      root.add(shadow);
+      this.shadow = shadow;
 
-    buildBody(this);
-    buildHead(this);
-    buildProps(this);
-    this.model = this.motion;
-    this._current = "Idle";
-    this._lastExprUpdate = 0;
+      buildBody(this);
+      buildHead(this);
+      buildProps(this);
+      this.model = this.motion;
+      this._current = "Idle";
+      this._lastExprUpdate = 0;
+    } catch (e) {
+      console.error('[Critter] _build failed:', e);
+      throw e;
+    }
+  }
+
+  /** Rebuild visual appearance from this.appearance (call after changing colors/accessories). */
+  rebuildAppearance() {
+    try {
+      // Dispose old meshes
+      if (this.body) this.body.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
+      if (this.headGroup) this.headGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
+      if (this.cupProp) this.cupProp.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
+      if (this.phoneProp) this.phoneProp.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
+      if (this.laptopProp) this.laptopProp.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
+      
+      // Remove old groups
+      if (this.body) this.motion.remove(this.body);
+      if (this.headGroup) this.spine.remove(this.headGroup);
+      if (this.cupProp) this.holdR.remove(this.cupProp);
+      if (this.phoneProp) this.holdL.remove(this.phoneProp);
+      if (this.laptopProp) this.body.remove(this.laptopProp);
+      
+      // Rebuild
+      buildBody(this);
+      buildHead(this);
+      buildProps(this);
+    } catch (e) {
+      console.warn('[Critter] rebuildAppearance failed:', e);
+    }
   }
 
   _baseState() {
