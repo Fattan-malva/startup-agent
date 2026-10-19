@@ -7,19 +7,27 @@
     "status": "active",
     "roomId": "ceo",
     "rooms": [
-      "ceo"
+      "ceo",
+      "courtyard",
+      "studio",
+      "cafe",
+      "meeting",
+      "lobby",
+      "staff",
+      "hr",
+      "developer"
     ],
     "deskId": "p117",
     "wander": 1.2,
     "model": {
-      "species": "finance",
-      "skin": "#e5c0a4",
-      "shirt": "#484254",
-      "pants": "#4a5360",
-      "hair": "#2a2429",
+      "species": "developer",
+      "skin": "#f9dbc8",
+      "shirt": "#ffffff",
+      "pants": "#000000",
+      "hair": "#252321",
       "hairStyle": 1,
       "eyes": "#49362b",
-      "tieColor": 7577040,
+      "tieColor": 14749198,
       "accessory": "none"
     }
   },
@@ -32,7 +40,9 @@
     "roomId": "developer",
     "rooms": [
       "developer",
-      "meeting"
+      "meeting",
+      "courtyard",
+      "cafe"
     ],
     "deskId": "p51",
     "wander": 1,
@@ -40,9 +50,9 @@
       "species": "developer",
       "skin": "#dca787",
       "shirt": "#17191d",
-      "pants": "#343b45",
+      "pants": "#101216",
       "hair": "#252321",
-      "hairStyle": 4,
+      "hairStyle": 3,
       "eyes": "#49362b",
       "tieColor": 4685222,
       "accessory": "headphones"
@@ -57,7 +67,9 @@
     "roomId": "developer",
     "rooms": [
       "developer",
-      "cafe"
+      "cafe",
+      "meeting",
+      "courtyard"
     ],
     "deskId": "p52",
     "wander": 1,
@@ -65,7 +77,7 @@
       "species": "developer",
       "skin": "#dca787",
       "shirt": "#17191d",
-      "pants": "#343b45",
+      "pants": "#101216",
       "hair": "#252321",
       "hairStyle": 2,
       "eyes": "#49362b",
@@ -82,18 +94,20 @@
     "roomId": "developer",
     "rooms": [
       "developer",
-      "cafe"
+      "cafe",
+      "meeting",
+      "courtyard"
     ],
     "deskId": "p53",
     "wander": 1.2,
     "model": {
-      "species": "operator",
-      "skin": "#9f694a",
-      "shirt": "#333943",
-      "pants": "#484254",
-      "hair": "#17191d",
-      "hairStyle": 5,
-      "eyes": "#30241d",
+      "species": "developer",
+      "skin": "#dca787",
+      "shirt": "#17191d",
+      "pants": "#101216",
+      "hair": "#252321",
+      "hairStyle": 3,
+      "eyes": "#49362b",
       "tieColor": 4685222,
       "accessory": "headphones"
     }
@@ -107,20 +121,22 @@
     "roomId": "developer",
     "rooms": [
       "developer",
-      "cafe"
+      "cafe",
+      "meeting",
+      "courtyard"
     ],
     "deskId": "p54",
     "wander": 1.6,
     "model": {
-      "species": "analyst",
-      "skin": "#e2b89b",
-      "shirt": "#9ca9b8",
-      "pants": "#2b2f35",
-      "hair": "#5a3d2c",
-      "hairStyle": 3,
+      "species": "developer",
+      "skin": "#dca787",
+      "shirt": "#17191d",
+      "pants": "#101216",
+      "hair": "#252321",
+      "hairStyle": 4,
       "eyes": "#49362b",
       "tieColor": 4685222,
-      "accessory": "none"
+      "accessory": "headphones"
     }
   },
   {
@@ -156,6 +172,7 @@
     "roomId": "lobby",
     "rooms": [
       "lobby",
+      "courtyard",
       "cafe"
     ],
     "deskId": "p67",
@@ -332,7 +349,7 @@
     "rooms": [
       "studio",
       "cafe",
-      "meeting"
+      "courtyard"
     ],
     "deskId": "p37#1",
     "wander": 1,
@@ -422,5 +439,30 @@
       "tieColor": 12937812,
       "accessory": "glasses"
     }
+  },
+  {
+    "id": "staff-018",
+    "name": "HANA",
+    "title": "Barista",
+    "department": "Operations",
+    "status": "active",
+    "roomId": "cafe",
+    "deskId": null,
+    "wander": 1.6,
+    "model": {
+      "species": "staff",
+      "skin": "#dca787",
+      "shirt": "#15161a",
+      "pants": "#0a0c10",
+      "hair": "#17191d",
+      "hairStyle": 5,
+      "eyes": "#30241d",
+      "tieColor": 9206201,
+      "accessory": "hat"
+    },
+    "rooms": [
+      "cafe",
+      "courtyard"
+    ]
   }
 ]
