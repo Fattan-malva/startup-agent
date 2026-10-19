@@ -129,6 +129,6 @@ export function build(b) {
   });
 
   b._plant(-15.35, -3.85, 0, { variant: 0, scale: 0.7, seed: 40 });
-  b._plant(-6.05, -9.2, 0, { variant: 1, scale: 0.62, seed: 41 });
-  b._static(createBin(), -8.8, -3.65, 0);
+  b._plant(-7.3698, -3.3698, 0, { variant: 1, scale: 0.62, seed: 41 });
+  b._static(createBin(), -6.07, -9.57, 0);
 }

@@ -4,6 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/* Tata ruang gedung disimpan sebagai JSON (satu-satunya sumber data):
+ *   src/data/layout.default.json  →  src/data/defaultEdits.js (DEFAULT_EDITS)
+ * Mode Edit menulis ke file JSON ini lewat endpoint /__layout, jadi
+ * "Reset semua" selalu kembali ke editan terakhir yang tersimpan. */
 const LAYOUT_FILE = path.join(__dirname, "src", "data", "layout.default.json");
 const STAFF_FILE = path.join(__dirname, "src", "data", "staff.json");
 
@@ -68,6 +72,7 @@ function layoutSavePlugin() {
             if (!data || typeof data !== "object" || !data.items) {
               throw new Error("layout tidak valid (items hilang)");
             }
+            // Tata ruang disimpan sebagai JSON (dibaca defaultEdits.js).
             const out = JSON.stringify(data, null, 2) + "\n";
             fs.mkdirSync(path.dirname(LAYOUT_FILE), { recursive: true });
             fs.writeFileSync(LAYOUT_FILE, out, "utf8");

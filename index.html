@@ -176,7 +176,7 @@
         </button>
       </div>
       <p id="edit-target" class="edit-target">Klik perabot untuk memilih</p>
-      <p id="edit-save-state" class="edit-save-state">Menyimpan otomatis ke src/world/layout.default.json</p>
+      <p id="edit-save-state" class="edit-save-state">Menyimpan otomatis ke src/data/layout.default.json</p>
 
       <div class="edit-row">
         <span class="dock-label">Putar</span>
@@ -207,14 +207,12 @@
       </div>
 
       <div class="edit-actions">
+        <button class="btn" type="button" data-action="edit-undo" id="edit-undo" disabled>↩ Undo</button>
+        <button class="btn" type="button" data-action="edit-redo" id="edit-redo" disabled>↪ Redo</button>
         <button class="btn" type="button" data-action="edit-reset">Reset pilihan</button>
         <button class="btn" type="button" data-action="edit-reset-all">Reset semua</button>
-        <button class="btn" type="button" data-action="edit-export">Ekspor</button>
-        <button class="btn" type="button" data-action="edit-import">Impor</button>
         <button class="btn is-accent" type="button" data-action="edit-save">Simpan</button>
       </div>
-
-      <input type="file" id="edit-file" accept="application/json,.json" hidden />
     </aside>
 
     <!-- staff management modal (dashboard HR) -->
@@ -560,9 +558,11 @@
             <li><kbd>Klik + drag</kbd> — pindah perabot</li>
             <li>Di POV (kursor terkunci): <kbd>crosshair</kbd> bidik · tahan tombol — geser</li>
             <li><kbd>[</kbd> <kbd>]</kbd> atau ⟲ ⟳ — putar 15°</li>
-            <li>Palet material — ganti bahan perabot</li>
+            <li>Palet material — ganti bahan <em>semua perabot sejenis</em></li>
+            <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> — batalkan aksi terakhir (undo) · <kbd>Ctrl</kbd>+<kbd>Y</kbd> — ulang</li>
             <li><kbd>Ctrl</kbd>+<kbd>D</kbd> — duplikat perabot terpilih</li>
             <li><kbd>Del</kbd> — hapus perabot terpilih</li>
+            <li>Tata ruang tersimpan otomatis ke <code>src/data/layout.default.json</code> — “Reset semua” kembali ke editan terakhir</li>
             <li><kbd>Esc</kbd> — (POV) lepas kursor dulu, lalu simpan &amp; keluar</li>
           </ul>
         </div>

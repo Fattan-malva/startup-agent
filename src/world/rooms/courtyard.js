@@ -446,24 +446,24 @@ export function build(b) {
   b.staticGroup.add(path);
 
   /* ── Pohon peneduh (4 sudut taman) ───────────────────────────────── */
-  b._plant(-3.4, 1.6, 0, { variant: 0, scale: 1.6, seed: 201 }, "Pohon taman");
-  b._plant(3.4, 1.6, 0, { variant: 1, scale: 1.6, seed: 202 }, "Pohon taman");
+  b._plant(-4.164, -0.164, 0, { variant: 0, scale: 1.6, seed: 201 }, "Pohon taman");
+  b._plant(-1.414, -0.414, 0, { variant: 1, scale: 1.6, seed: 202 }, "Pohon taman");
   b._plant(-3.4, 6.4, 0, { variant: 2, scale: 1.6, seed: 203 }, "Pohon taman");
   b._plant(3.4, 6.4, 0, { variant: 0, scale: 1.6, seed: 204 }, "Pohon taman");
 
   /* ── Bangku taman di sisi jalur (menghadap jalur) ────────────────── */
-  const b1 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.75, 3.0, Math.PI / 2);
-  b._softSeats({ x: -1.75, z: 3.0, ry: Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b1 });
-  const b2 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.75, 3.0, -Math.PI / 2);
-  b._softSeats({ x: 1.75, z: 3.0, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b2 });
-  const b3 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.8, 7.4, Math.PI / 2);
-  b._softSeats({ x: -1.8, z: 7.4, ry: Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b3 });
-  const b4 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.8, 7.4, -Math.PI / 2);
-  b._softSeats({ x: 1.8, z: 7.4, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b4 });
+  const b1 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.26, 2.945, Math.PI / 2);
+  b._softSeats(b1, { width: 1.35, depth: 0.44, count: 2 });
+  const b2 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.24, 0.945, -Math.PI / 2);
+  b._softSeats(b2, { width: 1.35, depth: 0.44, count: 2 });
+  const b3 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.26, 7.445, Math.PI / 2);
+  b._softSeats(b3, { width: 1.35, depth: 0.44, count: 2 });
+  const b4 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.24, 5.195, -Math.PI / 2);
+  b._softSeats(b4, { width: 1.35, depth: 0.44, count: 2 });
 
   /* ── Air mancur + lampu taman ────────────────────────────────────── */
   const fountain = courtyardFountain();
-  b._static(fountain, 2.9, 4.6, 0);
+  b._static(fountain, -3.67, 2.83, 0);
   b._interactive(fountain, {
     id: "courtyard-fountain",
     label: "Air mancur taman",
@@ -486,7 +486,7 @@ export function build(b) {
 
   /* ── Tanaman kecil dekat pintu kaca (simetris terhadap sumbu x = 0) ── */
   b._plant(-1.75, -0.35, 0, { variant: 2, scale: 0.62, seed: 205 }, "Tanaman taman");
-  b._plant(1.75, -0.35, 0, { variant: 1, scale: 0.62, seed: 206 }, "Tanaman taman");
+  b._plant(-4.6198, 4.6302, 0, { variant: 1, scale: 0.62, seed: 206 }, "Tanaman taman");
 
   /* ── Planter tepi selatan: menyisakan gerbang x -1.6..1.6 ────────── */
   for (const dx of [-4.1, -2.4, 2.4, 4.1]) {

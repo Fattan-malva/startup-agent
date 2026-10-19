@@ -91,11 +91,11 @@ export function build(b) {
 
   const sofaA = createSofa({ width: 2.0, depth: 0.85 });
   const sofaAObj = b._static(sofaA, -3.9, -8.45, 0, 0, { w: 2.1, d: 0.95 });
-  b._softSeats({ x: -3.9, z: -8.45, ry: 0, width: 2.0, depth: 0.85, count: 3, owner: sofaAObj });
+  b._softSeats(sofaAObj, { width: 2.0, depth: 0.85, count: 3 });
 
   const sofaB = createSofa({ width: 2.0, depth: 0.85 });
   const sofaBObj = b._static(sofaB, -3.9, -4.35, Math.PI, 0, { w: 2.1, d: 0.95 });
-  b._softSeats({ x: -3.9, z: -4.35, ry: Math.PI, width: 2.0, depth: 0.85, count: 3, owner: sofaBObj });
+  b._softSeats(sofaBObj, { width: 2.0, depth: 0.85, count: 3 });
 
   b._static(createCoffeeTable({ r: 0.42 }), -3.9, -6.4, 0);
 
@@ -106,7 +106,7 @@ export function build(b) {
 
   /* Bangku tunggu + rak majalah di dinding timur. */
   const bench = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 5.02, -6.0, -Math.PI / 2);
-  b._softSeats({ x: 5.02, z: -6.0, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: bench });
+  b._softSeats(bench, { width: 1.35, depth: 0.44, count: 2 });
   b._static(createMagazineRack({ w: 0.72, h: 0.9, d: 0.3 }), 5.0, -4.2, -Math.PI / 2);
 
   /* Rak buku di dinding utara (punggung menempel dinding). */
@@ -117,7 +117,7 @@ export function build(b) {
 
   b._plant(5.05, -9.2, 0, { variant: 0, scale: 0.72, seed: 55 });
   b._plant(-5.05, -9.25, 0, { variant: 2, scale: 0.62, seed: 56 });
-  b._plant(1.95, -3.75, 0, { variant: 1, scale: 0.6, seed: 57 });
+  b._plant(1.126, -3.374, 0, { variant: 1, scale: 0.6, seed: 57 });
   b._static(createBin(), -1.9, -9.2, 0);
 
   /* Karakter TIDAK dibuat di sini — semua staf lahir dari staff.json

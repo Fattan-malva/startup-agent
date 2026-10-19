@@ -228,9 +228,9 @@ export function build(b) {
   b.staticGroup.add(rug);
 
   const sofa = createSofa({ width: 2.0, depth: 0.85 });
-  const sofaObj = b._static(sofa, 13.8, -6.15, Math.PI, 0, { w: 2.1, d: 0.95 });
+  const sofaObj = b._static(sofa, 13.8, -5.775, Math.PI, 0, { w: 2.1, d: 0.95 });
   // 3 dudukan (satu per bantalan) — sofa panjang bisa dipakai 3 orang.
-  b._softSeats({ x: 13.8, z: -6.15, ry: Math.PI, width: 2.0, depth: 0.85, count: 3, owner: sofaObj });
+  b._softSeats(sofaObj, { width: 2.0, depth: 0.85, count: 3 });
 
   const armA = createArmchair({ color: "sand" });
   b._static(armA, 15.25, -7.9, Math.PI);
@@ -257,9 +257,9 @@ export function build(b) {
   b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), 9.75, -6.6, 0);
 
   b._plant(6.1, -9.4, 0, { variant: 0, scale: 0.66, seed: 32 });
-  b._plant(9.6, -9.4, 0, { variant: 1, scale: 0.6, seed: 33 });
+  b._plant(7.126, -3.374, 0, { variant: 1, scale: 0.6, seed: 33 });
   b._plant(15.5, -3.9, 0, { variant: 2, scale: 0.6, seed: 34 });
-  b._static(createBin(), 7.75, -3.5, 0);
+  b._static(createBin(), 7.43, -3.57, 0);
 
   /* Karakter TIDAK dibuat di sini — semua staf lahir dari staff.json
    * lewat modal Management Staf. Tidak ada NPC statis. */

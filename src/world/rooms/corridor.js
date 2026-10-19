@@ -24,7 +24,7 @@ export function build(b) {
    *  Target AI `_goalCooler` mengarah ke (3.2, -2.1) — tepat di muka
    *  dispenser ini, jadi jangan digeser tanpa memperbarui AI.js. */
   const cooler = createWaterCooler();
-  b._static(cooler, 3.2, -2.72, 0);
+  b._static(cooler, 5, -5, 4.7124);
   b._interactive(cooler, {
     id: "corridor-cooler",
     label: "Dispenser air",
@@ -35,7 +35,7 @@ export function build(b) {
 
   /* ── Koridor utara: bangku tunggu + jam + lukisan ────────────────── */
   const benchN = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.9, -2.72, 0);
-  b._softSeats({ x: -1.9, z: -2.72, ry: 0, width: 1.35, depth: 0.44, count: 2, owner: benchN });
+  b._softSeats(benchN, { width: 1.35, depth: 0.44, count: 2 });
   b._static(createClock(), -4.6, -2.97, 0, 2.0);
   // Digeser ke timur: pintu Lobby kini 1.8 m (x -0.9..0.9), jadi lukisan
   // tidak boleh lagi mengintip ke jalur pintu.
@@ -43,9 +43,9 @@ export function build(b) {
 
   /* ── Kaki barat & timur: bangku menghadap taman ──────────────────── */
   const benchW = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -6.79, 1.0, Math.PI / 2);
-  b._softSeats({ x: -6.79, z: 1.0, ry: Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: benchW });
+  b._softSeats(benchW, { width: 1.35, depth: 0.44, count: 2 });
   const benchE = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 6.79, 1.0, -Math.PI / 2);
-  b._softSeats({ x: 6.79, z: 1.0, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: benchE });
+  b._softSeats(benchE, { width: 1.35, depth: 0.44, count: 2 });
 
   /* ── Papan pengumuman di dinding kaki barat & timur (digeser sedikit ke
    *  utara supaya pintu kaca 2.0 m ke taman benar-benar bebas) ─────── */

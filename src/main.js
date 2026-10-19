@@ -114,6 +114,8 @@ async function boot() {
     }
     const staffModal = new StaffModal({ building, crew, hud });
     console.log('[Main] StaffModal created');
+    // Mode Edit butuh kru (mis. melepas staf yang mejanya dihapus)
+    edit.crew = crew;
 
     const meeting = new Meeting({ building, crew });
 
@@ -360,11 +362,11 @@ async function boot() {
         case "edit-save":
           edit.saveNow(true);
           break;
-        case "edit-export":
-          edit.exportEdits();
+        case "edit-undo":
+          edit.undo();
           break;
-        case "edit-import":
-          hud.dom.editFile?.click();
+        case "edit-redo":
+          edit.redo();
           break;
         case "edit-copy":
           edit.copySelected();
@@ -440,13 +442,6 @@ async function boot() {
       } else if (player.active) {
         player.release();
       }
-    });
-
-    // Impor layout dunia dari file JSON
-    hud.dom.editFile?.addEventListener("change", (e) => {
-      const file = e.target.files?.[0] || null;
-      edit.importEdits(file);
-      e.target.value = "";
     });
 
     /* ------------------------------------------------------------ resize */

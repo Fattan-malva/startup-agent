@@ -729,6 +729,7 @@ export class Building {
       seat.lx = wxl * cos - wzl * sin;
       seat.lz = wxl * sin + wzl * cos;
       seat.ry = yaw - item.ry;
+      seat.unitId = item.id;          // ikut bergerak/putar bersama perabot
       (item.seats || (item.seats = [])).push(seat);
     }
     if (obstacle) {
@@ -760,21 +761,26 @@ export class Building {
    * satu dudukan per bantalan, tersebar merata di lebarnya — makanya sofa
    * 3 bantalan bisa dipakai 3 orang sekaligus, bukan cuma satu.
    *
+   * Posisi diambil dari perabot itu sendiri (bukan ditulis ulang), jadi
+   * kalau perabot digeser di Mode Edit, dudukannya ikut.
+   *
    * `approachFwd` = jarak tempat BERDIRI sebelum duduk, dihitung dari pusat
    * dudukan ke arah depan perabot. Tanpa ini, badan karakter tertahan
    * collider sofa (sofa panjang di dinding pun jadi tidak bisa diduduki).
    */
-  _softSeats({ x, z, ry = 0, width = 1.6, depth = 0.85, type = "lounge", count = null, owner = null } = {}) {
+  _softSeats(prop, { width = 1.6, depth = 0.85, type = "lounge", count = null } = {}) {
+    const item = prop?.userData?.editItem;
+    if (!item) return [];
+    const x = item.x;
+    const z = item.z;
+    const ry = item.ry || 0;
     const n = Math.max(1, Math.min(3, count ?? Math.round((width - 0.2) / 0.66)));
     const usable = Math.max(0.36, width - 0.36);      // tanpa sandaran kiri/kanan
     const step = usable / n;
     const c = Math.cos(ry);
     const s = Math.sin(ry);
     const front = depth / 2 + 0.38;                   // berdiri di depan perabot
-    // owner boleh: item edit, obj three, atau collider langsung
-    const ownerCol = owner?.obstacle
-      || owner?.userData?.editItem?.obstacle
-      || (owner && owner.minX !== undefined ? owner : null);
+    const ownerCol = item.obstacle;
     const out = [];
     for (let i = 0; i < n; i++) {
       const off = -usable / 2 + step * (i + 0.5);
@@ -1393,7 +1399,9 @@ export class Building {
     const dz = z - item.z;
     if (Math.abs(dx) < 1e-9 && Math.abs(dz) < 1e-9) return;
     for (const m of g) this.moveProp(m, m.x + dx, m.z + dz);
-    this._nav = null;
+    // Saat drag, grid nav TIDAK di-invalidate (butuh rebuild tiap frame →
+    // berat). Grid dibangun ulang sekali saat drag selesai.
+    if (!this._navSuspended) this._nav = null;
   }
 
   /** Putar seluruh unit mengelilingi anchor (posisi + orientasi). */
@@ -1422,7 +1430,7 @@ export class Building {
       this.rotateProp(t.m, t.ry);
       this.moveProp(t.m, t.x, t.z);
     }
-    this._nav = null;
+    if (!this._navSuspended) this._nav = null;
   }
 
   /**
@@ -1938,6 +1946,46 @@ export class Building {
     item.matKey = matKey;
   }
 
+  /**
+   * "Jenis" perabot: label aslinya. Duplikat ikut jenis sumbernya, jadi
+   * "Meja kerja" (asli + semua salinannya) dianggap satu jenis.
+   */
+  propKind(item) {
+    if (!item) return null;
+    if (item.isCopy && item.srcId) {
+      const src = this._editById.get(item.srcId);
+      return src ? (src.label || src.id) : (item.label || item.id);
+    }
+    return item.label || item.id;
+  }
+
+  /**
+   * Ganti material untuk SEMUA perabot sejenis (mis. pilih satu "Meja kerja"
+   * → semua meja kerja ikut memakai material yang sama). Ini yang bikin edit
+   * material terasa konsisten di seluruh gedung, bukan cuma satu perabot.
+   */
+  setPropMaterialKind(item, matKey) {
+    const kind = this.propKind(item);
+    let n = 0;
+    for (const other of this.editList()) {
+      if (!other || other.removed) continue;
+      if (this.propKind(other) !== kind) continue;
+      this.setPropMaterial(other, matKey);
+      n++;
+    }
+    return n;
+  }
+
+  /** Kembalikan semua perabot sejenis ke material & posisi aslinya. */
+  resetPropKind(item) {
+    const kind = this.propKind(item);
+    for (const other of this.editList()) {
+      if (!other || other.removed) continue;
+      if (this.propKind(other) !== kind) continue;
+      this.resetProp(other);
+    }
+  }
+
   /** Kembalikan satu perabot ke posisi/rotasi/material asal. */
   resetProp(item) {
     if (item.removed) this.restoreProp(item);
@@ -2011,7 +2059,7 @@ export class Building {
 
   /**
    * Snapshot LENGKAP tata ruang (semua perabot, bukan hanya yang berubah).
-   * Dipakai untuk menulis src/data/layout.default.json dari Mode Edit:
+   * Dipakai untuk menulis src/data/defaultEdits.js dari Mode Edit:
    * siapa pun yang pull repo langsung memakai tata ruang ini.
    */
   serializeLayout() {
@@ -2233,6 +2281,23 @@ export class Building {
 
   /** Paksa grid navigasi dibangun ulang (setelah perabot diedit). */
   refreshNav() {
+    this._nav = null;
+  }
+
+  /**
+   * Tahan pembangunan ulang grid navigasi (saat Mode Edit sedang menggeser
+   * perabot — rebuild tiap frame itu berat). WAJIB dilepas kembali lewat
+   * `resumeNav()`, kalau tidak grid jadi basi dan karakter bisa menembus
+   * dinding/perabot.
+   */
+  suspendNav() {
+    this._navSuspended = true;
+  }
+
+  /** Lepas tahanan navigasi + langsung bangun ulang gridnya. */
+  resumeNav() {
+    if (!this._navSuspended) return;
+    this._navSuspended = false;
     this._nav = null;
   }
 

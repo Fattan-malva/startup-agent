@@ -16,6 +16,7 @@ import {
   deptTie,
   staffByDesk,
   effectiveRooms,
+  persistStaff,
   clampHairStyle,
   hairStyleName,
 } from "../data/staff.js";
@@ -596,19 +597,9 @@ export class StaffModal {
   }
 
   async _persist() {
-    try {
-      const res = await fetch("/__staff", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(STAFF),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return true;
-    } catch (e) {
-      console.warn("[StaffModal] gagal menyimpan:", e);
-      this.hud?.toast("Gagal menyimpan — jalankan lewat npm run dev", 2800);
-      return false;
-    }
+    const ok = await persistStaff();
+    if (!ok) this.hud?.toast("Gagal menyimpan — jalankan lewat npm run dev", 2800);
+    return ok;
   }
 
   _setState(dirty) {

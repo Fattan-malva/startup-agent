@@ -55,7 +55,7 @@ export function build(b) {
 
   /* ── Moodboard + panel akustik ───────────────────────────────────── */
   const board = createWhiteboard({ w: 2.2, h: 1.0 });
-  b._static(board, 9.4, 1.2, 0, 0.78, { w: 2.2, d: 0.16 });
+  b._static(board, 8.35, 1.2, 0, 0.78, { w: 2.2, d: 0.16 });
   b._interactive(board, {
     id: "board-studio",
     label: "Papan ide studio",
@@ -66,7 +66,7 @@ export function build(b) {
 
   b._static(createAcousticPanel({ w: 0.52, h: 0.86, color: "sage" }), 13.4, 4.82, Math.PI, 0.85, { w: 0.6, d: 0.1 });
   b._static(createAcousticPanel({ w: 0.52, h: 0.86, color: "rust" }), 15.0, 4.82, Math.PI, 0.85, { w: 0.6, d: 0.1 });
-  b._static(createWallArt({ w: 0.6, h: 0.78, variant: 2 }), 12.6, 1.2, 0, 0.85, { w: 0.68, d: 0.1 });
+  b._static(createWallArt({ w: 0.6, h: 0.78, variant: 2 }), 15.09, 1.2, 0, 0.85, { w: 0.68, d: 0.1 });
 
   /* ── Penyimpanan di dinding timur ────────────────────────────────── */
   b._static(
@@ -89,6 +89,6 @@ export function build(b) {
   b._plant(9.0, 4.5, 0, { variant: 1, scale: 0.66, seed: 88 });
   /* tanaman dipindah dari dinding utara: supaya jalur belakang meja (tempat
      sandaran kursi utara) tidak terputus jadi kantong buntu. */
-  b._plant(9.55, 4.6, 0, { variant: 0, scale: 0.6, seed: 89 });
+  b._plant(7.376, 1.876, 0, { variant: 0, scale: 0.6, seed: 89 });
   b._static(createBin(), 7.6, 4.6, 0);
 }

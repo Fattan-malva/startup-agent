@@ -17,10 +17,10 @@
       "shirt": "#484254",
       "pants": "#4a5360",
       "hair": "#2a2429",
+      "hairStyle": 1,
       "eyes": "#49362b",
       "tieColor": 7577040,
-      "accessory": "none",
-      "hairStyle": 1
+      "accessory": "none"
     }
   },
   {
@@ -32,7 +32,7 @@
     "roomId": "developer",
     "rooms": [
       "developer",
-      "cafe"
+      "meeting"
     ],
     "deskId": "p51",
     "wander": 1,
@@ -42,10 +42,10 @@
       "shirt": "#17191d",
       "pants": "#343b45",
       "hair": "#252321",
+      "hairStyle": 4,
       "eyes": "#49362b",
       "tieColor": 4685222,
-      "accessory": "headphones",
-      "hairStyle": 4
+      "accessory": "headphones"
     }
   },
   {
@@ -67,10 +67,10 @@
       "shirt": "#17191d",
       "pants": "#343b45",
       "hair": "#252321",
+      "hairStyle": 2,
       "eyes": "#49362b",
       "tieColor": 4685222,
-      "accessory": "headphones",
-      "hairStyle": 2
+      "accessory": "headphones"
     }
   },
   {
@@ -92,10 +92,10 @@
       "shirt": "#333943",
       "pants": "#484254",
       "hair": "#17191d",
+      "hairStyle": 5,
       "eyes": "#30241d",
       "tieColor": 4685222,
-      "accessory": "headphones",
-      "hairStyle": 5
+      "accessory": "headphones"
     }
   },
   {
@@ -117,10 +117,10 @@
       "shirt": "#9ca9b8",
       "pants": "#2b2f35",
       "hair": "#5a3d2c",
+      "hairStyle": 3,
       "eyes": "#49362b",
       "tieColor": 4685222,
-      "accessory": "none",
-      "hairStyle": 3
+      "accessory": "none"
     }
   },
   {
@@ -141,10 +141,10 @@
       "shirt": "#c0a06b",
       "pants": "#8c8175",
       "hair": "#7e5d3e",
+      "hairStyle": 1,
       "eyes": "#30241d",
       "tieColor": 14053009,
-      "accessory": "headphones",
-      "hairStyle": 1
+      "accessory": "headphones"
     }
   },
   {
@@ -166,10 +166,10 @@
       "shirt": "#15161a",
       "pants": "#0a0c10",
       "hair": "#17191d",
+      "hairStyle": 2,
       "eyes": "#30241d",
       "tieColor": 9206201,
-      "accessory": "hat",
-      "hairStyle": 2
+      "accessory": "hat"
     }
   },
   {
@@ -191,10 +191,10 @@
       "shirt": "#9ca9b8",
       "pants": "#2b2f35",
       "hair": "#5a3d2c",
+      "hairStyle": 4,
       "eyes": "#49362b",
       "tieColor": 9206201,
-      "accessory": "none",
-      "hairStyle": 4
+      "accessory": "none"
     }
   },
   {
@@ -216,10 +216,10 @@
       "shirt": "#333943",
       "pants": "#484254",
       "hair": "#17191d",
+      "hairStyle": 3,
       "eyes": "#30241d",
       "tieColor": 9206201,
-      "accessory": "headphones",
-      "hairStyle": 3
+      "accessory": "headphones"
     }
   },
   {
@@ -241,10 +241,10 @@
       "shirt": "#b96850",
       "pants": "#4d5b51",
       "hair": "#332f2b",
+      "hairStyle": 5,
       "eyes": "#49362b",
       "tieColor": 5217144,
-      "accessory": "none",
-      "hairStyle": 5
+      "accessory": "none"
     }
   },
   {
@@ -266,10 +266,10 @@
       "shirt": "#9ca9b8",
       "pants": "#2b2f35",
       "hair": "#5a3d2c",
+      "hairStyle": 2,
       "eyes": "#49362b",
       "tieColor": 5217144,
-      "accessory": "none",
-      "hairStyle": 2
+      "accessory": "none"
     }
   },
   {
@@ -291,10 +291,10 @@
       "shirt": "#484254",
       "pants": "#4a5360",
       "hair": "#2a2429",
+      "hairStyle": 1,
       "eyes": "#49362b",
       "tieColor": 7569296,
-      "accessory": "none",
-      "hairStyle": 1
+      "accessory": "none"
     }
   },
   {
@@ -316,10 +316,10 @@
       "shirt": "#484254",
       "pants": "#4a5360",
       "hair": "#2a2429",
+      "hairStyle": 4,
       "eyes": "#49362b",
       "tieColor": 7569296,
-      "accessory": "none",
-      "hairStyle": 4
+      "accessory": "none"
     }
   },
   {
@@ -342,10 +342,10 @@
       "shirt": "#94ad9b",
       "pants": "#8c8175",
       "hair": "#201c1b",
+      "hairStyle": 3,
       "eyes": "#30241d",
       "tieColor": 12937812,
-      "accessory": "headphones",
-      "hairStyle": 3
+      "accessory": "headphones"
     }
   },
   {
@@ -367,10 +367,10 @@
       "shirt": "#8980a8",
       "pants": "#4a5360",
       "hair": "#342721",
+      "hairStyle": 5,
       "eyes": "#49362b",
       "tieColor": 12937812,
-      "accessory": "glasses",
-      "hairStyle": 5
+      "accessory": "glasses"
     }
   },
   {
@@ -392,10 +392,10 @@
       "shirt": "#94ad9b",
       "pants": "#8c8175",
       "hair": "#201c1b",
+      "hairStyle": 2,
       "eyes": "#30241d",
       "tieColor": 12937812,
-      "accessory": "headphones",
-      "hairStyle": 2
+      "accessory": "headphones"
     }
   },
   {
@@ -417,10 +417,10 @@
       "shirt": "#d4c7b5",
       "pants": "#343b45",
       "hair": "#342721",
+      "hairStyle": 3,
       "eyes": "#49362b",
       "tieColor": 12937812,
-      "accessory": "glasses",
-      "hairStyle": 3
+      "accessory": "glasses"
     }
   }
 ]

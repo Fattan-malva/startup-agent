@@ -148,8 +148,7 @@ export class Crew {
   }
 
   /** Populate from src/data/staff.json (default 15 staff). */
-  populateFromStaff() {
-    for (const s of STAFF) {
+  populateFromStaff() {    for (const s of STAFF) {
       const m = s.model || {};
       this.spawn({
         species: m.species || null,
@@ -167,8 +166,26 @@ export class Crew {
     return this;
   }
 
-  despawn(critter) {
-    const brain = this.brains.get(critter);
+  /**
+   * Sinkronkan ulang data staf (meja, ruang kerja, izin ruangan) ke
+   * kritter di dunia. Dipanggil Mode Edit setelah meja dihapus/dipindah,
+   * supaya karakter langsung tahu meja barunya (atau kehilangan mejanya).
+   */
+  syncStaffDesks() {
+    for (const s of STAFF) {
+      const c = this.members.find((m) => m.staffId === s.id);
+      if (!c) continue;
+      c.roomId = s.roomId;
+      c.deskId = s.deskId;
+      c.rooms = [...(s.rooms || [])];
+      c.allowedRooms = effectiveRooms({ rooms: c.rooms });
+      const seat = s.deskId ? this.building.seatByDesk(s.deskId) : null;
+      if (seat) c.homeSpot = { x: seat.x, z: seat.z };
+      else c.homeSpot = null;
+    }
+  }
+
+  despawn(critter) {    const brain = this.brains.get(critter);
     if (brain) {
       brain._finish();
       this.brains.delete(critter);

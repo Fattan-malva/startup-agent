@@ -53,11 +53,11 @@ export function build(b) {
 
   const sofaN = createSofa({ width: 1.7, depth: 0.85 });
   const sofaNObj = b._static(sofaN, -10.4, 3.9, 0, 0, { w: 1.8, d: 0.95 });
-  b._softSeats({ x: -10.4, z: 3.9, ry: 0, width: 1.7, depth: 0.85, count: 3, owner: sofaNObj });
+  b._softSeats(sofaNObj, { width: 1.7, depth: 0.85, count: 3 });
 
   const sofaS = createSofa({ width: 1.7, depth: 0.85 });
   const sofaSObj = b._static(sofaS, -10.4, 6.3, Math.PI, 0, { w: 1.8, d: 0.95 });
-  b._softSeats({ x: -10.4, z: 6.3, ry: Math.PI, width: 1.7, depth: 0.85, count: 3, owner: sofaSObj });
+  b._softSeats(sofaSObj, { width: 1.7, depth: 0.85, count: 3 });
 
   /* Meja kopi dipindah ke ujung timur pit (bukan di tengah) supaya ruang
    * duduk depan sofa tetap lapang — karang duduk butuh jalur masuk. */
@@ -113,7 +113,7 @@ export function build(b) {
     onClick: (self) => (self.userData.api.toggle() ? "Lampu lounge nyala" : "Lampu lounge mati"),
   });
 
-  b._static(createFloorLamp(), -8.2, 4.3, 0);
+  b._static(createFloorLamp(), -15.5, 8.5, 1.5708);
 
   b._plant(-15.4, 8.5, 0, { variant: 2, scale: 0.72, seed: 70 });
   b._plant(-7.6, 3.5, 0, { variant: 0, scale: 0.6, seed: 71 });

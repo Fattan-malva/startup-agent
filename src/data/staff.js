@@ -169,6 +169,25 @@ export function deptTie(department) {
     ?? 0x737f90;
 }
 
+/**
+ * Tulis data staf ke src/data/staff.json (lewat dev server).
+ * Dipakai modal Staf & Mode Edit (mis. meja dihapus → staf lepas mejanya).
+ */
+export async function persistStaff() {
+  try {
+    const res = await fetch("/__staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(STAFF),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return true;
+  } catch (e) {
+    console.warn("[staff] gagal menyimpan data staf:", e);
+    return false;
+  }
+}
+
 export function staffById(id) {
   return STAFF.find((s) => s.id === id) || null;
 }

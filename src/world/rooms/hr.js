@@ -26,7 +26,7 @@ import { WALL_H } from "../layout.js";
 export function build(b) {
   /* ── Meja kerja HR (meja + kursi = SATU perabot) ─────────────────── */
   const bundle = b._workBundle(createWorkstation({ desk: { width: 1.85 } }), {
-    x: 9.6, z: -1.6, ry: Math.PI / 2,
+    x: 9.675, z: -0.28, ry: Math.PI / 2,
     label: "Meja HR",
     type: "desk",
     partsKey: "hr-desk",

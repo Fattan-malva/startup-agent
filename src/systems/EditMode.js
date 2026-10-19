@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { MAT } from "../world/materials.js";
 import { DEFAULT_EDITS } from "../data/defaultEdits.js";
+import { STAFF, persistStaff } from "../data/staff.js";
 
 /* ===================================================================== *
  *  EditMode — tata ulang perabot ala editor.
@@ -15,8 +16,8 @@ import { DEFAULT_EDITS } from "../data/defaultEdits.js";
  *  "drag memindah" tanpa mengganggu kontrol kamera.
  * ===================================================================== */
 
-// Tata ruang disimpan sebagai file JSON di repo (bukan localStorage).
-// Dev server menulis src/data/layout.default.json lewat endpoint ini.
+// Tata ruang disimpan sebagai modul di repo (bukan localStorage).
+// Dev server menulis src/data/defaultEdits.js lewat endpoint ini.
 const LAYOUT_URL = "/__layout";
 /* Petak seragam untuk SEMUA perabot, sama persis dengan ukuran sel
  * navgrid karakter (Building._navEnsure → cell = 0.25 m).
@@ -69,13 +70,14 @@ const MAT_PALETTE = [
 ];
 
 export class EditMode {
-  constructor({ scene, building, rig, fx, hud, input = null }) {
+  constructor({ scene, building, rig, fx, hud, input = null, crew = null }) {
     this.scene = scene;
     this.building = building;
     this.rig = rig;
     this.fx = fx;
     this.hud = hud;
     this.input = input;
+    this.crew = crew;
 
     this.enabled = false;
     this.snap = true;
@@ -134,6 +136,105 @@ export class EditMode {
     }
     this._placeOk = true;
     this._safe = null;   // posisi terakhir yang aman (untuk revert)
+
+    /* Riwayat undo/redo: snapshot tata ruang (serializeLayout) tiap aksi.
+     * Ctrl+Z / tombol Undo mengembalikan keadaan sebelum aksi terakhir. */
+    this._undoStack = [];
+    this._redoStack = [];
+    this._undoLimit = 60;
+
+    // Ctrl+Z / Ctrl+Y (atau Ctrl+Shift+Z) → undo / redo saat Mode Edit aktif
+    this._onKey = (e) => {
+      if (!this.enabled) return;
+      if (e.target && e.target.tagName === "INPUT") return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = (e.key || "").toLowerCase();
+      if (k === "z" && !e.shiftKey) {
+        e.preventDefault();
+        this.undo();
+      } else if (k === "y" || (k === "z" && e.shiftKey)) {
+        e.preventDefault();
+        this.redo();
+      }
+    };
+    window.addEventListener("keydown", this._onKey);
+  }
+
+  /* ------------------------------------------------------------- undo/redo */
+
+  /** Snapshot lengkap: tata ruang + penempatan meja staf. */
+  _capture() {
+    return {
+      layout: this.building.serializeLayout(),
+      desks: STAFF.map((s) => ({ id: s.id, deskId: s.deskId })),
+    };
+  }
+
+  /** Simpan snapshot SEBELUM aksi supaya bisa dibatalkan. */
+  _snapshot() {
+    try {
+      this._undoStack.push(this._capture());
+      if (this._undoStack.length > this._undoLimit) this._undoStack.shift();
+      this._redoStack.length = 0;
+      this._syncUndoBtn();
+    } catch (e) {
+      console.warn("[EditMode] gagal membuat snapshot undo", e);
+    }
+  }
+
+  _syncUndoBtn() {
+    const btn = this.hud?.dom?.editUndo;
+    if (btn) btn.disabled = !this._undoStack.length;
+    const rbtn = this.hud?.dom?.editRedo;
+    if (rbtn) rbtn.disabled = !this._redoStack.length;
+  }
+
+  /** Kembalikan tata ruang + penempatan meja staf ke snapshot tersimpan. */
+  _applySnapshot(snap) {
+    const data = snap?.layout || snap;
+    this.building.applyEdits(data, true);
+    // meja staf ikut dikembalikan (mis. setelah meja dihapus lalu di-undo)
+    if (Array.isArray(snap?.desks)) {
+      for (const d of snap.desks) {
+        const s = STAFF.find((x) => x.id === d.id);
+        if (s) s.deskId = d.deskId;
+      }
+      persistStaff();
+    }
+    this.building.refreshNav();
+    this.refreshRoots();
+    this.select(null);
+    this.crew?.syncStaffDesks?.();
+    this._placeOk = true;
+    this._refreshBox();
+  }
+
+  undo() {
+    if (!this._undoStack.length) {
+      this.hud?.toast("Tidak ada yang bisa dibatalkan", 1600);
+      return false;
+    }
+    const snap = this._undoStack.pop();
+    this._redoStack.push(this._capture());
+    this._applySnapshot(snap);
+    this._syncUndoBtn();
+    this.save();
+    this.hud?.toast("Dibatalkan ↩️", 1600);
+    return true;
+  }
+
+  redo() {
+    if (!this._redoStack.length) {
+      this.hud?.toast("Tidak ada yang bisa diulang", 1600);
+      return false;
+    }
+    const snap = this._redoStack.pop();
+    this._undoStack.push(this._capture());
+    this._applySnapshot(snap);
+    this._syncUndoBtn();
+    this.save();
+    this.hud?.toast("Diulang ↪️", 1600);
+    return true;
   }
 
   /** Buat satu lapis garis petak di atas lantai, dibatasi footprint gedung. */
@@ -210,6 +311,7 @@ export class EditMode {
       this.hud.renderEditMats(this.materialPalette(), null);
       this.hud.setEditSnap(this.snap);
       this.hud.setEditTarget("Klik perabot untuk memilih");
+      this._syncUndoBtn();
       this.hud.toast(
         this.input?.locked
           ? "Mode Edit POV — bidik perabot dengan crosshair, tahan tombol untuk menggeser. Esc = lepas kursor 🛠️"
@@ -219,6 +321,12 @@ export class EditMode {
     } else {
       for (const g of this._grids) g.visible = false;
       this._hideFootCells();
+      // Drag yang masih jalan harus DIBATASI: kalau tidak, tahanan grid
+      // navigasi tetap aktif → grid jadi basi → karakter bisa menembus
+      // dinding/perabot selamanya.
+      if (this.dragging || this._pressItem) this._release();
+      this.building?.resumeNav();
+      this.building?.refreshNav();
       this.select(null);
       this.dragging = false;
       this._pressItem = null;
@@ -394,6 +502,28 @@ export class EditMode {
     return true;
   }
 
+  /**
+   * Cek tabrakan pada posisi KANDIDAT (belum dipindahkan). Dipakai saat
+   * drag supaya perabot tidak pernah masuk ke perabot lain (dari titik
+   * valid terakhir) — jadi tidak ada "nempel lalu snap balik" saat dilepas.
+   */
+  groupOverlapOnlyAt(item, x, z) {
+    const g = this.building.groupOf(item);
+    const dx = x - item.x;
+    const dz = z - item.z;
+    if (g.length <= 1) {
+      return !this.overlapsSolid(item, x, z, item.ry);
+    }
+    const ignore = new Set(g.map((m) => m.obstacle).filter(Boolean));
+    for (const m of g) {
+      ignore.delete(m.obstacle);
+      const bad = this.overlapsSolid(m, m.x + dx, m.z + dz, m.ry, 0.015, m.obstacle, ignore);
+      ignore.add(m.obstacle);
+      if (bad) return false;
+    }
+    return true;
+  }
+
   /** NavMesh menangani navigasi — penempatan hanya dicek petak vs petak. */
   allSeatsOk() {
     return true;
@@ -432,6 +562,11 @@ export class EditMode {
     const aim = this.aimNdc();
     const down = input.down;
 
+    // Jaring pengaman: tahanan grid navigasi HANYA boleh aktif sambil
+    // menggeser. Kalau tidak (mis. drag terputus), lepaskan — kalau tidak
+    // grid navigasi jadi basi dan karakter menembus dinding/perabot.
+    if (this.building?._navSuspended && !this.dragging) this.building.resumeNav();
+
     if (down && !this._prevDown) this._press(aim);
     // Kursor terkunci (Mode Edit dari POV): tidak ada jarak kursor, jadi
     // "tahan tombol di perabot" langsung dianggap men-drag (ala Minecraft).
@@ -455,7 +590,19 @@ export class EditMode {
       }
     }
 
-    if (this.selected) this._refreshBox();
+    if (this.selected) {
+      // Kotak seleksi = Box3 dari seluruh mesh grup — mahal kalau dihitung
+      // tiap frame saat drag. Cukup 8×/detik saat menggeser.
+      if (!this.dragging) {
+        this._refreshBox();
+      } else {
+        this._boxTimer = (this._boxTimer || 0) + dt;
+        if (this._boxTimer >= 0.12) {
+          this._boxTimer = 0;
+          this._refreshBox();
+        }
+      }
+    }
   }
 
   /**
@@ -517,9 +664,11 @@ export class EditMode {
   _beginDrag() {
     const item = this._pressItem;
     if (!item) return;
+    // snapshot SEBELUM digeser → bisa di-undo
+    this._snapshot();
     // Selama drag, jangan bangun ulang grid nav tiap frame (berat) —
     // grid dibangun ulang sekali saat lepas.
-    if (this.building) this.building._navSuspended = true;
+    if (this.building) this.building.suspendNav();
     if (this.input?.locked) {
       // POV / kursor terkunci: ...
       this._grab.x = 0;
@@ -547,6 +696,10 @@ export class EditMode {
    * Geser perabot ketika kursor TERKUNCI (Mode Edit dari POV): gerakan mouse
    * diproyeksikan ke bidang lantai menurut arah kamera — tarik ke kanan →
    * perabot ikut ke kanan layar, tarik ke bawah → maju ke arah pemain.
+   *
+   * Skala 1:1 di layar (perabot mengikuti kursor persis seperti crosshair
+   * di Minecraft), TANPA snap per petak saat menggeser — snap dipakai
+   * setelah mouse dilepas supaya terasa mulus.
    */
   _dragLocked(item) {
     const d = this.input.consumeDelta();
@@ -564,15 +717,19 @@ export class EditMode {
     const dist = Math.max(0.8, cam.position.distanceTo(item.obj.position));
     const h = Math.max(1, this.rig.canvas?.clientHeight || 720);
     const perPixel = (2 * dist * Math.tan(((cam.fov || 55) * Math.PI) / 360)) / h;
-    const k = perPixel * 1.15;
+    const k = perPixel * 1.5;
     const dx = (rx * d.x - this._fwd.x * d.y) * k;
     const dz = (rz * d.x - this._fwd.z * d.y) * k;
     this._moveTo(item, item.x + dx, item.z + dz);
   }
 
-  /** Terapkan posisi kandidat ke perabot (snap + kunci dinding + validasi). */
-  _moveTo(item, x, z) {
-    if (this.snap) {
+  /**
+   * Terapkan posisi kandidat ke perabot.
+   * `applySnap` hanya dipakai saat melepas drag — selama drag perabot ikut
+   * mouse 1:1 (tanpa lompat per petak) supaya terasa ringan & mulus.
+   */
+  _moveTo(item, x, z, applySnap = false) {
+    if (applySnap && this.snap) {
       // setrik ke petak perabot ini: sisi footprint tepat di garis petak
       const f = this._footprint(item, item.ry);
       const step = this.snapStep(item);
@@ -588,17 +745,27 @@ export class EditMode {
     z = THREE.MathUtils.clamp(z, b.z0 + BODY_MARGIN, b.z1 - BODY_MARGIN);
     // tidak berubah (mis. klik tanpa geser) → jangan tandai "kotor"
     if (Math.abs(x - item.x) < 1e-4 && Math.abs(z - item.z) < 1e-4) return;
+    // Posisi yang menabrak perabot lain / menutup jalan TIDAK dipakai —
+    // perabot tetap di posisi valid terakhir (ala Minecraft: blok nggak
+    // bisa ditaruh di dalam blok lain). Efeknya: tidak ada "nempel lalu
+    // snap balik" saat mouse dilepas.
+    const wasOk = this._placeOk;
+    if (!this.groupOverlapOnlyAt(item, x, z)) {
+      this._placeOk = false;
+      this._readout();
+      return;
+    }
     this.building.moveGroup(item, x, z);
     item.obj.updateMatrixWorld(true);
-    this._placeOk = this.groupOverlapOnly(item);
-    this.fx?.setHover(item.obj);
+    this._placeOk = true;
+    if (!wasOk) this._safe = { x: item.x, z: item.z, ry: item.ry };
     this._dirty = true;
     this._readout();
   }
 
   _release() {
     const item = this._pressItem;
-    if (this.building) this.building._navSuspended = false;
+    if (this.building) this.building.resumeNav();
     if (this.dragging) {
       this.dragging = false;
       if (this._dirty) {
@@ -606,6 +773,19 @@ export class EditMode {
         // jalan, menabrak dinding, atau membuat kursinya tak bisa diakses.
         if (item) {
           this.building.refreshNav();
+          // posisi akhir dirapikan ke petak (setelah lepas, bukan saat
+          // digeser — jadi selama drag terasa mulus)
+          if (this.snap) {
+            const f = this._footprint(item, item.ry);
+            const step = this.snapStep(item);
+            const sx = this._snapEdge(item.x, f.w, step);
+            const sz = this._snapEdge(item.z, f.d, step);
+            if ((Math.abs(sx - item.x) > 1e-4 || Math.abs(sz - item.z) > 1e-4)
+              && this.groupOverlapOnlyAt(item, sx, sz)) {
+              this.building.moveGroup(item, sx, sz);
+              item.obj.updateMatrixWorld(true);
+            }
+          }
           let ok = this.groupPlacementOk(item);
           if (!ok && this._safe) {
             this.building.moveGroup(item, this._safe.x, this._safe.z);
@@ -618,6 +798,8 @@ export class EditMode {
             this._safe = { x: item.x, z: item.z, ry: item.ry };
             this._placeOk = true;
           }
+          // meja ikut pindah → titik "rumah" staf ikut diperbarui
+          this.crew?.syncStaffDesks?.();
         }
         this.save();
       }
@@ -736,6 +918,7 @@ export class EditMode {
       this.hud.toast("Pilih perabot dulu", 1400);
       return;
     }
+    this._snapshot();
     const before = { x: item.x, z: item.z, ry: item.ry };
     this.building.rotateGroup(item, item.ry + (deg * Math.PI) / 180);
     this.building.refreshNav();
@@ -753,6 +936,7 @@ export class EditMode {
     this._placeOk = ok;
     this._readout();
     this._refreshBox();
+    this.crew?.syncStaffDesks?.();
     this.save();
   }
 
@@ -762,9 +946,20 @@ export class EditMode {
       this.hud.toast("Pilih perabot dulu", 1400);
       return;
     }
-    this.building.setPropMaterial(item, key);
+    // Material berlaku untuk SEMUA perabot sejenis — pilih satu "Meja kerja"
+    // dan semua meja kerja (termasuk salinannya) ikut berubah.
+    this._snapshot();
+    const n = this.building.setPropMaterialKind(item, key);
     this.hud.renderEditMats(this.materialPalette(), key);
+    this._readout();
     this.save();
+    const kind = this.building.propKind(item);
+    this.hud.toast(
+      n > 1
+        ? `Material diterapkan ke ${n} perabot "${kind}"`
+        : `Material diterapkan ke ${kind}`,
+      2400,
+    );
   }
 
   resetSelected() {
@@ -773,7 +968,9 @@ export class EditMode {
       this.hud.toast("Pilih perabot dulu", 1400);
       return;
     }
-    for (const m of this.building.groupOf(item)) this.building.resetProp(m);
+    // Reset berlaku untuk semua perabot sejenis (konsisten dengan material).
+    this._snapshot();
+    this.building.resetPropKind(item);
     this.building.refreshNav();
     this.refreshRoots();
     this.hud.renderEditMats(this.materialPalette(), null);
@@ -784,13 +981,15 @@ export class EditMode {
   }
 
   resetAll() {
-    // kembali ke layout file JSON saat halaman dimuat (bukan denah builder)
+    // kembali ke editan terakhir yang tersimpan (src/data/defaultEdits.js)
+    this._snapshot();
     this.building.applyEdits(this._bootLayout || DEFAULT_EDITS);
     this.building.refreshNav();
     this.refreshRoots();
     this.select(null);
+    this.crew?.syncStaffDesks?.();
     this.save();
-    this.hud.toast("Semua perabot kembali ke tata ruang awal", 2400);
+    this.hud.toast("Semua perabot kembali ke tata ruang tersimpan", 2400);
   }
 
   copySelected() {
@@ -802,6 +1001,7 @@ export class EditMode {
     // cari tempat yang tidak menutup jalan dan kursinya tetap bisa dipakai;
     // unit meja+kursi diduplikat bersama-sama. Validasi akhir dilakukan
     // setelah salinan benar-benar ada di dunia (posisi kursi & jalur asli).
+    this._snapshot();
     const copy = this.building.copyGroup(
       item,
       (dx, dz) => this.groupCopyOk(item, dx, dz),
@@ -834,6 +1034,9 @@ export class EditMode {
     }
     const label = item.label || "Perabot";
     const g = this.building.groupOf(item);
+    // Meja yang dihapus → lepaskan staf yang memakainya (otomatis adaptasi).
+    this._snapshot();
+    const freed = this._releaseStaffDesks(g);
     let any = false;
     for (const m of g) {
       if (this.building.deleteProp(m)) any = true;
@@ -844,16 +1047,53 @@ export class EditMode {
     this.select(null);
     this.save();
     this.hud.toast(
-      g.length > 1
-        ? `${label} + ${g.length - 1} bagian dihapus — "Reset semua" untuk mengembalikan`
-        : `${label} dihapus — "Reset semua" untuk mengembalikan`,
-      2600,
+      (g.length > 1
+        ? `${label} + ${g.length - 1} bagian dihapus`
+        : `${label} dihapus`)
+      + (freed.length ? ` — ${freed.join(", ")} lepas dari mejanya` : "")
+      + ' · "Reset semua" untuk mengembalikan',
+      2800,
     );
+  }
+
+  /**
+   * Kalau meja kerja dihapus, staf yang_assignment ke meja itu harus
+   * dilepas (deskId = null) supaya tidak ada staf "nempel" ke meja yang
+   * sudah tidak ada. Mengembalikan nama-nama staf yang dilepas.
+   */
+  _releaseStaffDesks(group) {
+    const ids = new Set();
+    for (const m of group || []) {
+      const id = m?.id;
+      if (id) ids.add(id);
+    }
+    if (!ids.size) return [];
+    const freed = [];
+    for (const s of STAFF) {
+      if (!s.deskId) continue;
+      // kunci meja bisa berupa id unit polos (p51) atau per kursi (p37#1)
+      const base = String(s.deskId).split("#")[0];
+      if (!ids.has(s.deskId) && !ids.has(base)) continue;
+      s.deskId = null;
+      freed.push(s.name);
+      // kritter di dunia ikut dilepas
+      const critter = this.crew?.members?.find((c) => c.staffId === s.id);
+      if (critter) {
+        critter.deskId = null;
+        critter.homeSpot = null;
+      }
+    }
+    if (freed.length) {
+      this.crew?.syncStaffDesks?.();
+      // ikut disimpan ke src/data/staff.json supaya tidak hilang saat reload
+      persistStaff();
+    }
+    return freed;
   }
 
   /* ----------------------------------------------------------- persistence */
 
-  /** Simpan otomatis ke src/world/layout.default.json (lewat dev server).
+  /** Simpan otomatis ke src/data/layout.default.json (lewat dev server).
    *  Tidak memakai localStorage: file JSON di repo adalah satu-satunya
    *  sumber tata ruang, jadi siapa pun yang pull repo ikut memakainya. */
   save() {
@@ -885,67 +1125,33 @@ export class EditMode {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const out = await res.json().catch(() => ({}));
       if (out && out.ok === false) throw new Error(out.error || "gagal");
+      // "Reset semua" sekarang kembali ke editan TERAKHIR yang tersimpan.
+      this._bootLayout = JSON.parse(JSON.stringify(data));
       this._savedAt = Date.now();
       const time = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      this.hud.setEditSave?.(`💾 tersimpan ${time} · src/world/layout.default.json`, true);
-      if (explicit) this.hud.toast("Tata ruang tersimpan ke src/world/layout.default.json", 2400);
+      this.hud.setEditSave?.(`💾 tersimpan ${time} · src/data/layout.default.json`, true);
+      if (explicit) this.hud.toast("Tata ruang tersimpan ke src/data/layout.default.json", 2400);
       return true;
     } catch (err) {
       console.warn("[EditMode] gagal menyimpan layout", err);
       this.hud.setEditSave?.("⚠️ simpan file gagal — jalankan lewat `npm run dev`", false);
       if (explicit) {
         this.hud.toast(
-          "Simpan ke file hanya aktif saat dev server (npm run dev). Layout diunduh sebagai JSON.",
+          "Simpan ke file hanya aktif saat dev server (npm run dev).",
           3200,
         );
-        if (downloadOnFail) this.exportEdits();
       }
       return false;
     }
   }
 
   loadSaved() {
-    // Satu sumber: src/world/layout.default.json (diimpor sebagai DEFAULT_EDITS).
+    // Satu sumber: src/data/layout.default.json (dibaca lewat defaultEdits.js).
     this._bootLayout = JSON.parse(JSON.stringify(DEFAULT_EDITS));
     const base = this.building.applyEdits(this._bootLayout);
     this.building.bakeHome();
     this.building.refreshNav();
     this._loaded = base;
     return this._loaded;
-  }
-
-  exportEdits() {
-    try {
-      const data = this.building.serializeLayout();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `atelier-layout-${Date.now()}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      this.hud.toast("Layout diekspor ke file JSON", 2200);
-    } catch (err) {
-      console.error(err);
-      this.hud.toast("Gagal mengekspor layout", 2400);
-    }
-  }
-
-  async importEdits(file) {
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      // reset ke layout awal, lalu terapkan file impor
-      const n = this.building.applyEdits(data);
-      this.building.refreshNav();
-      this.refreshRoots();
-      this.select(null);
-      this.saveNow(false);
-      this.hud.toast(`Layout diimpor — ${n} perabot diproses & disimpan ke file`, 2600);
-    } catch (err) {
-      console.error(err);
-      this.hud.toast("Gagal membaca file layout", 2600);
-    }
   }
 }
