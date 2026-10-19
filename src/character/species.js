@@ -3,9 +3,8 @@
  * The `species` field is retained as the stable selection key used by the
  * existing UI, but each entry now describes a modern casual office employee.
  *
- * STAFF_SPECIES is a separate pool used by Building.js for NPC staff
- * (barista, receptionist). It is intentionally NOT part of the selectable
- * SPECIES list shown to the player.
+ * STAFF_SPECIES adalah look "Staff Cafe" (hitam + topi) yang sekarang
+ * dipilih lewat modal Staf, bukan NPC yang dibuat dari kode.
  * ===================================================================== */
 
 export const DEPARTMENTS = [
@@ -30,17 +29,18 @@ export const SPECIES = [
   { id: "intern", name: "Intern", emoji: "✨", fur: 0xc2d5df, outfit: 0xc2d5df, skin: 0xf0c8ad, hair: 0x201c1b, eyes: 0x49362b, palette: 1 },
 ];
 
-/* ── NPC staff pool ─────────────────────────────────────────────────── *
- * Barista cafe & resepsionis lobby. Hitam total, memakai topi.
- * Tidak dipakai oleh UI pemilihan karakter.
- */
+/* ── Look "Staff Cafe" ──────────────────────────────────────────────── *
+ * Penampilan staf kantor: hitam total + topi. Dulu dipakai NPC hardcoded
+ * (barista & resepsionis). Sekarang jadi salah satu pilihan di modal Staf
+ * (preset "Kafe") — jadi staf cafe dibuat dari modal, bukan dari kode.
+ * ===================================================================== */
 export const STAFF_SPECIES = [
   {
     id: "staff",
-    name: "Staff",
+    name: "Staff Cafe",
     emoji: "🎩",
     fur: 0x15161a,
-    outfit: 0x101218,   // baju hitam
+    outfit: 0x15161a,
     pants: 0x0a0c10,    // celana hitam
     skin: 0xdca787,
     hair: 0x17191d,

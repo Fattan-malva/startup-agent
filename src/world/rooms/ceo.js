@@ -52,12 +52,12 @@ export function build(b) {
   b.staticGroup.add(rug);
 
   const sofaN = createSofa({ width: 1.7, depth: 0.85 });
-  b._static(sofaN, -10.4, 3.9, 0, 0, { w: 1.8, d: 0.95 });
-  b._seat(-10.4, 3.9, 0, "lounge");
+  const sofaNObj = b._static(sofaN, -10.4, 3.9, 0, 0, { w: 1.8, d: 0.95 });
+  b._softSeats({ x: -10.4, z: 3.9, ry: 0, width: 1.7, depth: 0.85, count: 3, owner: sofaNObj });
 
   const sofaS = createSofa({ width: 1.7, depth: 0.85 });
-  b._static(sofaS, -10.4, 6.3, Math.PI, 0, { w: 1.8, d: 0.95 });
-  b._seat(-10.4, 6.3, Math.PI, "lounge");
+  const sofaSObj = b._static(sofaS, -10.4, 6.3, Math.PI, 0, { w: 1.8, d: 0.95 });
+  b._softSeats({ x: -10.4, z: 6.3, ry: Math.PI, width: 1.7, depth: 0.85, count: 3, owner: sofaSObj });
 
   /* Meja kopi dipindah ke ujung timur pit (bukan di tengah) supaya ruang
    * duduk depan sofa tetap lapang — karang duduk butuh jalur masuk. */

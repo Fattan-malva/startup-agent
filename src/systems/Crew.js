@@ -1,7 +1,7 @@
 import { Critter } from "../character/Critter.js";
 import { Brain } from "./AI.js";
 import { SPECIES, DEPARTMENTS } from "../character/species.js";
-import { STAFF, appearanceFromModel } from "../data/staff.js";
+import { STAFF, appearanceFromModel, effectiveRooms } from "../data/staff.js";
 
 /* ===================================================================== *
  *  Crew — the population of the office.
@@ -24,7 +24,7 @@ export class Crew {
     this.members = [];
     this.brains = new Map();
     this.building.crew = this;
-    this.building.dynamicBodies = (this.building.staffRoster ?? []).map((s) => s.critter);
+    this.building.dynamicBodies = [];
     this._nameIdx = Math.floor(Math.random() * NAMES.length);
   }
 
@@ -35,7 +35,7 @@ export class Crew {
   }
 
   /** Spawn a critter (with a brain) and drop it into the world. */
-  spawn({ species = null, name = null, department = null, tieColor = undefined, at = null, roomId = null, deskId = null, staffId = null, appearance = null, wander = 0 } = {}) {
+  spawn({ species = null, name = null, department = null, tieColor = undefined, at = null, roomId = null, deskId = null, staffId = null, appearance = null, wander = 0, rooms = null } = {}) {
     const spec = species ? SPECIES.find((s) => s.id === species) || SPECIES[0] : SPECIES[Math.floor(Math.random() * SPECIES.length)];
     const dept = (typeof department === "string")
       ? (DEPARTMENTS.find((d) => d.name === department) || { name: department, tie: tieColor ?? 0x737f90 })
@@ -68,12 +68,16 @@ export class Crew {
     critter.staffId = staffId || null;
     critter.wanderRadius = Number(wander) || 0;
 
+    // Izin akses ruangan (modal Staf → daftar check box). `allowedRooms`
+    // selalu memuat Cafe: area istirahat universal. NPC biasa (tanpa
+    // staffId) tidak punya daftar → bebas ke mana saja.
+    critter.rooms = Array.isArray(rooms) ? rooms.filter((r) => typeof r === "string") : [];
+    critter.allowedRooms = staffId ? effectiveRooms({ rooms: critter.rooms }) : null;
+
     // Titik "rumah" dipakai Brain untuk membatasi radius keliling staf
     // sesuai pengaturan HR (staff.json → wander).
     if (deskId) {
-      const seat = this.building.seats.find(
-        (s) => s.type === "desk" && (s.obstacle?.owner?.userData?.editId || s.id) === deskId,
-      );
+      const seat = this.building.seatByDesk(deskId);
       if (seat) critter.homeSpot = { x: seat.x, z: seat.z };
     }
 
@@ -104,9 +108,7 @@ export class Crew {
   }
 
   _syncDynamicBodies() {
-    this.building.dynamicBodies = this.members.concat(
-      (this.building.staffRoster ?? []).map((s) => s.critter),
-    );
+    this.building.dynamicBodies = this.members.slice();
   }
 
   _isSpawnFree(x, z, radius = 0.29, ignore = null) {
@@ -158,6 +160,7 @@ export class Crew {
         deskId: s.deskId,
         staffId: s.id,
         wander: s.wander,
+        rooms: s.rooms,
         appearance: appearanceFromModel(m),
       });
     }

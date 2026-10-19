@@ -90,12 +90,12 @@ export function build(b) {
   b.staticGroup.add(rug);
 
   const sofaA = createSofa({ width: 2.0, depth: 0.85 });
-  b._static(sofaA, -3.9, -8.45, 0, 0, { w: 2.1, d: 0.95 });
-  b._seat(-3.9, -8.45, 0, "lounge");
+  const sofaAObj = b._static(sofaA, -3.9, -8.45, 0, 0, { w: 2.1, d: 0.95 });
+  b._softSeats({ x: -3.9, z: -8.45, ry: 0, width: 2.0, depth: 0.85, count: 3, owner: sofaAObj });
 
   const sofaB = createSofa({ width: 2.0, depth: 0.85 });
-  b._static(sofaB, -3.9, -4.35, Math.PI, 0, { w: 2.1, d: 0.95 });
-  b._seat(-3.9, -4.35, Math.PI, "lounge");
+  const sofaBObj = b._static(sofaB, -3.9, -4.35, Math.PI, 0, { w: 2.1, d: 0.95 });
+  b._softSeats({ x: -3.9, z: -4.35, ry: Math.PI, width: 2.0, depth: 0.85, count: 3, owner: sofaBObj });
 
   b._static(createCoffeeTable({ r: 0.42 }), -3.9, -6.4, 0);
 
@@ -105,7 +105,8 @@ export function build(b) {
   b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), -1.8, -5.05, 0);
 
   /* Bangku tunggu + rak majalah di dinding timur. */
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 5.02, -6.0, -Math.PI / 2);
+  const bench = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 5.02, -6.0, -Math.PI / 2);
+  b._softSeats({ x: 5.02, z: -6.0, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: bench });
   b._static(createMagazineRack({ w: 0.72, h: 0.9, d: 0.3 }), 5.0, -4.2, -Math.PI / 2);
 
   /* Rak buku di dinding utara (punggung menempel dinding). */

@@ -6,6 +6,11 @@
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
+    "rooms": [
+      "developer",
+      "cafe",
+      "meeting"
+    ],
     "deskId": "p51",
     "wander": 1,
     "model": {
@@ -26,7 +31,11 @@
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
-    "deskId": "p61",
+    "rooms": [
+      "developer",
+      "cafe"
+    ],
+    "deskId": null,
     "wander": 1,
     "model": {
       "species": "developer",
@@ -46,6 +55,10 @@
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
+    "rooms": [
+      "developer",
+      "cafe"
+    ],
     "deskId": "p53",
     "wander": 1,
     "model": {
@@ -66,6 +79,10 @@
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
+    "rooms": [
+      "developer",
+      "cafe"
+    ],
     "deskId": "p54",
     "wander": 1.6,
     "model": {
@@ -86,7 +103,11 @@
     "department": "Design",
     "status": "active",
     "roomId": "studio",
-    "deskId": "p37",
+    "rooms": [
+      "studio",
+      "cafe"
+    ],
+    "deskId": "p37#1",
     "wander": 1,
     "model": {
       "species": "creator",

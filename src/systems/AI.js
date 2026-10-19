@@ -10,6 +10,22 @@ const TYPING = ["Deep work — kode ngebut", "Menjawab email", "Review desain", 
 const STROLL = ["Jalan-jalan santai", "Cari kopi", "Ngobrol di lorong"];
 const BREAK = ["Istirahat sejenak", "Rebahan bentar", "Ngisi ulang energi"];
 
+/* ------------------------------------------------------------------ *
+ *  Aturan penempatan staf (dari modal Staf → src/data/staff.json)
+ * ------------------------------------------------------------------ *
+ *  • `rooms` = daftar ruangan yang boleh dimasuki staf (check box).
+ *    Cafe SELALU boleh — di situ area istirahat/ngopi.
+ *  • `deskId` = workstation yang dipesan staf. Meja milik satu staf TIDAK
+ *    boleh dipakai staf lain (atau NPC) dan staf pun tidak boleh memakai
+ *    meja workstation di ruangan lain.
+ *  • Kursi tipe lounge (sofa/armchair/ottoman) tidak pernah dipesan —
+ *    bebas dipakai siapa pun, tapi istirahat staf selalu ke Cafe.
+ */
+import { REST_ROOM, WORKSTATION_SEAT_TYPES, staffByDesk } from "../data/staff.js";
+
+/** Ruangan yang hanya jadi jalur lewat (bukan tujuan aristocratic). */
+const TRANSIT_ROOMS = new Set(["corridor", "courtyard"]);
+
 export class Brain {
   constructor(critter, ctx) {
     this.c = critter;
@@ -30,6 +46,39 @@ export class Brain {
 
   _roomOf(point) {
     return this.b.roomAt(point.x, point.z);
+  }
+
+  /** NPC staf (dari staff.json) punya daftar ruangan terizinkan. */
+  _isStaff() {
+    return !!this.c.staffId;
+  }
+
+  /** Apakah ruangan ini boleh dimasuki karakter ini? */
+  _allowed(roomId) {
+    const allowed = this.c.allowedRooms;
+    if (!allowed) return true;          // NPC biasa: bebas ke mana saja
+    return allowed.has(roomId);
+  }
+
+  /** Ruangan transit (koridor/taman) boleh dilewati, bukan当做 tujuan. */
+  _transitOk(roomId) {
+    return TRANSIT_ROOMS.has(roomId) || this._allowed(roomId);
+  }
+
+  /** Kunci meja (deskKey) dari sebuah kursi: id unit, atau `id#nomor` untuk
+   *  meja ber-kursi banyak (mis. meja studio 2 kursi). */
+  _seatUnitId(seat) {
+    return seat?.deskKey
+      || seat?.unitId
+      || seat?.obstacle?.owner?.userData?.editId
+      || seat?.id
+      || null;
+  }
+
+  /** Apakah kursi ini milik staf LAIN? (meja workstation bersifat eksklusif) */
+  _ownedByOther(seat) {
+    const owner = staffByDesk(this._seatUnitId(seat));
+    return !!owner && owner.id !== this.c.staffId;
   }
 
   _walkTo(target, running, via = null) {
@@ -174,12 +223,65 @@ export class Brain {
   }
 
   _goalWork() {
-    const found = this._reachableSeat(() => this.b.claimSeat("desk", this.c));
-    if (!found) return this._goalWander();
-    this._sitGoal(found.seat, found.approach, "work", "Menuju meja");
+    /* Staf yang sudah dikonfigurasi mejanya → HANYA boleh duduk di meja itu
+     * sendiri, tidak di meja workstation orang lain dan tidak di meja
+     * workstation ruangan lain. */
+    if (this._isStaff() && this.c.deskId) {
+      const own = this.b.seatByDesk(this.c.deskId);
+      if (own) {
+        // Meja milik dia: lepaskan klaim orang lain bila ada.
+        if (own.taken && own.taken !== this.c) this.b.releaseSeat(own, own.taken);
+        own.taken = this.c;
+        own.takenAt = this.b._clock;
+        const approach = this.b.approachTo(own);
+        if (approach) {
+          this._sitGoal(own, approach, "work", "Menuju meja");
+          return;
+        }
+        this.b.releaseSeat(own, this.c);
+      }
+    }
+
+    const found = this._reachableSeat(() => (this._isStaff()
+      // Staf tanpa meja → workstation kosong di ruangan yang diizinkan saja.
+      ? this.b.claimSeatWhere(this.c, (s) =>
+        s.kind === "workstation"
+        && WORKSTATION_SEAT_TYPES.has(s.type)
+        && this._allowed(this.b.roomAt(s.x, s.z))
+        && !this._ownedByOther(s))
+      // NPC biasa → meja kosong, tapi meja yang sudah dipesan staf dikecualikan.
+      : this.b.claimSeatWhere(this.c, (s) => s.type === "desk" && !this._ownedByOther(s))));
+    if (found) {
+      this._sitGoal(found.seat, found.approach, "work", "Menuju meja");
+      return;
+    }
+
+    if (this._isStaff()) {
+      // Tidak ada workstation di ruangan yang diizinkan (mis. staf cafe yang
+      // Cuma boleh di Cafe) → tetap bekerja di ruang kerjanya: di Cafe
+      // mereka di belakang mesin espresso, di ruangan lain mereka keliling.
+      if (this.c.roomId === REST_ROOM && this._allowed(REST_ROOM)) {
+        this._goalCoffee();
+        return;
+      }
+      this._goalWander();
+      return;
+    }
+
+    this._goalWander();
   }
 
   _goalMeeting() {
+    if (this._isStaff()) {
+      // Staf: rapat di RUANG MEETING saja (bukan kursi meja studio), dan
+      // hanya kalau ruangan itu diizinkan. Event all-hands (Meeting.start)
+      // tetap mengabaikan aturan ini — itu acara kantor.
+      if (!this._allowed("meeting")) return this._goalWander();
+      const found = this._reachableSeat(() => this.b.claimSeat("meeting", this.c, "meeting"));
+      if (!found) return this._goalSitAny();
+      this._sitGoal(found.seat, found.approach, "meeting", "Menuju ruang rapat");
+      return;
+    }
     const found = this._reachableSeat(() => this.b.claimSeat("meeting", this.c));
     if (!found) return this._goalSitAny();
     this._sitGoal(found.seat, found.approach, "meeting", "Menuju ruang rapat");
@@ -191,9 +293,16 @@ export class Brain {
     // `wanderRadius` — kalau radius 0, boleh ke mana saja di ruangannya.
     const r = Number(this.c.wanderRadius) || 0;
     const home = this.c.homeSpot;
-    const homeRoom = home ? this.b.roomAt(home.x, home.z) : this.c.roomId;
+    let homeRoom = home ? this.b.roomAt(home.x, home.z) : this.c.roomId;
+    // Staf yang ruangannya tidak diizinkan → keliling di ruangan yang
+    // memang boleh dimasukinya (bukan Cafe kalau Cafe tidak diizinkan).
+    if (this._isStaff() && !this._allowed(homeRoom)) {
+      homeRoom = [...(this.c.allowedRooms || [])].find((id) => this.b.room(id))
+        || this.c.roomId
+        || REST_ROOM;
+    }
     let spot = null;
-    if (r > 0 && home) {
+    if (r > 0 && home && homeRoom === (home ? this.b.roomAt(home.x, home.z) : null)) {
       for (let i = 0; i < 30; i++) {
         const ang = Math.random() * Math.PI * 2;
         const rad = Math.random() * r;
@@ -208,7 +317,7 @@ export class Brain {
       }
     }
     if (!spot) {
-      spot = this.b.randomSpot(this.c.roomId || homeRoom, { x: 0, z: 0 });
+      spot = this.b.randomSpot(homeRoom || this.c.roomId, { x: 0, z: 0 });
     }
     if (Math.abs(spot.x) < 0.01 && Math.abs(spot.z) < 0.01) return this._beginAct(3, "Mikir bentar");
     this._beginTravel({
@@ -219,6 +328,9 @@ export class Brain {
   }
 
   _goalCoffee() {
+    // Mesin espresso ada di Cafe. Kalau Cafe TIDAK diizinkan staf ini → skip
+    // (mereka minum dari tanaman di ruangannya sendiri).
+    if (this._isStaff() && !this._allowed(REST_ROOM)) return this._goalWater();
     const p = this.b.poiNear("Espresso machine", this.c.position, {
       start: 0.72, maxR: 2.0, gap: 0.7, radius: 0.34,
     });
@@ -232,6 +344,9 @@ export class Brain {
   }
 
   _goalCooler() {
+    // Dispenser air ada di KORIDOR. Staf (dari modal) tidak boleh ke
+    // koridor kalau koridor tidak diizinkan → mereka minum dari tanaman saja.
+    if (this._isStaff() && !this._allowed("corridor")) return this._goalWater();
     const p = this.b.poiNear("Dispenser air", this.c.position, {
       start: 0.72, maxR: 2.0, gap: 0.7, radius: 0.34,
     });
@@ -247,7 +362,12 @@ export class Brain {
   _goalWater() {
     const spots = this.b.plantSpots;
     if (!spots.length) return this._goalWander();
-    const p = spots[Math.floor(Math.random() * spots.length)];
+    // Staf hanya menyiram tanaman di ruangan yang diizinkan.
+    const usable = this._isStaff()
+      ? spots.filter((p) => this._allowed(this.b.roomAt(p.x, p.z)))
+      : spots;
+    if (!usable.length) return this._goalWander();
+    const p = usable[Math.floor(Math.random() * usable.length)];
     // Cari titik berhenti di sekitar tanaman yang masih di "ruangan" yang
     // sama dengan tanaman itu — supaya NPC tidak jalan menembus sekat
     // (mis. menyiram tanaman lobby dari sisi cafe).
@@ -272,14 +392,54 @@ export class Brain {
   }
 
   _goalBreak() {
+    // Staf: istirahat SELALU di Cafe (area lounge) — bukan di ruangan lain.
+    if (this._isStaff()) return this._goalRestCafe();
     const want = Math.random() < 0.5 ? "lounge" : null;
     const found = this._reachableSeat(() => this.b.claimSeat(want, this.c));
     if (!found) return this._goalWander();
     this._sitGoal(found.seat, found.approach, "break", "Cari tempat duduk");
   }
 
+  /**
+   * Istirahat: kalau Cafe boleh dimasuki → sofa/bar stool Cafe (area
+   * istirahat). Kalau Cafe TIDAK diizinkan → beristirahat di ruangan lain
+   * yang memang boleh dimasuki staf ini. Kalau tidak ada kursi sama sekali
+   * → menunggu di area yang diizinkan.
+   */
+  _goalRestCafe() {
+    const inCafe = this._allowed(REST_ROOM);
+    const found = this._reachableSeat(() => this.b.claimSeatWhere(this.c, (s) => {
+      if (s.type !== "lounge") return false;
+      const room = this.b.roomAt(s.x, s.z);
+      return inCafe ? room === REST_ROOM : this._allowed(room);
+    }));
+    if (found) {
+      this._sitGoal(found.seat, found.approach, "break", inCafe ? "Istirahat di Cafe" : "Istirahat");
+      return;
+    }
+    this._waitInRestRoom(inCafe);
+  }
+
+  /** Menunggu di area istirahat saat semua kursinya sedang penuh. */
+  _waitInRestRoom(inCafe) {
+    const room = inCafe ? REST_ROOM : (this.c.roomId || REST_ROOM);
+    const spot = this.b.randomSpot(room, { x: 0, z: 0 });
+    const target = (Math.abs(spot.x) < 0.01 && Math.abs(spot.z) < 0.01)
+      ? { x: 7.6, z: -4.4 }               // fallback: dekat pintu Cafe
+      : spot;
+    this._beginTravel({
+      type: "break-wait",
+      target,
+      travelStatus: inCafe
+        ? "Menunggu tempat duduk di Cafe"
+        : "Menunggu tempat duduk",
+    });
+  }
+
   /** Duduk di kursi/sofa tipe APA PUN yang kosong (semua dudukan bisa dipakai). */
   _goalSitAny() {
+    // Staf juga: istirahat tetap di Cafe, bukan sofa di ruangan lain.
+    if (this._isStaff()) return this._goalRestCafe();
     const found = this._reachableSeat(() => this.b.claimAnySeat(this.c));
     if (!found) return this._goalBreak();
     const st = found.seat.type;
@@ -291,8 +451,35 @@ export class Brain {
     );
   }
 
+  /**
+   * Rekan ngobrol yang berada di ruangan yang diizinkan staf ini (atau di
+   * ruangan yang sama). Tanpa ini, staf akan menyusul rekan ke ruangan
+   * yang tidak boleh dimasukinya.
+   */
+  _chatPartnerInAllowedRoom() {
+    const myRoom = this.b.roomAt(this.c.position.x, this.c.position.z);
+    let best = null;
+    let bestD = 16 * 16;
+    for (const m of this.crew.members) {
+      if (m === this.c || m.controlled) continue;
+      const brain = m.brain;
+      if (!brain || brain.paused) continue;
+      if (brain.goal && brain.goal.type === "chat") continue;
+      const room = this.b.roomAt(m.position.x, m.position.z);
+      if (room !== myRoom && !this._allowed(room)) continue;
+      const dx = m.position.x - this.c.position.x;
+      const dz = m.position.z - this.c.position.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestD) { bestD = d2; best = m; }
+    }
+    return best;
+  }
+
   _goalChat() {
-    const partner = this.crew.findIdleNear(this.c, 16);
+    // Staf: hanya ngobrol dengan rekan di ruangan yang diizinkan.
+    const partner = this._isStaff()
+      ? this._chatPartnerInAllowedRoom()
+      : this.crew.findIdleNear(this.c, 16);
     if (!partner) return this._goalWander();
     this.partner = partner;
     const target = {
@@ -351,6 +538,10 @@ export class Brain {
             // jangan duduk melayang di tengah ruangan
             this._beginAct(8 + Math.random() * 8, pick(BREAK), this.goal.seat ? "sit" : "stand");
             break;
+          case "break-wait":
+            // Kursi istirahat penuh → tunggu di area istirahat
+            this._beginAct(6 + Math.random() * 6, this.goal.travelStatus || "Menunggu tempat duduk");
+            break;
           case "chat": {
             const p = this.partner;
             if (p && p.brain) {
@@ -388,199 +579,6 @@ function pick(arr) {
 }
 
 /* ===================================================================== *
- *  StaffBrain — otak ringan untuk NPC staf (barista cafe, resepsionis
- *  lobby). Semua aktivitas dikunci di ruangannya sendiri: keliling
- *  ruangan, duduk di sofa ruangan itu, dan sering kembali ke posnya.
- *  Resepsionis punya seatType "reception" sehingga dia duduk di kursi
- *  meja receptionis.
- * ===================================================================== */
-export class StaffBrain {
-  constructor(critter, building, post, opts = {}) {
-    this.c = critter;
-    this.b = building;
-    this.post = post;
-    this.seatType = opts.seatType || null;
-    this.stage = "idle"; // idle | travel | act
-    this.goal = null;
-    this.seat = null;
-    this.actTime = 0;
-    this.cool = 2 + Math.random() * 3;
-    this.c.status = opts.homeStatus || "Siap melayani";
-  }
-
-  _inRoom(seat) {
-    return this.b.roomAt(seat.x, seat.z) === this.post.room;
-  }
-
-  _freeSeatInRoom(type = null) {
-    let pool = this.b.seats.filter((s) =>
-      this._inRoom(s) && (!type || s.type === type) && (!s.taken || s.taken === this.c));
-    if (!pool.length && type) {
-      // kursi utama (mis. meja receptionis) dipakai orang → cari sofa di ruangan ini
-      pool = this.b.seats.filter((s) =>
-        this._inRoom(s) && (s.type === "lounge" || s.type === "lunch") && !s.taken);
-    }
-    if (!pool.length) return null;
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    // hanya pilih kursi yang titik pendekatannya benar-benar bisa dicapai
-    for (const s of pool) {
-      if (!this.b.approachTo(s)) continue;
-      s.taken = this.c;
-      s.takenAt = this.b._clock;
-      s.uses = (s.uses || 0) + 1;
-      return s;
-    }
-    return null;
-  }
-
-  _releaseSeat() {
-    if (this.seat) {
-      this.b.releaseSeat(this.seat, this.c);
-      this.seat = null;
-    }
-  }
-
-  _travel(target, status, { seat = null, yaw = null, type = null } = {}) {
-    this.goal = { target, seat, yaw, type };
-    this.stage = "travel";
-    this.c.status = status;
-    const t = seat ? this.b.approachTo(seat) : target;
-    if (!t) {
-      this._releaseSeat();
-      this.goal = null;
-      this.stage = "idle";
-      this.c.status = "Kursi tidak dapat dijangkau";
-      this.cool = 2;
-      this.c.moveDir(0, 0);
-      return;
-    }
-    if (seat) this.goal.approach = t;
-    const path = this.b.route(this.c.position, t, this.c);
-    this.c.pose("stand");
-    this.c.followPath(path, false);
-  }
-
-  _choose() {
-    const roll = Math.random();
-    if (roll < 0.5) {
-      // kembali ke posnya; duduk di kursi utama bila masih kosong
-      const postSeat = this.seatType ? this._freeSeatInRoom(this.seatType) : null;
-      if (postSeat) {
-        this.seat = postSeat;
-        this._travel(
-          { x: this.post.x, z: this.post.z },
-          this.post.homeStatus || "Kembali ke pos",
-          { seat: postSeat },
-        );
-      } else {
-        this._travel(
-          { x: this.post.x, z: this.post.z },
-          this.post.homeStatus || "Balik ke pos",
-          { yaw: this.post.yaw },
-        );
-      }
-    } else if (roll < 0.78) {
-      // keliling DI DALAM ruangannya sendiri
-      const spot = this.b.randomSpot(this.post.room, { x: 0, z: 0 });
-      if (Math.abs(spot.x) < 0.01 && Math.abs(spot.z) < 0.01) {
-        return this._startAct(3, "Standby", "stand");
-      }
-      this._travel(spot, "Keliling ruangan", { type: "wander" });
-    } else {
-      // duduk santai di sofa/kursi ruangan ini
-      const seat = this._freeSeatInRoom();
-      if (seat) {
-        this.seat = seat;
-        this._travel(seat.sit || seat, "Istirahat bentar", { seat });
-      } else {
-        this._travel(
-          { x: this.post.x, z: this.post.z },
-          this.post.homeStatus || "Balik ke pos",
-          { yaw: this.post.yaw },
-        );
-      }
-    }
-  }
-
-  _startAct(duration, status, pose = "stand") {
-    this.stage = "act";
-    this.actTime = duration;
-    this.c.status = status;
-    if (pose === "sit" && this.goal?.seat) {
-      this._approachAndSit(this.goal.seat);
-      return;
-    }
-    this.c.pose("stand");
-    const yaw = this.goal?.yaw;
-    if (yaw != null) this.c.targetYaw = yaw;
-  }
-
-  /** Sama seperti Brain: dekati kursi lewat rute normal dulu, baru duduk. */
-  _approachAndSit(seat) {
-    const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
-    const ign = this.b.seatIgnore(seat);
-    const clearToSeat = this.b._lineFree(
-      this.c.position.x, this.c.position.z, spot.x, spot.z, 0.24, ign,
-    ) && this.b.isFree(spot.x, spot.z, 0.24, ign);
-    if (!clearToSeat) {
-      const approach = this.b.approachTo(seat);
-      const path = approach ? this.b.route(this.c.position, approach, this.c) : [];
-      if (path.length && Math.hypot(approach.x - this.c.position.x, approach.z - this.c.position.z) > 0.25) {
-        this.goal.approach = approach;
-        this.stage = "travel";
-        this.c.status = "Mencari akses ke kursi";
-        this.c.pose("stand");
-        this.c.followPath(path, false, true);
-        return;
-      }
-      this._finish();
-      this.c.status = "Kursi terhalang";
-      return;
-    }
-    this.c.seatInto(spot.x, spot.z, seat.yaw ?? this.goal?.yaw, seat);
-  }
-
-  _finish() {
-    this._releaseSeat();
-    this.goal = null;
-    this.stage = "idle";
-    if (this.c.sitting || this.c._seating) this.c.standUp();
-    else this.c.pose("stand");
-    this.c.lookAt(null, null);
-    this.cool = 3 + Math.random() * 5;
-  }
-
-  update(dt) {
-    if (this.paused) return;
-    if (this.c._exiting || this.c._exitPending) return;
-    if (this.stage === "act") {
-      this.actTime -= dt;
-      if (this.actTime <= 0) this._finish();
-      return;
-    }
-    if (this.stage === "travel") {
-      if (this.c.pathDone && this.c.pathFailed) {
-        this._finish();
-        this.c.status = "Jalur terhalang";
-        return;
-      }
-      if (this.c.pathDone) {
-        const g = this.goal;
-        if (g?.seat) this._startAct(10 + Math.random() * 16, "Duduk santai", "sit");
-        else if (g?.type === "wander") this._startAct(3 + Math.random() * 5, "Jalan-jalan bentar", "stand");
-        else this._startAct(4 + Math.random() * 6, this.post.homeStatus || "Standby", "stand");
-      }
-      return;
-    }
-    this.cool -= dt;
-    if (this.cool <= 0) this._choose();
-  }
-}
-
-/* ===================================================================== *
  *  Meeting — rapat kantor yang dipicu dari dock.
  *
  *  start(): semua karakter (NPC biasa + staf; penonton/controlled
@@ -605,10 +603,14 @@ export class Meeting {
     const room = this.b.room("meeting");
     this._front = { x: (room.x0 + room.x1) / 2, z: (room.z0 + room.z1) / 2 };
 
-    const participants = [
-      ...this.crew.members.filter((c) => !c.controlled),
-      ...this.b.staffRoster.map((s) => s.critter),
-    ];
+    // Hanya staf yang RUANG MEETING-nya diizinkan ikut rapat. Karakter
+    // non-staf (penonton/player) tidak punya daftar ruangan → ikut.
+    const participants = this.crew.members.filter((c) => {
+      if (c.controlled) return false;
+      const allowed = c.allowedRooms;
+      if (!allowed) return true;               // bukan staf dari modal
+      return allowed.has("meeting");
+    });
     // bekuin otak masing-masing + lepas kursi/partner lama
     for (const c of participants) {
       const brain = c.brain;

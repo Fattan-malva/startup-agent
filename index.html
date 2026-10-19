@@ -350,36 +350,30 @@
                   <button type="button" class="chip" data-action="staff-preset" data-value="design">Design</button>
                   <button type="button" class="chip" data-action="staff-preset" data-value="exec">Eksekutif</button>
                   <button type="button" class="chip" data-action="staff-preset" data-value="ops">Operasional</button>
+                  <button type="button" class="chip" data-action="staff-preset" data-value="cafe">Kafe</button>
                   <button type="button" class="chip" data-action="staff-preset" data-value="reset">Setel ulang</button>
                 </div>
               </div>
 
               <!-- penempatan -->
               <div id="staff-form-placement" class="staff-form" role="tabpanel" hidden>
-                <div class="staff-row">
-                  <label class="ff">
-                    <span>Ruangan</span>
-                    <select id="staff-room"></select>
-                  </label>
-                  <label class="ff">
-                    <span>Meja kerja</span>
-                    <select id="staff-desk"></select>
-                  </label>
+                <div class="ff">
+                  <span>Ruangan yang boleh dimasuki</span>
+                  <div id="staff-rooms" class="staff-rooms" role="group"
+                    aria-label="Ruangan yang boleh dimasuki"></div>
+                  <span class="staff-rooms-hint">Centang ruangan yang boleh dimasuki staf ini. Istirahat &amp; ngopi di Cafe — kalau Cafe tidak dicentang, staf beristirahat di ruangannya sendiri.</span>
                 </div>
                 <label class="ff">
-                  <span>Radius keliling</span>
-                  <span class="range-line">
-                    <input id="staff-wander" type="range" min="0.5" max="5" step="0.1" value="1.6" />
-                    <output id="staff-wander-out" for="staff-wander">1.6 m</output>
-                  </span>
+                  <span>Meja kerja</span>
+                  <select id="staff-desk"></select>
                 </label>
                 <div class="staff-map">
                   <canvas id="staff-map-canvas" width="520" height="190" aria-label="Peta penempatan staf"></canvas>
                 </div>
                 <p class="staff-map-legend">
-                  <span>● meja staf ini</span>
-                  <span>○ meja kosong</span>
-                  <span>× meja terisi staf lain</span>
+                  <span>Ⓜ inisial = staf di mejanya</span>
+                  <span>○ workstation kosong</span>
+                  <span>ⓘ posisi staf terpilih</span>
                 </p>
               </div>
             </div>

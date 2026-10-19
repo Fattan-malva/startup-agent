@@ -62,8 +62,8 @@ export function build(b) {
 
   /* ── Huddle nook (sudut barat daya) ──────────────────────────────── */
   const huddle = createSofa({ width: 1.6, depth: 0.78 });
-  b._static(huddle, -14.6, 1.9, Math.PI / 2, 0, { w: 1.7, d: 0.88 });
-  b._seat(-14.6, 1.9, Math.PI / 2, "lounge");
+  const huddleObj = b._static(huddle, -14.6, 1.9, Math.PI / 2, 0, { w: 1.7, d: 0.88 });
+  b._softSeats({ x: -14.6, z: 1.9, ry: Math.PI / 2, width: 1.6, depth: 0.78, count: 3, owner: huddleObj });
   b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), -14.6, 0.45, 0);
 
   /* 2 sekat tanaman sebagai pembatas zona di dinding selatan. */

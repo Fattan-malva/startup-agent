@@ -21,6 +21,18 @@ export const STAFF_STATUSES = [
   { value: "inactive", label: "Tidak aktif", flag: "NONAKTIF" },
 ];
 
+export const REST_ROOM = "cafe";                                  // ruang istirahat
+export const WORKSTATION_SEAT_TYPES = new Set(["desk", "ceo", "reception"]);
+export const isWorkstationSeat = (seat) =>
+  seat?.kind === "workstation" && WORKSTATION_SEAT_TYPES.has(seat.type);
+export const staffByDesk = (deskId) => STAFF.find((s) => s.deskId === deskId) || null;
+/** Ruangan yang boleh dimasuki staf — persis dari daftar check box modal.
+ *  Tidak ada ruangan implisit: kalau Cafe tidak dicentang, staf tidak boleh
+ *  masuk Cafe (beristirahat di ruangan yang memang diizinkan). */
+export const effectiveRooms = (staff) =>
+  new Set([...(staff?.rooms || [])]);
+export const canEnter = (staff, roomId) => effectiveRooms(staff).has(roomId);
+
 /** Ruangan bawaan per departemen — hanya saran saat staf baru dibuat. */
 export const DEPT_ROOM = {
   Engineering: "developer",
@@ -51,7 +63,8 @@ export function modelDefaults(speciesId) {
     species: spec.id,
     skin: toHex(spec.skin),
     shirt: toHex(spec.fur),
-    pants: toHex(TROUSERS[Math.abs(spec.palette || 0) % TROUSERS.length]),
+    // Some looks (e.g. "Staff Cafe") bring their own trousers color.
+    pants: toHex(spec.pants ?? TROUSERS[Math.abs(spec.palette || 0) % TROUSERS.length]),
     hair: toHex(spec.hair),
     eyes: toHex(spec.eyes),
     tieColor: 0x477da6,
@@ -75,6 +88,9 @@ export function normalizeStaff(raw = {}) {
     deskId: raw.deskId || null,
     wander: clampWander(raw.wander),
     model,
+    rooms: Array.isArray(raw.rooms)
+      ? raw.rooms.filter((id) => typeof id === "string")
+      : [raw.roomId],
   };
 }
 
@@ -107,16 +123,20 @@ export function newStaffRecord({ department = "Engineering", species = "develope
     const n = Number(String(s.id).replace(/\D/g, ""));
     return Number.isFinite(n) ? Math.max(max, n) : max;
   }, 0);
+  const home = roomId || DEPT_ROOM[department] || "staff";
   return normalizeStaff({
     id: `staff-${String(seq + 1).padStart(3, "0")}`,
     name: "Staf baru",
     title: "Jabatan baru",
     department,
     status: "active",
-    roomId: roomId || DEPT_ROOM[department] || "staff",
+    roomId: home,
     deskId: null,
     wander: DEFAULT_WANDER,
     model: { ...modelDefaults(species), tieColor: deptTie(department) },
+    // Default: ruang kerja departemen + Cafe (area istirahat/ngopi).
+    // Untick di modal kalau staf ini tidak boleh masuk Cafe.
+    rooms: [home, REST_ROOM],
   });
 }
 

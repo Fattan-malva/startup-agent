@@ -34,15 +34,18 @@ export function build(b) {
   });
 
   /* ── Koridor utara: bangku tunggu + jam + lukisan ────────────────── */
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.9, -2.72, 0);
+  const benchN = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.9, -2.72, 0);
+  b._softSeats({ x: -1.9, z: -2.72, ry: 0, width: 1.35, depth: 0.44, count: 2, owner: benchN });
   b._static(createClock(), -4.6, -2.97, 0, 2.0);
   // Digeser ke timur: pintu Lobby kini 1.8 m (x -0.9..0.9), jadi lukisan
   // tidak boleh lagi mengintip ke jalur pintu.
   b._static(createWallArt({ w: 0.70, h: 0.95, variant: 3 }), 1.65, -2.97, 0, 0.98, { w: 0.78, d: 0.1 });
 
   /* ── Kaki barat & timur: bangku menghadap taman ──────────────────── */
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -6.79, 1.0, Math.PI / 2);
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 6.79, 1.0, -Math.PI / 2);
+  const benchW = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -6.79, 1.0, Math.PI / 2);
+  b._softSeats({ x: -6.79, z: 1.0, ry: Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: benchW });
+  const benchE = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 6.79, 1.0, -Math.PI / 2);
+  b._softSeats({ x: 6.79, z: 1.0, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: benchE });
 
   /* ── Papan pengumuman di dinding kaki barat & timur (digeser sedikit ke
    *  utara supaya pintu kaca 2.0 m ke taman benar-benar bebas) ─────── */

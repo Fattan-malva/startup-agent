@@ -228,8 +228,9 @@ export function build(b) {
   b.staticGroup.add(rug);
 
   const sofa = createSofa({ width: 2.0, depth: 0.85 });
-  b._static(sofa, 13.8, -6.15, Math.PI, 0, { w: 2.1, d: 0.95 });
-  b._seat(13.8, -6.15, Math.PI, "lounge");
+  const sofaObj = b._static(sofa, 13.8, -6.15, Math.PI, 0, { w: 2.1, d: 0.95 });
+  // 3 dudukan (satu per bantalan) — sofa panjang bisa dipakai 3 orang.
+  b._softSeats({ x: 13.8, z: -6.15, ry: Math.PI, width: 2.0, depth: 0.85, count: 3, owner: sofaObj });
 
   const armA = createArmchair({ color: "sand" });
   b._static(armA, 15.25, -7.9, Math.PI);

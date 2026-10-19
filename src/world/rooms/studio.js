@@ -36,10 +36,12 @@ export function build(b) {
     b._workBundle(createMeetingTable({ w: t.w, d: 1.2, h: 0.75 }), {
       x: t.x, z: 2.9, ry: 0,
       label: "Meja studio",
-      type: "meeting",
+      // Bentuknya meja rapat, tapi perannya WORKSTATION kerja — makanya
+      // kursinya boleh dipilih staf lewat modal (bukan meja rapat).
+      type: "desk",
       chairs: [
-        { face: "+z", color: "navy", type: "meeting" },
-        { face: "-z", color: "charcoal", type: "meeting" },
+        { face: "+z", color: "navy", type: "desk" },
+        { face: "-z", color: "charcoal", type: "desk" },
       ],
     });
   }

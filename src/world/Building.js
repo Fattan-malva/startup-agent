@@ -24,6 +24,7 @@ import {
   ENTRANCE,
 } from "./layout.js";
 import { furnishRooms } from "./rooms/index.js";
+import { WORKSTATION_SEAT_TYPES } from "../data/staff.js";
 
 /* ===================================================================== *
  *  Building — one floor of Atelier Corp.
@@ -141,9 +142,6 @@ export class Building {
     this.anchors = ROOM_ANCHORS;
     this.entrance = ENTRANCE;
 
-    this.staffPosts = {};
-    this.staffCritters = {};
-
     /* ---- edit mode (atur-ulang furnitur) ----------------------------- */
     this.editMode = false;
     this.staticMeshes = null;          // hasil merge, dibuang saat masuk Edit
@@ -156,8 +154,6 @@ export class Building {
     this._editGroups = new Map();      // gid → [item] (unit edit, mis. meja+kursi)
     this._groupOf = new Map();         // item → gid
     this._grpSeq = 0;
-    // pasangan critter + StaffBrain yang berkeliling dalam ruangannya
-    this.staffRoster = [];
     // true saat rapat berjalan: staf dipas-lepas dari kunci pos ruangan
     this.meetingActive = false;
 
@@ -672,7 +668,7 @@ export class Building {
    * Semua kursi juga otomatis jadi hotspot klik "Duduk", jadi pemain
    * (mode Kendalikan) bisa duduk di kursi/sofa mana pun.
    */
-  _seat(x, z, yaw, type) {
+  _seat(x, z, yaw, type, ownerCol = null) {
     // 1) collider kursinya sendiri (dipasang tepat sebelum _seat dipanggil)
     let obstacle = null;
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
@@ -682,6 +678,10 @@ export class Building {
         break;
       }
     }
+    // Dudukan pada perabot lebar (sofa) TIDAK berimpit dengan pusat
+    // collider — owner-nya diberikan manual supaya kursi tetap terikat ke
+    // perabot (dan collider perabot boleh diabaikan saat masuk/duduk).
+    if (!obstacle && ownerCol) obstacle = ownerCol;
     const sit = { x: x + Math.sin(yaw) * SIT_FWD, z: z + Math.cos(yaw) * SIT_FWD };
 
     // 2) perabot yang wajar "menyelip" badan saat duduk (meja/meja rapat)
@@ -705,6 +705,10 @@ export class Building {
       height: obstacle?.owner?.userData?.seatTop ?? 0.505,
       seatable: true,
       blocked: true,          // tetap padat untuk yang BERJALAN
+      // "lounge" = sofa/armchair/ottoman ( bebas dipakai siapa pun),
+      // "workstation" = kursi ergonomis di unit meja kerja (dipakai modal).
+      kind: "lounge",
+      unitId: null,           // id unit meja (editId) — diisi di _workBundle
     };
 
     // 3) tautkan ke record perabot pemiliknya → ikut bergerak saat Mode Edit
@@ -745,6 +749,52 @@ export class Building {
 
     this.seats.push(seat);
     return seat;
+  }
+
+  /**
+   * Daftarkan beberapa dudukan pada satu perabot LEBAR (sofa, bangku):
+   * satu dudukan per bantalan, tersebar merata di lebarnya — makanya sofa
+   * 3 bantalan bisa dipakai 3 orang sekaligus, bukan cuma satu.
+   *
+   * `approachFwd` = jarak tempat BERDIRI sebelum duduk, dihitung dari pusat
+   * dudukan ke arah depan perabot. Tanpa ini, badan karakter tertahan
+   * collider sofa (sofa panjang di dinding pun jadi tidak bisa diduduki).
+   */
+  _softSeats({ x, z, ry = 0, width = 1.6, depth = 0.85, type = "lounge", count = null, owner = null } = {}) {
+    const n = Math.max(1, Math.min(3, count ?? Math.round((width - 0.2) / 0.66)));
+    const usable = Math.max(0.36, width - 0.36);      // tanpa sandaran kiri/kanan
+    const step = usable / n;
+    const c = Math.cos(ry);
+    const s = Math.sin(ry);
+    const front = depth / 2 + 0.38;                   // berdiri di depan perabot
+    // owner boleh: item edit, obj three, atau collider langsung
+    const ownerCol = owner?.obstacle
+      || owner?.userData?.editItem?.obstacle
+      || (owner && owner.minX !== undefined ? owner : null);
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const off = -usable / 2 + step * (i + 0.5);
+      const wx = x + off * c;
+      const wz = z - off * s;
+      const seat = this._seat(wx, wz, ry, type, ownerCol);
+      seat.approachFwd = front;
+      seat.approachSide = 0;
+      out.push(seat);
+    }
+    return out;
+  }
+
+  /** Titik berdiri sebelum duduk (dalam dunia) dari sebuah dudukan. */
+  _approachPoint(seat, side = 0, extra = 0, dir = 1) {
+    const fx = Math.sin(seat.yaw || 0);
+    const fz = Math.cos(seat.yaw || 0);
+    const sx = Math.cos(seat.yaw || 0);
+    const sz = -Math.sin(seat.yaw || 0);
+    const fwd = ((seat.approachFwd || 0) + extra) * dir;
+    return {
+      x: seat.x + fx * fwd + sx * side,
+      z: seat.z + fz * fwd + sz * side,
+    };
   }
 
   /** Collider yang boleh diabaikan saat berjalan masuk & duduk di kursi ini. */
@@ -854,6 +904,8 @@ export class Building {
     const c = Math.cos(ry);
     const s = Math.sin(ry);
     const roomName = this.room(this.roomAt(x, z))?.name || "Kantor";
+    const multi = plan.length > 1;
+    let chairIndex = 0;
     for (const p of plan) {
       const wx = x + p.ox * c + p.oz * s;
       const wz = z - p.ox * s + p.oz * c;
@@ -865,6 +917,17 @@ export class Building {
       this.obstacles.push(collider);
 
       const seat = this._seat(wx, wz, wyaw, p.spec.type || type);
+      // Kursi ergonomis di unit meja kerja → "workstation". Cuma unit meja
+      // kerja PRIBADI (type desk/ceo/reception) yang boleh dipesan staf lewat
+      // modal; kursi rapat (meeting) dipakai sistem all-hands.
+      seat.kind = "workstation";
+      seat.unitId = item.id;
+      // Kunci meja per KURSI: meja ber-kursi banyak (mis. meja studio 2 kursi)
+      // tetap bisa dipakai 2 orang berbeda. Meja 1 kursi tetap pakai id unit
+      // polos supaya data lama (p51, p53, …) tetap berlaku.
+      chairIndex += 1;
+      seat.deskKey = multi ? `${item.id}#${chairIndex}` : item.id;
+      seat.unitLabel = item.label || null;
 
       const hs = this._hotspot(wx, wz, 0.62, 0.85, {
         id: `seat-${seat.id}`,
@@ -1618,6 +1681,8 @@ export class Building {
       const seatLabel = item.label || "Kursi";
       const cc = Math.cos(ry);
       const ss = Math.sin(ry);
+      const seatTotal = srcItem.seats.length;
+      let seatIndex = 0;
       for (const s of srcItem.seats) {
         const lx = s.lx || 0;
         const lz = s.lz || 0;
@@ -1651,7 +1716,20 @@ export class Building {
           height: s.height ?? 0.505,
           seatable: true,
           blocked: true,
+          // Kursi hasil duplikat mewarisi sifat aslinya: workstation ergo
+          // tetap bisa dipesan staf, lounge tetap bebas.
+          kind: s.kind || "lounge",
+          unitId: multi ? item.id : (s.unitId ?? null),
+          unitLabel: multi ? (item.label || null) : (s.unitLabel ?? null),
+          // Dudukan lebar (sofa) tetap punya titik berdiri di depan perabot
+          approachFwd: s.approachFwd ?? 0,
+          approachSide: s.approachSide ?? 0,
         };
+        // Kunci meja per kursi juga ikut untuk duplikat (unit ber-kursi banyak).
+        seatIndex += 1;
+        ns.deskKey = multi
+          ? (seatTotal > 1 ? `${item.id}#${seatIndex}` : item.id)
+          : (s.deskKey ?? null);
         // meja yang menutupi titik duduk ikut boleh "diselipi" saat duduk
         for (const b of this.obstacles) {
           if (b === collider || b.kind === "wall") continue;
@@ -2053,38 +2131,6 @@ export class Building {
 
   room(id) {
     return this.rooms.find((r) => r.id === id) || null;
-  }
-
-  staffPost(id) {
-    return this.staffPosts[id] || null;
-  }
-
-  clampToStaffPost(id, v3, margin = 0.35, critter = null) {
-    const p = this.staffPosts[id];
-    if (!p) return v3;
-
-    const room = this.room(p.room);
-    let tx = v3.x;
-    let tz = v3.z;
-    if (room) {
-      tx = THREE.MathUtils.clamp(tx, room.x0 + margin, room.x1 - margin);
-      tz = THREE.MathUtils.clamp(tz, room.z0 + margin, room.z1 - margin);
-    }
-
-    const dx = tx - p.x;
-    const dz = tz - p.z;
-    const d = Math.hypot(dx, dz);
-    if (d > p.radius && d > 1e-5) {
-      const k = p.radius / d;
-      tx = p.x + dx * k;
-      tz = p.z + dz * k;
-    }
-    // The leash is a desired position, not a teleport. Respect every
-    // static and dynamic collider while returning toward the post.
-    return this.moveSafely(
-      v3, tx - v3.x, tz - v3.z, 0.29,
-      critter?._seatObstacle || null, critter,
-    );
   }
 
   clampToFloor(v3, margin = 0.35) {
@@ -2925,6 +2971,53 @@ export class Building {
   }
 
   /**
+   * Cari kursi berdasarkan kunci meja (deskKey). `deskKey` = id unit untuk
+   * meja 1 kursi (p51), atau `id#nomor` untuk meja ber-kursi banyak
+   * (mis. meja studio 2 kursi → p37#1 & p37#2). Dipakai Crew & StaffModal
+   * supaya meja yang dipesan selalu ketemu dan tidak tertukar.
+   */
+  seatByDesk(deskId) {
+    if (!deskId) return null;
+    const exact = this.seats.find((s) => s.deskKey === deskId);
+    if (exact) return exact;
+    // fallback: data lama yang masih menyimpan id unit polos
+    return this.seats.find((s) =>
+      (s.unitId || s.obstacle?.owner?.userData?.editId || s.id) === deskId
+    ) || null;
+  }
+
+  /**
+   * Semua kursi ergonomis (meja kerja) yang BOLEH dipesan staf: hanya unit
+   * meja kerja pribadi (type desk / ceo / reception). Kursi rapat (meeting)
+   * dan semua lounge (sofa/armchair/ottoman) sengaja tidak ikut.
+   */
+  workstationSeats() {
+    return this.seats.filter((s) =>
+      s.kind === "workstation" && WORKSTATION_SEAT_TYPES.has(s.type)
+    );
+  }
+
+  /**
+   * Klaim kursi dengan filter bebas (predicate). Dipakai Brain untuk
+   * mengunci meja: meja milik staf lain tidak boleh masuk kandidat, dan
+   * untuk staff tanpa meja → hanya workstation di ruangan yang diizinkan.
+   */
+  claimSeatWhere(who, predicate) {
+    const free = this.seats.filter((s) =>
+      predicate(s) && (!s.taken || s.taken === who)
+    );
+    if (!free.length) return null;
+    let min = Infinity;
+    for (const s of free) min = Math.min(min, s.uses || 0);
+    const pool = free.filter((s) => (s.uses || 0) === min);
+    const seat = pool[Math.floor(Math.random() * pool.length)];
+    seat.taken = who;
+    seat.takenAt = this._clock;
+    seat.uses = (seat.uses || 0) + 1;
+    return seat;
+  }
+
+  /**
    * Jaring pengaman: klaim kursi yang "bocor" (pemiliknya sudah tidak ada
    * atau keburu lama) dilepas lagi. Tanpa ini, kursi bisa terkunci selamanya
    * dan tidak ada seorang pun yang bisa duduk di sana.
@@ -2949,6 +3042,37 @@ export class Building {
     // Garis & titik duduk boleh menyelip ke meja yang ditutup kursi, tapi
     // titik pendekatannya WAJIB tempat yang benar-benar bisa dipijak.
     const ign = this.seatIgnore(seat);
+
+    // Dudukan lebar (sofa) punya titik berdiri sendiri: DI DEPAN perabot.
+    // Tanpa ini, pencarian radial selalu kena collider sofa → tidak bisa duduk.
+    if (seat.approachFwd) {
+      const cands = [];
+      // 1) di depan sofa (biasanya), makin jauh kalau terhalang
+      for (const extra of [0, 0.3, 0.65, 1.0]) {
+        for (const side of [0, 0.26, -0.26, 0.52, -0.52]) {
+          cands.push(this._approachPoint(seat, side, extra, 1));
+        }
+      }
+      // 2) di belakang sofa (sofa yang menghadap dinding)
+      for (const extra of [0, 0.3, 0.6]) {
+        for (const side of [0, 0.26, -0.26, 0.52, -0.52, 0.72, -0.72, 0.95, -0.95]) {
+          cands.push(this._approachPoint(seat, side, extra, -1));
+        }
+      }
+      // 3) di samping ujung sofa (meluncur dari samping)
+      for (const side of [0.9, -0.9, 1.3, -1.3, 1.8, -1.8]) {
+        cands.push(this._approachPoint(seat, side, 0, 1));
+      }
+      for (const p of cands) {
+        if (this.roomAt(p.x, p.z) !== room) continue;
+        if (!this.isFree(p.x, p.z, 0.30)) continue;
+        if (!this.walkableAt(p.x, p.z, 0.22, true)) continue;
+        if (!this._lineFree(p.x, p.z, target.x, target.z, 0.24, ign)) continue;
+        if (!this.isFree(target.x, target.z, 0.24, ign)) continue;
+        return { x: p.x, z: p.z };
+      }
+    }
+
     for (const r of radii) {
       for (let i = 0; i < 12; i++) {
         const step = Math.ceil(i / 2) * (Math.PI / 6) * (i % 2 ? 1 : -1);
@@ -2970,9 +3094,7 @@ export class Building {
 
   update(dt, elapsed) {
     this._clock += dt;
-    this.dynamicBodies = (this.crew?.members ?? []).concat(
-      (this.staffRoster ?? []).map((s) => s.critter),
-    );
+    this.dynamicBodies = (this.crew?.members ?? []).slice();
     // kursi yang klaimnya bocor dibebaskan tiap detik
     this._seatSweep -= dt;
     if (this._seatSweep <= 0) {
@@ -2992,15 +3114,6 @@ export class Building {
     }
     for (let i = 0; i < this.tickers.length; i++) {
       this.tickers[i].userData.update?.(dt, elapsed);
-    }
-    // NPC staf bergerak memakai swept collision yang sama dengan crew.
-    // Batas pos diterapkan sebagai gerakan aman, bukan teleportasi lalu push.
-    for (const s of this.staffRoster) {
-      s.brain.update(dt);
-      s.critter.update(dt, elapsed, this);
-      if (!this.meetingActive && !s.critter.sitting && !s.critter._seating) {
-        this.clampToStaffPost(s.postId, s.critter.position, 0.35, s.critter);
-      }
     }
     // badan yang sudah diam tidak boleh bertumpuk
     this.separateIdleBodies();

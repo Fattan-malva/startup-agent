@@ -452,10 +452,14 @@ export function build(b) {
   b._plant(3.4, 6.4, 0, { variant: 0, scale: 1.6, seed: 204 }, "Pohon taman");
 
   /* ── Bangku taman di sisi jalur (menghadap jalur) ────────────────── */
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.75, 3.0, Math.PI / 2);
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.75, 3.0, -Math.PI / 2);
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.8, 7.4, Math.PI / 2);
-  b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.8, 7.4, -Math.PI / 2);
+  const b1 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.75, 3.0, Math.PI / 2);
+  b._softSeats({ x: -1.75, z: 3.0, ry: Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b1 });
+  const b2 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.75, 3.0, -Math.PI / 2);
+  b._softSeats({ x: 1.75, z: 3.0, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b2 });
+  const b3 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), -1.8, 7.4, Math.PI / 2);
+  b._softSeats({ x: -1.8, z: 7.4, ry: Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b3 });
+  const b4 = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 1.8, 7.4, -Math.PI / 2);
+  b._softSeats({ x: 1.8, z: 7.4, ry: -Math.PI / 2, width: 1.35, depth: 0.44, count: 2, owner: b4 });
 
   /* ── Air mancur + lampu taman ────────────────────────────────────── */
   const fountain = courtyardFountain();

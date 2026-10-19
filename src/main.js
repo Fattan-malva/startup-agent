@@ -316,7 +316,14 @@ async function boot() {
             hud.toast("Rapat selesai — semua karyawan kembali bekerja ✅", 3000);
           } else if (meeting.start()) {
             if (btn) { btn.textContent = "Akhiri Rapat"; btn.classList.add("is-accent"); }
-            hud.toast("Rapat dimulai — semua karyawan menuju ruang meeting 🧑‍💼", 3200);
+            // hanya staf yang ruangan meeting-nya diizinkan ikut
+            const joiners = meeting.parts?.length ?? 0;
+            hud.toast(
+              joiners
+                ? `Rapat dimulai — ${joiners} karyawan menuju ruang meeting 🧑‍💼`
+                : "Rapat dimulai — tak ada staf yang punya akses ruang meeting",
+              3200,
+            );
           } else {
             hud.toast("Rapat sedang berlangsung", 2200);
           }

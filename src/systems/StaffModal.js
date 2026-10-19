@@ -1,18 +1,21 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Critter } from "../character/Critter.js";
-import { SPECIES, DEPARTMENTS, speciesById } from "../character/species.js";
+import { SPECIES, STAFF_SPECIES, DEPARTMENTS, speciesById } from "../character/species.js";
 import {
   STAFF,
   STAFF_STATUSES,
   DEPT_ROOM,
   DEFAULT_WANDER,
+  REST_ROOM,
   newStaffRecord,
   modelDefaults,
   appearanceFromModel,
   toHex,
   toInt,
   deptTie,
+  staffByDesk,
+  effectiveRooms,
 } from "../data/staff.js";
 
 /* ===================================================================== *
@@ -34,11 +37,21 @@ const $ = (id) => document.getElementById(id);
 
 const COLOR_FIELDS = ["skin", "shirt", "pants", "hair", "eyes", "tie"];
 
+/** Inisial bulat untuk avatar staf (daftar + peta penempatan). */
+function initialsOf(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  const text = parts.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return text || "?";
+}
+
 const PRESETS = {
   dev: { species: "developer", skin: "#dca787", shirt: "#17191d", pants: "#101216", hair: "#252321", eyes: "#49362b", accessory: "headphones" },
   design: { species: "designer", skin: "#f0c8ad", shirt: "#8980a8", pants: "#4a5360", hair: "#342721", eyes: "#49362b", accessory: "glasses" },
   exec: { species: "finance", skin: "#e5c0a4", shirt: "#484254", pants: "#4a5360", hair: "#2a2429", eyes: "#49362b", accessory: "none" },
   ops: { species: "operator", skin: "#9f694a", shirt: "#333943", pants: "#484254", hair: "#17191d", eyes: "#30241d", accessory: "headphones" },
+  // Look "Staff Cafe": baju hitam, celana hitam, pakai topi. Pas untuk
+  // staf yang di checkbox Cuma Cafe → mereka kerja di area Cafe.
+  cafe: { species: "staff", skin: "#dca787", shirt: "#15161a", pants: "#0a0c10", hair: "#17191d", eyes: "#30241d", accessory: "hat" },
 };
 
 /** Geometri & material warna dibagi cache global untuk seluruh kru —
@@ -72,6 +85,7 @@ export class StaffModal {
     this.dirty = false;
     this._filter = "";
     this._preview = null;
+    this._rooms = new Set();   // ruangan yang boleh dimasuki staf ini
     this._bind();
     this._fillSelects();
     this.renderList();
@@ -128,7 +142,20 @@ export class StaffModal {
       });
     }
 
-    $("staff-room")?.addEventListener("change", () => {
+    $("staff-rooms")?.addEventListener("change", (e) => {
+      const box = e.target.closest?.(".staff-room-checkbox");
+      if (!box || box.disabled) return;
+      const id = box.value;
+      if (box.checked) this._rooms.add(id);
+      else this._rooms.delete(id);
+      // Ruangan yang dicabut tidak boleh lagi memuat meja staf ini →
+      // meja dilepas supaya tidak ada meja di ruangan yang tak diizinkan.
+      const deskRoom = this._deskRoom(this.current?.deskId);
+      if (deskRoom && !this._rooms.has(deskRoom)) {
+        const sel = $("staff-desk");
+        if (sel) sel.value = "";
+        this.hud?.toast(`Meja dilepas — akses ruangan ${this._roomName(deskRoom)} dicabut`, 2600);
+      }
       this._refreshDesks();
       this._drawMap();
       this._updatePreviewMeta();
@@ -136,10 +163,7 @@ export class StaffModal {
     });
     $("staff-desk")?.addEventListener("change", () => {
       this._drawMap();
-      this._setDirty(true);
-    });
-    $("staff-wander")?.addEventListener("input", (e) => {
-      this._setWanderOut(e.target.value);
+      this._updatePreviewMeta();
       this._setDirty(true);
     });
 
@@ -180,13 +204,59 @@ export class StaffModal {
     const species = $("staff-species");
     if (species) {
       species.innerHTML = "";
-      for (const sp of SPECIES) species.append(new Option(`${sp.emoji} ${sp.name}`, sp.id));
+      // Look "Staff Cafe" ikut bisa dipilih — staf cafe dibuat dari modal.
+      for (const sp of [...SPECIES, ...STAFF_SPECIES]) {
+        species.append(new Option(`${sp.emoji} ${sp.name}`, sp.id));
+      }
     }
 
-    const room = $("staff-room");
-    if (room) {
-      room.innerHTML = "";
-      for (const r of this.building.rooms) room.append(new Option(r.name, r.id));
+    this._fillRooms();
+  }
+
+  /**
+   * Daftar check box ruangan — DINAMIS: diambil dari `building.rooms`, jadi
+   * ruangan yang baru ditambahkan ke gedung langsung ikut muncul (belum
+   * dicentang → belum ada akses, harus dicentang manual).
+   * Semua ruangan sama saja: kalau tidak dicentang, staf tidak boleh masuk.
+   */
+  _fillRooms() {
+    const wrap = $("staff-rooms");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    const known = new Set(STAFF.flatMap((s) => s.rooms || []));
+    for (const r of this.building.rooms) {
+      const isNew = !known.has(r.id);
+      const label = document.createElement("label");
+      label.className = "staff-room-chip" + (isNew ? " is-new" : "");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "staff-room-checkbox";
+      box.value = r.id;
+      const text = document.createElement("span");
+      text.textContent = r.name || r.id;
+      label.append(box, text);
+      if (isNew) {
+        const tag = document.createElement("span");
+        tag.className = "staff-room-tag";
+        tag.textContent = "baru";
+        label.appendChild(tag);
+      }
+      wrap.appendChild(label);
+    }
+    this._syncRoomChips();
+  }
+
+  /** Terapkan daftar ruangan terpilih ke chip check box. */
+  _setRooms(ids) {
+    this._rooms = new Set((ids || []).filter((id) => typeof id === "string"));
+    this._syncRoomChips();
+  }
+
+  _syncRoomChips() {
+    for (const box of $("staff-rooms")?.querySelectorAll(".staff-room-checkbox") || []) {
+      const on = this._rooms.has(box.value);
+      box.checked = on;
+      box.closest(".staff-room-chip")?.classList.toggle("is-on", on);
     }
   }
 
@@ -214,9 +284,11 @@ export class StaffModal {
         + (s.status !== "active" ? " is-off" : "");
       li.dataset.staffId = s.id;
       li.innerHTML =
-        '<span class="staff-dot"></span><span class="staff-name"></span>' +
+        '<span class="staff-avatar"></span><span class="staff-name"></span>' +
         '<span class="staff-flag"></span><span class="staff-meta"></span>';
-      li.querySelector(".staff-dot").style.setProperty("--dot", toHex(s.model?.tieColor ?? 0));
+      const avatar = li.querySelector(".staff-avatar");
+      avatar.textContent = initialsOf(s.name);
+      avatar.style.setProperty("--dot", toHex(s.model?.tieColor ?? 0));
       li.querySelector(".staff-name").textContent = s.name;
       li.querySelector(".staff-meta").textContent = `${s.title} · ${this._roomName(s.roomId)}`;
       li.querySelector(".staff-flag").textContent =
@@ -272,15 +344,10 @@ export class StaffModal {
       if (out) out.textContent = val;
     }
 
-    set("staff-room", s.roomId);
+    this._setRooms(s.rooms?.length ? s.rooms : [s.roomId]);
     this._refreshDesks();
     set("staff-desk", s.deskId);
 
-    const w = $("staff-wander");
-    if (w) {
-      w.value = String(s.wander ?? DEFAULT_WANDER);
-      this._setWanderOut(w.value);
-    }
     this._updatePreviewMeta();
   }
 
@@ -291,7 +358,7 @@ export class StaffModal {
     set("staff-title", "");
     set("staff-dept", DEPARTMENTS[0]?.name || "Engineering");
     set("staff-status", "active");
-    set("staff-room", DEPT_ROOM[DEPARTMENTS[0]?.name] || "staff");
+    this._setRooms([DEPT_ROOM[DEPARTMENTS[0]?.name] || "staff", REST_ROOM]);
     this._refreshDesks();
     set("staff-desk", "");
     const def = modelDefaults("developer");
@@ -303,14 +370,7 @@ export class StaffModal {
       const out = $(`staff-${key}-out`);
       if (out) out.textContent = val;
     }
-    const w = $("staff-wander");
-    if (w) { w.value = String(DEFAULT_WANDER); this._setWanderOut(w.value); }
     this._updatePreviewMeta();
-  }
-
-  _setWanderOut(v) {
-    const out = $("staff-wander-out");
-    if (out) out.textContent = `${Number(v).toFixed(1)} m`;
   }
 
   setTab(tab) {
@@ -334,8 +394,12 @@ export class StaffModal {
     if (!dept) return;
     const roomId = DEPT_ROOM[dept];
     if (roomId && this.building.room(roomId)) {
-      const room = $("staff-room");
-      if (room) room.value = roomId;
+      // Ganti departemen → izin akses direset ke ruangan departemen itu
+      // (Cafe tetap sesuai pilihan sebelumnya).
+      const keepCafe = this._rooms.has(REST_ROOM) ? [roomId, REST_ROOM] : [roomId];
+      this._setRooms(keepCafe);
+      const sel = $("staff-desk");
+      if (sel) sel.value = "";
       this._refreshDesks();
     }
     const tie = toHex(deptTie(dept));
@@ -444,13 +508,36 @@ export class StaffModal {
 
     const prev = { room: s.roomId, desk: s.deskId, species: s.model?.species };
 
+    /* --- Validasi penempatan ------------------------------------- *
+     *  Meja workstation bersifat EKSKLUSIF: satu meja milik satu staf.
+     *  Meja juga harus berada di ruangan yang boleh dimasuki staf.  */
+    const deskId = $("staff-desk")?.value || null;
+    if (deskId) {
+      const seat = this._seatOf(deskId);
+      if (!seat) {
+        this.setTab("placement");
+        this.hud?.toast("Meja tidak ditemukan — pilih ulang meja kerja", 2600);
+        return;
+      }
+      const owner = staffByDesk(deskId);
+      if (owner && owner.id !== s.id) {
+        this.setTab("placement");
+        this.hud?.toast(`Meja itu milik ${owner.name} — workstation tidak bisa dipakai dua orang`, 3000);
+        this._refreshDesks();
+        return;
+      }
+    }
+    const rooms = [...this._rooms].filter((id) => this.building.room(id));
+    if (!rooms.length) {
+      this.setTab("placement");
+      this.hud?.toast("Pilih minimal satu ruangan yang boleh dimasuki", 2600);
+      return;
+    }
+
     s.name = name;
     s.title = ($("staff-title")?.value || "").trim() || s.title;
     s.department = $("staff-dept")?.value || s.department;
     s.status = $("staff-status")?.value || s.status;
-    s.roomId = $("staff-room")?.value || s.roomId;
-    s.deskId = $("staff-desk")?.value || null;
-    s.wander = Number($("staff-wander")?.value) || DEFAULT_WANDER;
     s.model = {
       species: $("staff-species")?.value || s.model?.species || "developer",
       skin: $("staff-skin")?.value || s.model?.skin,
@@ -461,6 +548,22 @@ export class StaffModal {
       tieColor: toInt($("staff-tie")?.value || 0),
       accessory: $("staff-accessory")?.value || "none",
     };
+
+    /* Ruangan kerja diturunkan dari meja (D4): meja menentukan ruangan
+     * tempat staf bekerja. Tanpa meja → ruangan pertama yang diizinkan. */
+    const deskRoom = deskId ? this._deskRoom(deskId) : null;
+    s.deskId = deskId;
+    s.rooms = rooms;
+    if (deskRoom) {
+      if (!s.rooms.includes(deskRoom)) {
+        s.rooms.push(deskRoom);
+        this._setRooms(s.rooms);
+        this.hud?.toast(`Ruangan ${this._roomName(deskRoom)} diaktifkan — meja staf ada di sana`, 2800);
+      }
+      s.roomId = deskRoom;
+    } else {
+      s.roomId = s.rooms[0] || s.roomId;
+    }
 
     this._syncCritter(s, prev);
     this.renderList();
@@ -512,7 +615,7 @@ export class StaffModal {
   _deskSeat(deskId) {
     if (!deskId) return null;
     return this.building.seats.find(
-      (s) => (s.obstacle?.owner?.userData?.editId || s.id) === deskId,
+      (s) => this._seatUnitId(s) === deskId,
     ) || null;
   }
 
@@ -526,6 +629,7 @@ export class StaffModal {
       roomId: s.roomId,
       deskId: s.deskId,
       staffId: s.id,
+      rooms: s.rooms,
       appearance: appearanceFromModel(s.model),
     });
     critter.wanderRadius = Number(s.wander) || 0;
@@ -553,6 +657,10 @@ export class StaffModal {
     critter.tieColor = s.model.tieColor;
     critter.roomId = s.roomId;
     critter.deskId = s.deskId;
+    // Izin akses ruangan ikut diperbarui → AI langsung tahu ruangan mana
+    // yang boleh dimasuki staf ini.
+    critter.rooms = [...(s.rooms || [])];
+    critter.allowedRooms = effectiveRooms({ rooms: critter.rooms });
     critter.wanderRadius = Number(s.wander) || 0;
     critter.appearance = appearanceFromModel(s.model);
     try {
@@ -578,19 +686,52 @@ export class StaffModal {
 
   /* -------------------------------------------------------- meja & peta */
 
+  /** Kunci meja (deskKey) dari sebuah kursi: id unit, atau `id#nomor` untuk
+   *  meja ber-kursi banyak (mis. meja studio 2 kursi). */
+  _seatUnitId(seat) {
+    return seat?.deskKey
+      || seat?.unitId
+      || seat?.obstacle?.owner?.userData?.editId
+      || seat?.id
+      || null;
+  }
+
+  /** Kursi dari id unit meja. */
+  _seatOf(deskId) {
+    if (!deskId) return null;
+    return this.building.seats.find((s) => this._seatUnitId(s) === deskId) || null;
+  }
+
+  /** Ruangan tempat sebuah meja berada. */
+  _deskRoom(deskId) {
+    const seat = this._seatOf(deskId);
+    return seat ? this.building.roomAt(seat.x, seat.z) : null;
+  }
+
+  /**
+   * Daftar meja kerja = WORKSTATION ergo (kursi meja kerja pribadi) saja,
+   * diambil dari ruangan-ruangan yang diizinkan staf. Sofa/armchair/ottoman
+   * tidak pernah masuk daftar ini. Meja milik staf lain → disabled.
+   */
   _refreshDesks() {
     const sel = $("staff-desk");
     if (!sel) return;
-    const roomId = $("staff-room")?.value || this.current?.roomId || "staff";
-    const desks = this.building.seats.filter((d) =>
-      this.building.roomAt(d.x, d.z) === roomId,
+    const allowed = this._rooms;
+    const desks = this.building.workstationSeats().filter((d) =>
+      allowed.has(this.building.roomAt(d.x, d.z))
+      // Meja miliknya sendiri tetap boleh—even kalau_external room tak diizinkan
+      || this._seatUnitId(d) === this.current?.deskId,
     );
     sel.innerHTML = "";
     sel.append(new Option("— tanpa meja —", ""));
     for (const d of desks) {
-      const id = d.obstacle?.owner?.userData?.editId || d.id;
-      const taken = STAFF.find((s) => s.deskId === id && s !== this.current);
-      const opt = new Option(`${id} · ${taken ? taken.name : "kosong"}`, id);
+      const id = this._seatUnitId(d);
+      const owner = staffByDesk(id);
+      const mine = owner && owner.id === this.current?.id;
+      const taken = owner && !mine ? owner : null;
+      const roomName = this._roomName(this.building.roomAt(d.x, d.z));
+      const state = mine ? "meja Anda" : taken ? taken.name : "kosong";
+      const opt = new Option(`${roomName} · ${id} · ${state}`, id);
       if (taken) opt.disabled = true;
       sel.append(opt);
     }
@@ -623,70 +764,107 @@ export class StaffModal {
     const X = (x) => ox + x * s;
     const Z = (z) => oz + z * s;
 
-    const activeRoom = $("staff-room")?.value || this.current?.roomId || null;
+    const allowed = this._rooms;
 
-    // ruangan
+    // ruangan — yang diizinkan disorot, yang lain diredupkan
     for (const r of this.building.rooms) {
       const pts = (r.polygon || [[r.x0, r.z0], [r.x1, r.z0], [r.x1, r.z1], [r.x0, r.z1]]);
       ctx.beginPath();
       pts.forEach(([x, z], i) => (i ? ctx.lineTo(X(x), Z(z)) : ctx.moveTo(X(x), Z(z))));
       ctx.closePath();
-      const on = r.id === activeRoom;
-      ctx.fillStyle = on ? "rgba(226,176,119,0.16)" : "rgba(255,255,255,0.04)";
+      const on = allowed.has(r.id);
+      const isRest = r.id === REST_ROOM;
+      ctx.fillStyle = on
+        ? "rgba(226,176,119,0.16)"
+        : "rgba(255,255,255,0.03)";
       ctx.fill();
-      ctx.strokeStyle = on ? "rgba(226,176,119,0.75)" : "rgba(255,255,255,0.14)";
+      ctx.strokeStyle = on
+        ? "rgba(226,176,119,0.75)"
+        : "rgba(255,255,255,0.09)";
       ctx.lineWidth = on ? 1.4 : 1;
       ctx.stroke();
 
       const cx = X((r.x0 + r.x1) / 2);
       const cz = Z((r.z0 + r.z1) / 2);
-      ctx.fillStyle = on ? "rgba(244,241,234,0.92)" : "rgba(126,133,143,0.9)";
+      ctx.fillStyle = on
+        ? "rgba(244,241,234,0.92)"
+        : "rgba(126,133,143,0.55)";
       ctx.font = "8px ui-sans-serif, system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText((r.name || r.id).toUpperCase(), cx, cz);
-    }
-
-    // meja — tampilkan SEMUA kursi di ruangan (semua dianggap tempat kerja)
-    const desks = this.building.seats.filter((d) => true);
-    for (const d of desks) {
-      const id = d.obstacle?.owner?.userData?.editId || d.id;
-      const owner = STAFF.find((st) => st.deskId === id);
-      const mine = owner && this.current && owner.id === this.current.id;
-      ctx.beginPath();
-      ctx.arc(X(d.x), Z(d.z), mine ? 4 : 2.6, 0, Math.PI * 2);
-      if (mine) {
-        ctx.fillStyle = "rgba(226,176,119,0.95)";
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(X(d.x), Z(d.z), 7.5, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(226,176,119,0.5)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      } else if (owner) {
-        ctx.strokeStyle = "rgba(185,189,196,0.75)";
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = "rgba(126,133,143,0.55)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+      if (isRest) {
+        ctx.font = "7px ui-sans-serif, system-ui, sans-serif";
+        ctx.fillStyle = "rgba(226,176,119,0.75)";
+        ctx.fillText("ISTIRAHAT", cx, cz + 9);
       }
     }
 
-    // posisi staf terpilih di dunia
-    const critter = this.current ? this._critterOf(this.current.id) : null;
-    if (critter) {
+    // meja kerja — hanya WORKSTATION (kursi ergo), bukan sofa.
+    // Meja yang sudah dipesan digambar sebagai INISIAL bulat stafnya.
+    for (const d of this.building.workstationSeats()) {
+      const id = this._seatUnitId(d);
+      const owner = staffByDesk(id);
+      const x = X(d.x);
+      const z = Z(d.z);
+      if (owner) {
+        const mine = this.current && owner.id === this.current.id;
+        this._drawInitials(ctx, x, z, owner, { r: mine ? 7.5 : 6.5, mine });
+        continue;
+      }
+      // workstation kosong → lingkaran kecil kosong
       ctx.beginPath();
-      ctx.arc(X(critter.position.x), Z(critter.position.z), 3.2, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(99,216,255,0.95)";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(X(critter.position.x), Z(critter.position.z), 6.4, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(99,216,255,0.4)";
+      ctx.arc(x, z, 2.6, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(126,133,143,0.55)";
       ctx.lineWidth = 1;
       ctx.stroke();
     }
+
+    // posisi staf terpilih di dunia (inisial bulat + cincin)
+    const critter = this.current ? this._critterOf(this.current.id) : null;
+    if (critter) {
+      const x = X(critter.position.x);
+      const z = Z(critter.position.z);
+      ctx.beginPath();
+      ctx.arc(x, z, 10.5, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(99,216,255,0.55)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      this._drawInitials(ctx, x, z, this.current, { r: 7.5, mine: true });
+    }
+  }
+
+  /**
+   * Inisial bulat (avatar) untuk satu staf di peta penempatan.
+   * Bulat filled + huruf inisial, warna = warna dasi/departemen staf.
+   */
+  _drawInitials(ctx, x, y, staff, { r = 7, dim = false, mine = false } = {}) {
+    const initials = initialsOf(staff?.name);
+    const tie = toHex(staff?.model?.tieColor ?? 0x737f90);
+
+    ctx.save();
+    // cincin luar
+    ctx.beginPath();
+    ctx.arc(x, y, r + 1.6, 0, Math.PI * 2);
+    ctx.fillStyle = mine ? "rgba(226,176,119,0.95)" : "rgba(12,15,19,0.82)";
+    ctx.fill();
+    // badan bulat
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = dim ? "rgba(90,98,110,0.9)" : tie;
+    ctx.fill();
+    ctx.strokeStyle = mine
+      ? "rgba(255,240,220,0.95)"
+      : "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // huruf
+    ctx.fillStyle = "#f4f1ea";
+    ctx.font = `700 ${Math.max(7, Math.round(r * 1.05))}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(initials, x, y + 0.5);
+    ctx.restore();
   }
 
   /* ---------------------------------------------------------- preview */
@@ -941,7 +1119,11 @@ export class StaffModal {
     }
     const sp = speciesById($("staff-species")?.value || s.model?.species);
     const title = ($("staff-title")?.value || "").trim() || s.title;
-    subEl.textContent = `${title} · ${sp.emoji} ${sp.name} · ${this._roomName($("staff-room")?.value || s.roomId)}`;
+    // pakai state form (belum tentu tersimpan) supaya langsung sinkron
+    const rooms = this._rooms.size ? [...this._rooms] : (s.rooms?.length ? s.rooms : [s.roomId]);
+    subEl.textContent =
+      `${title} · ${sp.emoji} ${sp.name} · ${this._roomName(s.roomId)}`
+      + ` · ${rooms.length} ruang diizinkan`;
   }
 
   /** Teardown total — HANYA untuk membongkar aplikasi.
