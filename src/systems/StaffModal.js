@@ -512,7 +512,7 @@ export class StaffModal {
   _deskSeat(deskId) {
     if (!deskId) return null;
     return this.building.seats.find(
-      (s) => s.type === "desk" && (s.obstacle?.owner?.userData?.editId || s.id) === deskId,
+      (s) => (s.obstacle?.owner?.userData?.editId || s.id) === deskId,
     ) || null;
   }
 
@@ -582,8 +582,8 @@ export class StaffModal {
     const sel = $("staff-desk");
     if (!sel) return;
     const roomId = $("staff-room")?.value || this.current?.roomId || "staff";
-    const desks = this.building.seats.filter(
-      (s) => s.type === "desk" && this.building.roomAt(s.x, s.z) === roomId,
+    const desks = this.building.seats.filter((d) =>
+      this.building.roomAt(d.x, d.z) === roomId,
     );
     sel.innerHTML = "";
     sel.append(new Option("— tanpa meja —", ""));
@@ -647,8 +647,8 @@ export class StaffModal {
       ctx.fillText((r.name || r.id).toUpperCase(), cx, cz);
     }
 
-    // meja
-    const desks = this.building.seats.filter((d) => d.type === "desk");
+    // meja — tampilkan SEMUA kursi di ruangan (semua dianggap tempat kerja)
+    const desks = this.building.seats.filter((d) => true);
     for (const d of desks) {
       const id = d.obstacle?.owner?.userData?.editId || d.id;
       const owner = STAFF.find((st) => st.deskId === id);

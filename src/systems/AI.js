@@ -186,18 +186,29 @@ export class Brain {
   }
 
   _goalWander() {
-    // Radius keliling dari pengaturan HR (staff.json → wander).
-    let spot = this.b.randomSpot(null, { x: 0, z: 0 });
+    // Radius keliling dari pengaturan HR (staff.json → wander). Karakter
+    // berkeliling di sekitar "rumah"-nya (meja/kursi) dengan jarak maksimal
+    // `wanderRadius` — kalau radius 0, boleh ke mana saja di ruangannya.
     const r = Number(this.c.wanderRadius) || 0;
     const home = this.c.homeSpot;
+    const homeRoom = home ? this.b.roomAt(home.x, home.z) : this.c.roomId;
+    let spot = null;
     if (r > 0 && home) {
-      for (let i = 0; i < 10; i++) {
-        const t = this.b.randomSpot(null, { x: 0, z: 0 });
-        if (Math.hypot(t.x - home.x, t.z - home.z) <= r) {
-          spot = t;
-          break;
-        }
+      for (let i = 0; i < 30; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const rad = Math.random() * r;
+        const x = home.x + Math.cos(ang) * rad;
+        const z = home.z + Math.sin(ang) * rad;
+        if (this.b.roomAt(x, z) !== homeRoom) continue;
+        if (!this.b.isFree(x, z, 0.55)) continue;
+        if (!this.b._bodyFree(x, z, 0.8)) continue;
+        if (!this.b.walkableAt(x, z, 0.22, true)) continue;
+        spot = { x, z };
+        break;
       }
+    }
+    if (!spot) {
+      spot = this.b.randomSpot(this.c.roomId || homeRoom, { x: 0, z: 0 });
     }
     if (Math.abs(spot.x) < 0.01 && Math.abs(spot.z) < 0.01) return this._beginAct(3, "Mikir bentar");
     this._beginTravel({

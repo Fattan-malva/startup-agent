@@ -6,8 +6,8 @@
  * otomatis oleh Mode Edit (tombol Simpan / auto-save), sehingga siapa pun
  * yang pull repo langsung memakai tata ruang terbaru.
  *
- * Hybrid: pakai file JSON kalau ada isinya (mendukung save→reset), dan
- * jatuh ke salinan baked di bawah kalau file kosong/terhapus — supaya
+ * Hybrid: pakai file JSON kalau ada isinya (mendukung save ke reset), dan
+ * jatuh ke salinan baked di bawah kalau file kosong/terhapus � supaya
  * tata ruang final pengguna tidak hilang karena wipe/kesalahan.
  */
 import layout from "./layout.default.json" with { type: "json" };
@@ -56,12 +56,10 @@ const BAKED = {
     "p36": { "x": 7.43, "z": -3.57, "ry": 0 },
     "p37": { "x": 10.6, "z": 2.9, "ry": 0 },
     "p38": { "x": 13.4, "z": 2.9, "ry": 0 },
-    "p39": { "x": 9.4, "z": 1.2, "ry": 0 },
-    "p42": { "x": 12.6, "z": 1.2, "ry": 0 },
+    "p39": { "x": 8.35, "z": 1.2, "ry": 0 },
+    "p42": { "x": 15.09, "z": 1.2, "ry": 0 },
     "p43": { "x": 15.7, "z": 2, "ry": -1.5708 },
     "p44": { "x": 15.7, "z": 3.6, "ry": -1.5708 },
-    "p45": { "x": 9, "z": 1.8, "ry": 0 },
-    "p46": { "x": 9.95, "z": 1.5, "ry": 0 },
     "p49": { "x": 7.376, "z": 1.876, "ry": 0 },
     "p50": { "x": 7.6, "z": 4.6, "ry": 0 },
     "p51": { "x": 9.4, "z": 6.15, "ry": 0 },
@@ -149,7 +147,6 @@ const BAKED = {
     "p143": { "x": -1.26, "z": 7.445, "ry": 1.5708 },
     "p144": { "x": 1.24, "z": 5.195, "ry": -1.5708 },
     "p145": { "x": -3.67, "z": 2.83, "ry": 0 },
-    "p147": { "x": 4.2, "z": 3.4, "ry": 0 },
     "p149": { "x": -4.6198, "z": 4.6302, "ry": 0 },
     "p150": { "x": -4.1, "z": 8.6, "ry": 0 },
     "p151": { "x": -2.4, "z": 8.6, "ry": 0 },
@@ -174,12 +171,11 @@ const BAKED = {
   ],
   "del": [
     "p23", "p24", "p26", "p27", "p30", "p32", "p35", "p40", "p41",
-    "p47", "p48", "p75", "p100", "p114", "p118", "p122", "p124",
-    "p134", "p139", "p140", "p146", "p148", "p159", "p161", "p163",
-    "p164", "p165"
+    "p45", "p46", "p47", "p48", "p75", "p100", "p114", "p118", "p122",
+    "p124", "p134", "p139", "p140", "p146", "p147", "p148", "p159",
+    "p161", "p163", "p164", "p165"
   ]
 };
-
 export const DEFAULT_EDITS =
   (layout && layout.items && Object.keys(layout.items).length)
     ? layout
