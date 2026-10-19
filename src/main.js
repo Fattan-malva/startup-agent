@@ -325,7 +325,9 @@ async function boot() {
         /* ---- mode edit (tata ulang world) ------------------------ */
         case "edit-mode":
           if (!edit.enabled) {
-            if (player.active) player.release();
+            // Mode Edit juga bisa dipakai dari POV / saat mengendalikan
+            // karakter: JANGAN keluar dari tubuh. Cukup lepas pointer-lock
+            // supaya kursor bebas untuk memilih & menggeser perabot.
             input.releaseLock();
           }
           edit.toggle();

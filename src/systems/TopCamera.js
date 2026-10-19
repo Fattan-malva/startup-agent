@@ -119,19 +119,24 @@ export class TopCamera {
     if (!b) return;
     const cam = this.fpsCamera;
     cam.rotation.set(this.fpsPitch, this.fpsYaw + Math.PI, 0, "YXZ");
-    cam.position.set(b.position.x, b.eyeLevel(), b.position.z);
+    cam.position.set(b.position.x, b.eyeLevel() + 0.5, b.position.z);
   }
 
   _updateFps(dt, input) {
     this._t += dt;
     const look = input.consumeDelta();
     input.wheel = 0; // no zooming while inside a body
-    this.fpsYaw -= look.x * FPS_SENS;
-    this.fpsPitch = THREE.MathUtils.clamp(
-      this.fpsPitch - look.y * FPS_SENS,
-      FPS_PITCH_MIN,
-      FPS_PITCH_MAX,
-    );
+    // Saat memilih/menggeser perabot (Mode Edit) atau saat modal terbuka,
+    // delta dikonsumsi tapi TIDAK dipakai untuk memutar kamera — supaya
+    // gerakan kursor menggerakkan perabot, bukan memutar pandangan.
+    if (!this.suppressDragPan) {
+      this.fpsYaw -= look.x * FPS_SENS;
+      this.fpsPitch = THREE.MathUtils.clamp(
+        this.fpsPitch - look.y * FPS_SENS,
+        FPS_PITCH_MIN,
+        FPS_PITCH_MAX,
+      );
+    }
 
     this._syncFpsCamera();
     const b = this.body;

@@ -5,7 +5,11 @@ const geometryCache = new Map();
 const materialCache = new Map();
 
 export const G = (key, make) => {
-  if (!geometryCache.has(key)) geometryCache.set(key, make());
+  if (!geometryCache.has(key)) {
+    const geo = make();
+    geo.userData.shared = true; // dipakai bersama seluruh kru — JANGAN di-dispose
+    geometryCache.set(key, geo);
+  }
   return geometryCache.get(key);
 };
 export const SPH = () => G("human-sphere", () => new THREE.SphereGeometry(1, 32, 24));
@@ -14,14 +18,18 @@ export const BOX = () => G("human-box", () => new THREE.BoxGeometry(1, 1, 1));
 export function M(hex, extra = {}) {
   const key = `${hex}|${JSON.stringify(extra)}`;
   if (!materialCache.has(`s:${key}`)) {
-    materialCache.set(`s:${key}`, new THREE.MeshStandardMaterial({ color: hex, roughness: 0.76, ...extra }));
+    const mat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.76, ...extra });
+    mat.userData.shared = true; // dipakai bersama seluruh kru — JANGAN di-dispose
+    materialCache.set(`s:${key}`, mat);
   }
   return materialCache.get(`s:${key}`);
 }
 export function MB(hex, extra = {}) {
   const key = `${hex}|${JSON.stringify(extra)}`;
   if (!materialCache.has(`b:${key}`)) {
-    materialCache.set(`b:${key}`, new THREE.MeshBasicMaterial({ color: hex, ...extra }));
+    const mat = new THREE.MeshBasicMaterial({ color: hex, ...extra });
+    mat.userData.shared = true; // dipakai bersama seluruh kru — JANGAN di-dispose
+    materialCache.set(`b:${key}`, mat);
   }
   return materialCache.get(`b:${key}`);
 }
@@ -73,6 +81,7 @@ export function shadowMaterial() {
   ctx.fillRect(0, 0, 64, 64);
   const texture = new THREE.CanvasTexture(canvas);
   cachedShadow = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, opacity: 0.86 });
+  cachedShadow.userData.shared = true; // bayangan bersama seluruh kru — JANGAN di-dispose
   return cachedShadow;
 }
 

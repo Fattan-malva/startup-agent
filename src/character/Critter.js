@@ -178,13 +178,28 @@ export class Critter {
   /** Rebuild visual appearance from this.appearance (call after changing colors/accessories). */
   rebuildAppearance() {
     try {
-      // Dispose old meshes
-      if (this.body) this.body.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
-      if (this.headGroup) this.headGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
-      if (this.cupProp) this.cupProp.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
-      if (this.phoneProp) this.phoneProp.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
-      if (this.laptopProp) this.laptopProp.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { const m = Array.isArray(o.material) ? o.material : [o.material]; m.forEach((mat) => mat.dispose()); } });
-      
+      // Buang mesh lama. Hanya sumber daya milik kritter ini (ID card:
+      // plane + texture-nya) yang boleh di-dispose. Geometry dari cache
+      // `G()` dan material dari `M()/MB()/shadowMaterial()` dipakai
+      // bersama SELURUH kru — membuangnya membuat karakter lain (dan
+      // preview di modal staf) ikut hilang / kosong.
+      const drop = (group) => {
+        group?.traverse?.((o) => {
+          if (o.geometry && !o.geometry.userData?.shared) o.geometry.dispose();
+          const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+          for (const m of mats) {
+            if (m.userData?.shared) continue;
+            m.map?.dispose?.();
+            m.dispose?.();
+          }
+        });
+      };
+      drop(this.body);
+      drop(this.headGroup);
+      drop(this.cupProp);
+      drop(this.phoneProp);
+      drop(this.laptopProp);
+
       // Remove old groups
       if (this.body) this.motion.remove(this.body);
       if (this.headGroup) this.spine.remove(this.headGroup);

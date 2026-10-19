@@ -18,7 +18,20 @@ import { DEFAULT_EDITS } from "../data/defaultEdits.js";
 // Tata ruang disimpan sebagai file JSON di repo (bukan localStorage).
 // Dev server menulis src/data/layout.default.json lewat endpoint ini.
 const LAYOUT_URL = "/__layout";
-const SNAP = 0.25;              // grid snap (meter) — fallback lama
+/* Petak seragam untuk SEMUA perabot, sama persis dengan ukuran sel
+ * navgrid karakter (Building._navEnsure → cell = 0.25 m).
+ *
+ * Dulu tiap perabot memakai snap miliknya sendiri (5/10/25/50 cm) sesuai
+ * ukurannya, sehingga tepi perabot mendarat di posisi yang tidak sejajar
+ * sel nav. Akibatnya tersisa sel "setengah terblokir" di mana isFree() di
+ * pusat sel bisa goyah — itulah yang membuat karakter nyangkut, tidak
+ * bisa berdiri lagi setelah duduk, atau tersendat di sempit perabot.
+ *
+ * Dengan satu ukuran petak yang sama dengan grid jalan, tepi perabot
+ * selalu jatuh tepat di garis sel nav → peta jalur selalu rapi dan
+ * deterministik. Geser/pindah barang juga jadi per petak 25 cm. */
+const PETAK = 0.25;              // meter — sinkron dengan Building nav cell
+const SNAP = PETAK;              // alias lama (dipertahankan untuk kompatibilitas)
 const PICK_PERIOD = 1 / 30;     // hover raycast throttle
 const DRAG_THRESHOLD = 6;       // px sebelum drag dihitung drag
 const BODY_MARGIN = 0.15;
@@ -185,6 +198,9 @@ export class EditMode {
         ? "Mode Edit: klik & drag perabot · ⟲⟳ putar ([ ]) · Duplikat/Hapus · Esc selesai"
         : "Drag untuk geser · scroll untuk zoom · klik pegawai untuk detail",
     );
+    // Keluar Mode Edit saat masih di dalam tubuh (POV) → pulihkan petunjuk
+    // first-person, jangan tinggalkan teks mode isometrik.
+    if (!next && this.hud.firstPerson) this.hud.setFirstPerson(true);
 
     if (next) {
       this.snap = true;
@@ -192,7 +208,7 @@ export class EditMode {
       this.hud.renderEditMats(this.materialPalette(), null);
       this.hud.setEditSnap(this.snap);
       this.hud.setEditTarget("Klik perabot untuk memilih");
-      this.hud.toast("Mode Edit aktif — petak 5/25/100 cm, perabot snap ke petaknya sendiri 🛠️", 2800);
+      this.hud.toast("Mode Edit aktif — petak seragam 25 cm, sejajar grid jalan karakter 🛠️", 2800);
     } else {
       for (const g of this._grids) g.visible = false;
       this._hideFootCells();
@@ -226,18 +242,18 @@ export class EditMode {
 
   /* ------------------------------------------------------- petak & aman */
 
-  /** Ukuran petak snap milik perabot (dari footprint terkecilnya). */
-  snapStep(item) {
-    const f = item.fp || { w: 0.7, d: 0.7 };
-    const q = ((Math.round((item.ry || 0) / (Math.PI / 2)) % 4) + 4) % 4;
-    const swap = q % 2 === 1;
-    const w = (swap ? f.d : f.w) || 0.7;
-    const d = (swap ? f.w : f.d) || 0.7;
-    const m = Math.min(w, d);
-    if (m >= 2.0) return 0.5;
-    if (m >= 1.0) return 0.25;
-    if (m >= 0.5) return 0.1;
-    return 0.05;
+  /**
+   * Ukuran petak snap milik perabot — SERAGAM untuk semua perabot:
+   * selalu0,25 m, sejajar dengan sel navgrid karakter (Building nav cell).
+   *
+   * Dulu ukurannya diturunkan dari footprint (5/10/25/50 cm), sehingga
+   * perabot kecil punya petak kecil dan perabot besar petak besar — tepi
+   * mereka tidak pernah sejajar dengan grid lantai/nav, dan sisa sel
+   * "setengah terblokir" bikin karakter nyangkut. Sekarang satu ukuran
+   * untuk semua: tepi perabot selalu jatuh di garis sel nav yang sama.
+   */
+  snapStep() {
+    return PETAK;
   }
 
   /** Selaraskan SISI perabot (bukan pusatnya) ke garis petak. */
@@ -580,8 +596,7 @@ export class EditMode {
     if (!item) return;
     const label = item.label || item.obj.userData.interactionLabel || item.obj.name || "Perabot";
     const deg = Math.round((((item.ry * 180) / Math.PI) % 360 + 360) % 360);
-    const step = this.snapStep(item);
-    const petak = step >= 0.5 ? "50 cm" : step >= 0.25 ? "25 cm" : step >= 0.1 ? "10 cm" : "5 cm";
+    const petak = `${Math.round(PETAK * 100)} cm`;
     const unit = this.building.groupOf(item).length > 1 ? " · 1 unit" : "";
     this.hud.setEditTarget(
       `${label} · x ${item.x.toFixed(2)} · z ${item.z.toFixed(2)} · ${deg}° · petak ${petak}${this.snap ? " (snap)" : ""}${unit}`,

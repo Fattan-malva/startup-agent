@@ -35,20 +35,22 @@ const $ = (id) => document.getElementById(id);
 const COLOR_FIELDS = ["skin", "shirt", "pants", "hair", "eyes", "tie"];
 
 const PRESETS = {
-  dev: { species: "developer", skin: "#dca787", shirt: "#506a85", pants: "#343b45", hair: "#252321", eyes: "#49362b", accessory: "none" },
+  dev: { species: "developer", skin: "#dca787", shirt: "#17191d", pants: "#101216", hair: "#252321", eyes: "#49362b", accessory: "headphones" },
   design: { species: "designer", skin: "#f0c8ad", shirt: "#8980a8", pants: "#4a5360", hair: "#342721", eyes: "#49362b", accessory: "glasses" },
   exec: { species: "finance", skin: "#e5c0a4", shirt: "#484254", pants: "#4a5360", hair: "#2a2429", eyes: "#49362b", accessory: "none" },
   ops: { species: "operator", skin: "#9f694a", shirt: "#333943", pants: "#484254", hair: "#17191d", eyes: "#30241d", accessory: "headphones" },
 };
 
 /** Geometri & material warna dibagi cache global untuk seluruh kru —
- *  jangan pernah di-dispose. Yang benar-benar milik preview hanya material
- *  ID card (dibuat baru tiap kritter + punya texture sendiri). */
+ *  jangan pernah di-dispose (ditandai `userData.shared` oleh critterShared,
+ *  termasuk material bayangan bersama). Yang benar-benar milik preview ini
+ *  hanya material ID card: dibuat baru tiap kritter + punya texture sendiri. */
 function releasePreviewMeshes(root) {
   root.traverse((o) => {
     const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
     for (const m of mats) {
-      if (!m.map) continue; // milik cache bersama — biarkan
+      if (m.userData?.shared) continue; // material cache global (M/MB/bayangan) — jangan disentuh
+      if (!m.map) continue; // hanya material milik preview ini (ID card) punya texture sendiri
       m.map.dispose?.();
       m.dispose?.();
     }
@@ -706,6 +708,7 @@ export class StaffModal {
     this.renderList();
     this.setTab(this.tab);
     this._refreshPreview();
+    this._startLoop();
     requestAnimationFrame(() => {
       this._resizePreview();
       this._drawMap();
@@ -720,7 +723,11 @@ export class StaffModal {
     this.isOpen = false;
     this.modal?.classList.remove("is-open");
     this.hud?.setStaffModal?.(false);
-    this._disposePreview();
+    // Hanya hentikan render loop. Renderer + WebGL context TETAP hidup:
+    // memanggil forceContextLoss() lalu memakai canvas yang sama saat
+    // modal dibuka lagi membuat preview kadang blank (context mati tidak
+    // bisa dipulihkan dengan andal di canvas yang sama).
+    this._stopLoop();
   }
 
   _ensurePreview() {
@@ -754,7 +761,7 @@ export class StaffModal {
 
     const p = {
       renderer, scene, cam, controls,
-      critter: null, raf: 0, last: performance.now(),
+      critter: null, raf: 0, running: false, last: performance.now(),
       anim: $("staff-preview-anim")?.value || "idle",
       spin: ($("staff-preview-spin")?.value || "on") === "on",
       dragging: false, emoteT: 0, w: 0, h: 0,
@@ -764,18 +771,43 @@ export class StaffModal {
     this.canvas.addEventListener("pointerdown", () => { p.dragging = true; });
     window.addEventListener("pointerup", () => { p.dragging = false; });
 
+    // Context WebGL bisa hilang (GPU reset / tab lama di background).
+    // preventDefault membuat browser boleh memulihkan context; setelah
+    // pulih, ukuran framebuffer disegarkan lagi.
+    this.canvas.addEventListener("webglcontextlost", (e) => e.preventDefault(), false);
+    this.canvas.addEventListener("webglcontextrestored", () => this._resizePreview(), false);
+
     if ("ResizeObserver" in window) {
       p.ro = new ResizeObserver(() => this._resizePreview());
       if (this.canvas.parentElement) p.ro.observe(this.canvas.parentElement);
     }
 
-    this._loop();
     return p;
+  }
+
+  /** Mulai/hentikan render loop tanpa menyentuh WebGL context. */
+  _startLoop() {
+    const p = this._preview;
+    if (!p || p.running) return;
+    p.running = true;
+    p.last = performance.now();
+    p.raf = requestAnimationFrame(this._loop);
+  }
+
+  _stopLoop() {
+    const p = this._preview;
+    if (!p) return;
+    p.running = false;
+    if (p.raf) cancelAnimationFrame(p.raf);
+    p.raf = 0;
   }
 
   _loop = () => {
     const p = this._preview;
-    if (!p) return;
+    if (!p || !p.running) {
+      if (p) p.raf = 0;
+      return;
+    }
     p.raf = requestAnimationFrame(this._loop);
     const now = performance.now();
     const dt = Math.min(0.05, (now - p.last) / 1000);
@@ -819,9 +851,13 @@ export class StaffModal {
   _resizePreview() {
     const p = this._preview;
     if (!p || !this.canvas) return;
+    // Saat modal tertutup, kotak canvas berukuran 0. Jangan mengecilkan
+    // framebuffer ke ukuran itu — cukup ukur ketika benar-benar tampil.
+    if (!this.isOpen) return;
     const rect = this.canvas.getBoundingClientRect();
-    const w = Math.max(160, Math.round(rect.width));
-    const h = Math.max(160, Math.round(rect.height));
+    const w = Math.round(rect.width);
+    const h = Math.round(rect.height);
+    if (w < 8 || h < 8) return;
     if (p.w === w && p.h === h) return;
     p.w = w;
     p.h = h;
@@ -874,6 +910,7 @@ export class StaffModal {
 
     this._applyPreviewAnim();
     this._updatePreviewMeta();
+    if (this.isOpen) this._startLoop();
   }
 
   _applyPreviewAnim() {
@@ -907,10 +944,13 @@ export class StaffModal {
     subEl.textContent = `${title} · ${sp.emoji} ${sp.name} · ${this._roomName($("staff-room")?.value || s.roomId)}`;
   }
 
+  /** Teardown total — HANYA untuk membongkar aplikasi.
+   *  Jangan dipanggil saat modal ditutup: `forceContextLoss()` membuat
+   *  canvas tidak bisa dipakai renderer baru dengan andal. */
   _disposePreview() {
     const p = this._preview;
     if (!p) return;
-    cancelAnimationFrame(p.raf);
+    this._stopLoop();
     p.ro?.disconnect?.();
     p.controls?.dispose();
     if (p.critter) {

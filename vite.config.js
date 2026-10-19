@@ -5,8 +5,13 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LAYOUT_FILE = path.join(__dirname, "src", "data", "layout.default.json");
-
 const STAFF_FILE = path.join(__dirname, "src", "data", "staff.json");
+
+/* File data yang di-import sebagai modul JS:
+ *   src/data/staff.json           → src/data/staff.js       (STAFF)
+ *   src/data/layout.default.json  → src/data/defaultEdits.js (DEFAULT_EDITS)
+ * Endpoint /__staff dan /__layout menulis ulang file-file ini. */
+const DATA_FILES = new Set(["staff.json", "layout.default.json"]);
 
 function staffSavePlugin() {
   return {
@@ -79,16 +84,37 @@ function layoutSavePlugin() {
   };
 }
 
+/* ------------------------------------------------------------------ *
+ *  Jangan full-reload saat file data ditulis oleh endpoint simpan.
+ *
+ *  Tanpa plugin ini: setiap kali Mode Edit / HR menyimpan, JSON yang
+ *  di-import sebagai modul ditulis ulang. Watcher Vite melihat modul itu
+ *  berubah lalu mengirim full-reload ke browser → layar loading muncul
+ *  lagi dari awal dan seluruh gedung dibangun ulang, padahal perubahan
+ *  sudah diterapkan langsung di memori.
+ *
+ *  Dengan mengembalikan array kosong dari `handleHotUpdate`, Vite tidak
+ *  mengirim update/reload apa pun untuk file tersebut. Modulnya tetap
+ *  di-invalidate supaya refresh manual berikutnya membaca isi terbaru
+ *  dari disk (bukan cache transform lama).
+ * ------------------------------------------------------------------ */
+function noReloadOnDataSave() {
+  return {
+    name: "atelier-no-reload-data-save",
+    handleHotUpdate({ file, server, modules }) {
+      if (!DATA_FILES.has(path.basename(file))) return;
+      for (const mod of modules) server.moduleGraph.invalidateModule(mod);
+      return []; // tidak ada update ke browser → tidak ada reload
+    },
+  };
+}
+
 export default defineConfig({
   base: "./",
-  plugins: [layoutSavePlugin(), staffSavePlugin()],
+  plugins: [layoutSavePlugin(), staffSavePlugin(), noReloadOnDataSave()],
   server: {
     port: 5173,
     open: false,
-    watch: {
-      // Jangan HMR reload saat file layout ditulis ulang dari Edit Mode.
-      ignored: ["**/src/world/layout.default.json"],
-    },
   },
   build: {
     target: "esnext",
