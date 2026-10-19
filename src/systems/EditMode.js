@@ -358,10 +358,10 @@ export class EditMode {
     return true;
   }
 
-  /** Validasi lengkap: tidak menabrak + kursi tetap bisa diduduki/keluar. */
+  /** Validasi: cukup tidak menabrak perabot lain (petak). Path/kursi
+   *  dibiarkan ke NavMesh — karakter akan mencari jalan alternatif. */
   placementOk(item, x, z, ry = item.ry, own = item.obstacle, ignore = null) {
-    if (this.overlapsSolid(item, x, z, ry, 0.015, own, ignore)) return false;
-    return this.seatsReachable(item, x, z, ry, ignore);
+    return !this.overlapsSolid(item, x, z, ry, 0.015, own, ignore);
   }
 
   /** Validasi seluruh unit edit (meja+kursi) pada posisi saat ini. */
@@ -374,8 +374,6 @@ export class EditMode {
       const bad = this.overlapsSolid(m, m.x, m.z, m.ry, 0.015, m.obstacle, ignore);
       ignore.add(m.obstacle);
       if (bad) return false;
-      // kursi dicek dengan dunia apa adanya (collider sudah di posisi baru)
-      if (!this.seatsReachable(m, m.x, m.z, m.ry)) return false;
     }
     return true;
   }
@@ -396,16 +394,8 @@ export class EditMode {
     return true;
   }
 
-  /**
-   * Semua kursi di gedung harus tetap bisa dicapai. Dipakai saat commit
-   * (lepas drag / putar / duplikat) supaya perabot baru tidak memotong
-   * jalur ke kursi lain — bukan cuma kursinya sendiri.
-   */
+  /** NavMesh menangani navigasi — penempatan hanya dicek petak vs petak. */
   allSeatsOk() {
-    const b = this.building;
-    for (const s of b.seats) {
-      if (!b.approachTo(s)) return false;
-    }
     return true;
   }
 
@@ -527,10 +517,11 @@ export class EditMode {
   _beginDrag() {
     const item = this._pressItem;
     if (!item) return;
+    // Selama drag, jangan bangun ulang grid nav tiap frame (berat) —
+    // grid dibangun ulang sekali saat lepas.
+    if (this.building) this.building._navSuspended = true;
     if (this.input?.locked) {
-      // POV / kursor terkunci: tidak ada posisi kursor, jadi pergeseran
-      // dihitung dari DELTA mouse (lihat `_dragLocked`). Buang sisa delta
-      // supaya perabot tidak "melompat" saat tombol baru ditekan.
+      // POV / kursor terkunci: ...
       this._grab.x = 0;
       this._grab.z = 0;
       this.input.consumeDelta();
@@ -607,6 +598,7 @@ export class EditMode {
 
   _release() {
     const item = this._pressItem;
+    if (this.building) this.building._navSuspended = false;
     if (this.dragging) {
       this.dragging = false;
       if (this._dirty) {
@@ -615,14 +607,13 @@ export class EditMode {
         if (item) {
           this.building.refreshNav();
           let ok = this.groupPlacementOk(item);
-          if (ok && !this.allSeatsOk()) ok = false;
           if (!ok && this._safe) {
             this.building.moveGroup(item, this._safe.x, this._safe.z);
             this.building.rotateGroup(item, this._safe.ry);
             this.building.refreshNav();
             item.obj.updateMatrixWorld(true);
             this._placeOk = true;
-            this.hud.toast("Posisi itu menutup jalan / kursi — dikembalikan ke posisi aman", 2800);
+            this.hud.toast("Posisi itu menutup perabot lain — dikembalikan ke posisi aman", 2800);
           } else if (ok) {
             this._safe = { x: item.x, z: item.z, ry: item.ry };
             this._placeOk = true;
@@ -652,15 +643,18 @@ export class EditMode {
     }
     this._selBox.visible = true;
     this.hud.renderEditMats(this.materialPalette(), item.matKey);
-    this._readout();
+    this._readout(true);
     // validasi penuh sekali saat memilih → warna petak langsung benar
     this._placeOk = this.groupPlacementOk(item);
     this._refreshBox();
   }
 
-  _readout() {
+  _readout(force = false) {
     const item = this.selected;
     if (!item) return;
+    const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
+    if (!force && this._lastReadout && now - this._lastReadout < 80) return;
+    this._lastReadout = now;
     const label = item.label || item.obj.userData.interactionLabel || item.obj.name || "Perabot";
     const deg = Math.round((((item.ry * 180) / Math.PI) % 360 + 360) % 360);
     const petak = `${Math.round(PETAK * 100)} cm`;
@@ -748,12 +742,11 @@ export class EditMode {
     // Putaran bisa membuat kursi menghadap dinding / tidak bisa diakses.
     // Kalau begitu, kembalikan ke putaran aman terakhir.
     let ok = this.groupPlacementOk(item);
-    if (ok && !this.allSeatsOk()) ok = false;
     if (!ok) {
       this.building.rotateGroup(item, before.ry);
       this.building.refreshNav();
       item.obj.updateMatrixWorld(true);
-      this.hud.toast("Putaran itu membuat kursi/jalan terhalang — dibatalkan", 2600);
+      this.hud.toast("Putaran itu menutup perabot lain — dibatalkan", 2600);
     } else {
       this._safe = { x: item.x, z: item.z, ry: item.ry };
     }
@@ -815,7 +808,7 @@ export class EditMode {
       (anchorCopy) => {
         this.building.refreshNav();
         if (!this.groupPlacementOk(anchorCopy)) return false;
-        return this.allSeatsOk();
+        return true;
       },
     );
     if (!copy) {

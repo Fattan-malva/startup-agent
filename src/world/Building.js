@@ -1172,7 +1172,7 @@ export class Building {
     o.minX = item.x - hw; o.maxX = item.x + hw;
     o.minZ = item.z - hd; o.maxZ = item.z + hd;
     o.centerX = item.x; o.centerZ = item.z;
-    this._nav = null; // grid navigasi dibangun ulang
+    if (!this._navSuspended) this._nav = null; // grid navigasi dibangun ulang
   }
 
   /** Pindah perabot di bidang lantai; bagian lepas/hotspot/kursi ikut. */
@@ -1441,14 +1441,14 @@ export class Building {
     const i = this.obstacles.indexOf(o);
     if (on && i < 0) this.obstacles.push(o);
     else if (!on && i >= 0) this.obstacles.splice(i, 1);
-    this._nav = null;
+    if (!this._navSuspended) this._nav = null;
   }
 
   /** Aktif/nonaktif collider sebuah perabot tanpa membuang recordnya. */
   _setObstacleActive(item, on) {
     this._setColliderActive(item.obstacle, on);
     if (on) this._syncObstacle(item);
-    this._nav = null;
+    if (!this._navSuspended) this._nav = null;
   }
 
   /**
@@ -1462,7 +1462,7 @@ export class Building {
     o.minX = seat.x - h; o.maxX = seat.x + h;
     o.minZ = seat.z - h; o.maxZ = seat.z + h;
     o.centerX = seat.x; o.centerZ = seat.z;
-    this._nav = null;
+    if (!this._navSuspended) this._nav = null;
   }
 
   /** Daftar-hotspot: pasang/lepas objek dari target raycast interaksi. */
