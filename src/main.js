@@ -25,9 +25,9 @@ import { TopCamera } from "./systems/TopCamera.js";
 import { Player } from "./systems/Player.js";
 import { Interaction } from "./systems/Interaction.js";
 import { StaffModal } from "./systems/StaffModal.js";
+import { CharDetail } from "./systems/CharDetail.js";
 import { EditMode } from "./systems/EditMode.js";
 import { HUD } from "./ui/HUD.js";
-import { ViewChar } from "./systems/ViewChar.js";
 import { Meeting } from "./systems/AI.js";
 
 const POPULATION = 14;
@@ -42,7 +42,6 @@ const sleepFrame = () =>
 async function boot() {
   let dispatch = () => {};
   const hud = new HUD({ onAction: (name, value, node) => dispatch(name, value, node) });
-  let viewChar = null;
 
   try {
     hud.setProgress(0.06, "Menyiapkan GPU");
@@ -132,6 +131,8 @@ async function boot() {
       onInteract: () => {},
     });
 
+    const detail = new CharDetail();
+
     const interaction = new Interaction({
       camera,
       building,
@@ -143,6 +144,7 @@ async function boot() {
       player,
       onPossess: (critter) => player.possess(critter),
       onStaffModal: () => staffModal?.open(),
+      onDetail: (critter) => detail.open(critter),
     });
 
     /* ------------------------------------------------------------- state */
@@ -161,15 +163,8 @@ async function boot() {
     function toastStatus(critter) {
       if (!critter) return;
       interaction.selected = critter;
-      hud.openCritter({
-        name: critter.name,
-        emoji: critter.spec.emoji,
-        dept: critter.department?.name || "",
-        status: critter.status,
-        species: critter.spec.name,
-        controlled: critter.controlled,
-        id: critter.id,
-      });
+      // Status muncul sebagai toast ringkas — TIDAK memunculkan panel lagi.
+      hud.toast(`${critter.spec?.emoji || ""} ${critter.name} — ${critter.status || ""}`.trim(), 2400);
     }
 
     function setTime(value, quiet = false) {
@@ -235,7 +230,7 @@ async function boot() {
           const c = critterById(value);
           if (c) {
             rig.follow(c);
-            toastStatus(c);
+            detail.open(c);
           }
           break;
         }
@@ -289,27 +284,6 @@ async function boot() {
         case "help-close":
           hud.toggleHelp(false);
           break;
-        case "viewchar-open": {
-          hud.toggleViewChar(true);
-          const first = hud.speciesSelected || "cat";
-          hud.renderViewCharSpecies(first);
-          if (!viewChar) viewChar = new ViewChar(hud.dom.viewcharCanvas);
-          viewChar.show(first);
-          break;
-        }
-        case "viewchar-close":
-          hud.toggleViewChar(false);
-          viewChar?.hide();
-          break;
-        case "viewchar-species": {
-          hud.setSpeciesSelected(value);
-          // update active state in viewchar grid
-          for (const el of hud.dom.viewcharSpecies?.children || []) {
-            el.classList.toggle("is-active", el.dataset.value === value);
-          }
-          viewChar?.show(value);
-          break;
-        }
         case "meeting": {
           const btn = document.getElementById("btn-meeting");
           if (meeting.active) {
@@ -377,6 +351,9 @@ async function boot() {
         case "close-card":
           interaction.clearSelection();
           break;
+        case "detail-close":
+          detail.close();
+          break;
         default:
           break;
       }
@@ -435,8 +412,9 @@ async function boot() {
       } else if (hud.modalOpen) {
         hud.toggleHelp(false);
         hud.toggleSpawn(false);
-        hud.toggleViewChar(false);
-        viewChar?.hide();
+      } else if (hud.detailOpen) {
+        // Panel detail (bukan modal): tutup dulu, baru keluar dari POV.
+        detail.close();
       } else if (input.locked) {
         input.releaseLock(); // first Esc frees the mouse, second steps out
       } else if (player.active) {

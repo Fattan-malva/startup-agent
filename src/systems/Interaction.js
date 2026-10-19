@@ -10,7 +10,7 @@ import * as THREE from "three";
 const HOVER_PERIOD = 1 / 30;
 
 export class Interaction {
-  constructor({ camera, building, crew, input, fx, hud, rig, player, onPossess = null, onSpawnRequest = null, onStaffModal = null }) {
+  constructor({ camera, building, crew, input, fx, hud, rig, player, onPossess = null, onSpawnRequest = null, onStaffModal = null, onDetail = null }) {
     this.camera = camera;
     this.building = building;
     this.crew = crew;
@@ -22,6 +22,7 @@ export class Interaction {
     this.onPossess = onPossess;
     this.onSpawnRequest = onSpawnRequest;
     this.onStaffModal = onStaffModal;
+    this.onDetail = onDetail;
 
     this.enabled = true;
     this.hovered = null;
@@ -161,15 +162,8 @@ export class Interaction {
     const critter = this._critterOf(hit);
     if (critter) {
       this.selected = critter;
-      this.hud.openCritter({
-        name: critter.name,
-        emoji: critter.spec.emoji,
-        dept: critter.department?.name || "",
-        status: critter.status,
-        species: critter.spec.name,
-        controlled: critter.controlled,
-        id: critter.id,
-      });
+      // Panel detail (pratinjau 3D + biodata) — bukan kartu di panel brand.
+      this.onDetail?.(critter);
       this.fx.ripple(critter.position, { radius: 0.4, duration: 0.6, color: 0xffd08a });
       return;
     }

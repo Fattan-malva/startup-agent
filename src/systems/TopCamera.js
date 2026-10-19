@@ -119,7 +119,7 @@ export class TopCamera {
     if (!b) return;
     const cam = this.fpsCamera;
     cam.rotation.set(this.fpsPitch, this.fpsYaw + Math.PI, 0, "YXZ");
-    cam.position.set(b.position.x, b.eyeLevel() + 0.5, b.position.z);
+    cam.position.set(b.position.x, b.eyeLevel() + 0.3, b.position.z);
   }
 
   _updateFps(dt, input) {

@@ -96,106 +96,17 @@ kbd {
   letter-spacing: 0.04em;
 }
 
-/* --------------------------------------------------------------- brand card */
+/* ------------------------------------------------- scrollbar modal (halus) */
 
-.brand {
-  top: 18px;
-  left: 18px;
-  width: min(310px, calc(100vw - 36px));
-  padding: var(--pad) var(--pad) 16px;
-}
-
-.brand-mark {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.brand-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--warm);
-  box-shadow: 0 0 0 4px var(--warm-dim);
-  animation: pulse 3.4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 0 3px var(--warm-dim);
-  }
-
-  50% {
-    box-shadow: 0 0 0 7px rgba(226, 176, 119, 0.06);
-  }
-}
-
-.brand-name {
-  font-family: var(--serif);
-  font-size: 21px;
-  letter-spacing: 0.045em;
-}
-
-.brand-sub {
-  margin: 4px 0 12px;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-mute);
-}
-
-.viewchar-card {
-  width: min(560px, 100%);
-}
-
-.viewchar-canvas-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  max-height: 52vh;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid var(--hair);
-  background: #1a2028;
-  margin: 12px 0 14px;
-}
-
-.viewchar-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  cursor: grab;
-  touch-action: none;
-}
-
-.viewchar-canvas:active {
-  cursor: grabbing;
-}
-
-.viewchar-species {
-  max-height: 120px;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.viewchar-species::-webkit-scrollbar,
 .modal ::-webkit-scrollbar,
 .modal-card ::-webkit-scrollbar {
   display: none;
 }
 
 .modal,
-.modal-card,
-.viewchar-species {
+.modal-card {
   scrollbar-width: none;
   -ms-overflow-style: none;
-}
-
-.brand-viewchar {
-  margin-top: 10px;
-  width: 100%;
 }
 
 .card-close {
@@ -1319,6 +1230,131 @@ kbd {
   color: #ffd0c8;
   border-color: rgba(255, 110, 92, 0.7);
   background: rgba(255, 110, 92, 0.22);
+}
+
+/* ===================================================================== *
+ *  Detail pegawai — panel pojok kiri ATAS (menggantikan panel brand).
+ *  Hanya muncul saat karakter diklik. Bahasa visual sama dengan modal
+ *  Manajemen Staf (kaca gelap, hairline, satu aksen hangat).
+ * ===================================================================== */
+.panel.detail-panel {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: 296px;
+  max-height: calc(100vh - 28px);
+  overflow: hidden auto;
+  display: none;
+  flex-direction: column;
+  padding: 16px 16px 14px;
+  z-index: 6;
+}
+
+.panel.detail-panel.is-open {
+  display: flex;
+  animation: detailIn 0.22s ease;
+}
+
+@keyframes detailIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.detail-panel .card-title {
+  margin: 2px 0 2px;
+  font-size: 17px;
+  line-height: 1.2;
+  padding-right: 22px;
+}
+
+.detail-panel .card-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.detail-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.detail-preview-stage {
+  position: relative;
+  height: 214px;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(115% 72% at 50% 10%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 62%),
+    radial-gradient(120% 60% at 50% 100%, rgba(226, 176, 119, 0.1), rgba(0, 0, 0, 0) 70%),
+    rgba(0, 0, 0, 0.28);
+}
+
+#detail-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* gradasi bawah supaya badan terpotong rapi (efek "setengah badan") */
+.detail-preview-fade {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 32%;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(18, 21, 26, 0) 0%, rgba(18, 21, 26, 0.72) 60%, rgba(18, 21, 26, 0.95) 100%);
+}
+
+.detail-preview-hint {
+  margin: 0;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+  text-align: center;
+}
+
+.detail-rows {
+  margin: 12px 0 0;
+  display: grid;
+  gap: 0;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.detail-row dt {
+  font-size: 9.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.detail-row dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+@media (max-width: 760px) {
+  .panel.detail-panel {
+    width: min(296px, calc(100vw - 28px));
+  }
 }
 
 /* ===================================================================== *

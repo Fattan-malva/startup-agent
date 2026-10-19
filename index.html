@@ -119,28 +119,27 @@
 
   <!-- -------------------------------------------------------------- hud -->
   <div id="hud" class="hud">
-    <!-- brand + object card -->
-    <header class="panel brand">
-      <div class="brand-mark">
-        <span class="brand-dot"></span>
-        <span class="brand-name">Atelier Corp</span>
-      </div>
-      <p class="brand-sub">Startup Miniatur · Lantai 12</p>
-      <button id="btn-viewchar" class="btn btn-ghost brand-viewchar" type="button" data-action="viewchar-open"
-        aria-label="Lihat karakter 3D">
-        Lihat karakter
-      </button>
-      <button id="card-close" class="card-close" type="button" aria-label="Tutup kartu" data-action="close-card">
+    <!-- panel detail pegawai (menggantikan panel brand; muncul saat karakter diklik) -->
+    <header id="detail-panel" class="panel detail-panel" aria-live="polite">
+      <button id="detail-close" class="card-close" type="button" aria-label="Tutup detail" data-action="detail-close">
         &times;
       </button>
 
-      <section id="card" class="card" aria-live="polite">
-        <p class="card-kicker">Pilihan</p>
-        <h2 id="card-title" class="card-title">Belum ada yang dipilih</h2>
-        <p id="card-hint" class="card-hint">Klik pegawai atau benda untuk melihat detailnya.</p>
-        <p id="card-msg" class="card-msg is-empty"></p>
-        <div id="card-actions" class="card-actions"></div>
-      </section>
+      <p class="card-kicker">Detail pegawai</p>
+      <h2 id="detail-title" class="card-title">Belum ada yang dipilih</h2>
+      <p id="detail-sub" class="card-hint">Klik seorang pegawai untuk melihat detailnya.</p>
+
+      <!-- pratinjau setengah badan, berputar otomatis -->
+      <div class="detail-preview">
+        <div class="detail-preview-stage">
+          <canvas id="detail-canvas" aria-label="Pratinjau karakter 3D"></canvas>
+          <span class="detail-preview-fade" aria-hidden="true"></span>
+        </div>
+        <p class="detail-preview-hint">Pratinjau berputar otomatis</p>
+      </div>
+
+      <dl id="detail-rows" class="detail-rows"></dl>
+      <div id="detail-actions" class="detail-actions"></div>
     </header>
 
     <!-- live stats -->
@@ -432,6 +431,7 @@
         </div>
       </div>
     </div>
+
     <div id="crosshair" class="crosshair" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
       <i class="crosshair-dot"></i>
@@ -575,21 +575,6 @@
             <li><kbd>H</kbd> — panel ini</li>
           </ul>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- -------------------------------------------------------- viewchar -->
-  <div id="viewchar" class="modal" role="dialog" aria-modal="true" aria-label="Lihat karakter 3D">
-    <div class="modal-card viewchar-card">
-      <button class="card-close" type="button" aria-label="Tutup" data-action="viewchar-close">&times;</button>
-      <p class="card-kicker">Pratinjau 3D</p>
-      <h2 class="modal-title">Lihat karakter</h2>
-      <p class="modal-lead">Putar karakter dengan drag ke segala arah. Pilih gaya di bawah.</p>
-      <div class="viewchar-canvas-wrap">
-        <canvas id="viewchar-canvas" class="viewchar-canvas" aria-label="Pratinjau karakter 3D"></canvas>
-      </div>
-      <div id="viewchar-species" class="species-grid viewchar-species" role="radiogroup" aria-label="Gaya karakter">
       </div>
     </div>
   </div>
