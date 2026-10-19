@@ -15,7 +15,7 @@ src/world/rooms/
 
 Cara menambah ruangan baru:
 1. daftarkan room di `src/world/layout.js` (ROOMS + WALLS + ROOM_ANCHORS),
-2. buat `src/world/rooms/<id>.js` dengan `export function build(b)` yang memakai helper Building (`b._static`, `b._place`, `b._seat`, `b._deskChair`, `b._plant`, `b._interactive`, `b._deskParts`, `b._splitLive`, `b._spawnStaffCritter` — opsional `species: "people"` untuk baju warna; default `"staff"` = hitam total),
+2. buat `src/world/rooms/<id>.js` dengan `export function build(b)` yang memakai helper Building (`b._static`, `b._place`, `b._seat`, `b._workBundle` untuk unit meja+kursi, `b._plant`, `b._interactive`, `b._deskParts`, `b._splitLive`). Karakter TIDAK dibuat di room: semua staf lahir dari `src/data/staff.json` lewat modal Management Staf (tidak ada NPC statis),
 3. tambahkan ke `ROOM_MODULES` di `src/world/rooms/index.js`,
 4. (opsional) tambah label sign di `Building._roomSigns`.
 

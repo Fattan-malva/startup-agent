@@ -20,6 +20,9 @@ export const AVATAR_SCALE = 1.6;
 
 export const WALK_SPEED = 1.25;
 export const RUN_SPEED = 2.7;
+/** Kecepatan awal lompat + gravitasi (meter & detik). */
+export const JUMP_SPEED = 3.4;
+export const JUMP_GRAVITY = 13;
 export const STATES = ["Idle", "Walking", "Running", "Dance", "Death", "Sitting", "Standing"];
 export const EMOTES = ["Jump", "Yes", "No", "Wave", "Punch", "ThumbsUp"];
 export const EXPRESSIONS = ["Angry", "Surprised", "Sad"];
@@ -80,6 +83,11 @@ export class Critter {
       this.controlled = false;
       this.speed = 0;
       this.walkScale = 1;
+      // faktor kecepatan tambahan (dipakai POV/FPS: jalan & lari lebih gesit)
+      this.speedScale = 1;
+      // lompat (Space) — offset vertikal root, lantai tetap y = 0
+      this._jumpV = 0;
+      this.airborne = false;
       this._stuck = 0;
       this._blockedWish = null;
       this._dodge = null;
@@ -510,6 +518,9 @@ export class Critter {
     this.yaw = this.targetYaw = yaw;
     this.root.rotation.y = yaw;
     this.speed = 0;
+    this._jumpV = 0;
+    this.airborne = false;
+    this.shadow.position.y = 0.012;
     this.path = null;
     this.pathDone = true;
     this._wish.set(0, 0);
@@ -534,6 +545,34 @@ export class Critter {
     this._noCollide = 0;
     this._forced = null;
     this.motion.rotation.set(0, 0, 0);
+  }
+
+  /**
+   * Lompat (Space di POV). Kalau sedang duduk, Space = BERDIRI dulu —
+   * jadi pemain tidak "lompat dari kursi" dan nyangkut di meja.
+   */
+  jump(strength = JUMP_SPEED) {
+    if (this._forced === "Death") return false;
+    if (this.sitting || this._seating) { this.standUp(); return false; }
+    if (this.position.y > 0.001) return false; // sudah di udara
+    this._jumpV = strength;
+    this.airborne = true;
+    this.gesture("jump"); // pose lompat (one-shot ±0.62 s ≈ waktu di udara)
+    return true;
+  }
+
+  /** Integrasi vertikal lompatan: root naik-turun, bayangan tetap di lantai. */
+  _updateJump(dt) {
+    if (!this.airborne && this.position.y === 0) return;
+    this._jumpV -= JUMP_GRAVITY * dt;
+    let y = this.position.y + this._jumpV * dt;
+    if (y <= 0) {
+      y = 0;
+      this._jumpV = 0;
+      this.airborne = false;
+    }
+    this.position.y = y;
+    if (this.shadow) this.shadow.position.y = 0.012 - y;
   }
 
   _updateSeating(dt, elapsed, building) {
@@ -618,6 +657,7 @@ export class Critter {
   }
 
   update(dt, elapsed, building) {
+    this._updateJump(dt);
     if (this._exiting || this._exitPending) { this._updateExit(dt, elapsed, building); return; }
     if (this._seating) { this._updateSeating(dt, elapsed, building); return; }
     if (this.path) {
@@ -640,7 +680,7 @@ export class Critter {
       else this._wish.set(this._dodge.x, this._dodge.z);
     }
     const wishMax = this._wishLen > 0 && !dead && !this.sitting
-      ? (this.running ? RUN_SPEED : WALK_SPEED * this.walkScale) : 0;
+      ? (this.running ? RUN_SPEED : WALK_SPEED * this.walkScale) * this.speedScale : 0;
     const k = 1 - Math.exp(-9 * dt);
     this.speed += (wishMax - this.speed) * k;
     if (this.speed < 0.02 && wishMax === 0) this.speed = 0;

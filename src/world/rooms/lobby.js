@@ -2,8 +2,8 @@
  *  Lobby — sayap utara-tengah (x -5.5..5.5, z -10..-3.1).
  *
  *  Layout:
- *    - meja resepsionis menghadap pintu (front +z), resepsionis duduk
- *      di belakangnya menghadap tamu; dinding brand di belakangnya
+ *    - meja resepsionis menghadap pintu (front +z); kursi resepsionis
+ *      di belakangnya (karakter diisi dari staff.json, bukan statis)
  *    - waiting lounge: 2 sofa saling pandang + meja kopi di atas karpet
  *      navy, armchair + side table, bangku tunggu di dinding timur
  *    - rak buku + rak majalah + jam + tanaman
@@ -54,9 +54,16 @@ function receptionDesk() {
 }
 
 export function build(b) {
-  /* ── Resepsionis ─────────────────────────────────────────────────── */
-  const reception = receptionDesk();
-  b._place(reception, 0, -7.5, 0, 0, { w: 2.6, d: 0.9 });
+  /* ── Resepsionis: meja + kursi = SATU perabot ─────────────────────── */
+  b._workBundle(receptionDesk(), {
+    x: 0, z: -7.5, ry: Math.PI,
+    label: "Meja resepsionis",
+    type: "reception",
+    // Kursi resepsionis di sisi utara meja, menghadap tamu.
+    chairs: [
+      { face: "-z", color: "navy", type: "reception", label: "Kursi resepsionis" },
+    ],
+  });
 
   const recMon = createMonitor({ width: 0.5 });
   b._place(recMon, -0.67, -7.5, Math.PI, 0.78);
@@ -67,9 +74,6 @@ export function build(b) {
     radius: 0.85,
     onClick: () => { recMon.userData.api.cycle(); return "Daftar tamu diperbarui"; },
   });
-
-  // Kursi resepsionis di sisi utara meja, menghadap tamu (yaw 0 = +z).
-  b._deskChair(0, -7.5, Math.PI, { color: "navy", type: "reception", desk: reception });
 
   /* Dinding brand di belakang resepsionis. */
   b._static(
@@ -115,21 +119,6 @@ export function build(b) {
   b._plant(1.95, -3.75, 0, { variant: 1, scale: 0.6, seed: 57 });
   b._static(createBin(), -1.9, -9.2, 0);
 
-  /* ── Resepsionis (NPC) — duduk di kursi posnya, keliling lobby ───── */
-  b._spawnStaffCritter({
-    id: "receptionist",
-    species: "people",
-    name: "Resepsionis",
-    tieColor: 0x477da6,
-    department: { id: "lobby", name: "Lobby" },
-    variant: 1,
-    x: 0.9, z: -8.3, yaw: 0,
-    hotspotLabel: "Resepsionis lobby",
-    hotspotHint: "Klik untuk bertanya",
-    hotspotMessage: "Resepsionis: selamat datang di Atelier Corp. Ada yang bisa dibantu?",
-    radius: 1.4,
-    room: "lobby",
-    seatType: "reception",
-    homeStatus: "Menunggu tamu 🛎️",
-  });
+  /* Karakter TIDAK dibuat di sini — semua staf lahir dari staff.json
+   * lewat modal Management Staf. Tidak ada NPC statis. */
 }

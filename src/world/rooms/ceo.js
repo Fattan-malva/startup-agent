@@ -31,14 +31,16 @@ import {
 import { WALL_H } from "../layout.js";
 
 export function build(b) {
-  /* ── Meja eksekutif + kursi tamu tunggal ─────────────────────────── */
-  const desk = createWorkstation({ desk: { width: 2.4 } });
-  b._place(desk, -14.15, 6.0, -Math.PI / 2, 0, { w: 2.5, d: 1.3 });
-  b._deskParts(desk, "ceo-desk");
-  b._deskChair(-14.15, 6.0, -Math.PI / 2, { color: "charcoal", type: "ceo", desk });
+  /* ── Meja eksekutif + kursi (SATU perabot) ───────────────────────── */
+  b._workBundle(createWorkstation({ desk: { width: 2.4 } }), {
+    x: -14.15, z: 6.0, ry: -Math.PI / 2,
+    label: "Meja CEO",
+    type: "ceo",
+    partsKey: "ceo-desk",
+    chairs: [{ face: "-z", color: "charcoal", type: "ceo" }],
+  });
 
-  // Kursi tamu menghadap meja/CEO (dan jendela kaca barat) — jauh dari
-  // jalur pintu (x -7.85..-6.35).
+  // Kursi tamu menghadap meja/CEO (dan jendela kaca barat) — jauh dari  // jalur pintu (x -7.85..-6.35).
   b._static(createOfficeChair({ color: "navy" }), -12.2, 6.0, -Math.PI / 2);
   b._seat(-12.2, 6.0, -Math.PI / 2, "lounge");
 

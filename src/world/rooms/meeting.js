@@ -16,7 +16,6 @@ import {
   rbox,
   shade,
   createMeetingTable,
-  createOfficeChair,
   createWhiteboard,
   createWallArt,
   createStorageCabinet,
@@ -65,27 +64,26 @@ export function build(b) {
   const cx = -10.75;
   const cz = -6.55;
 
-  /* Meja rapat — 4.6 × 1.3, sumbu panjang mengikuti x.
-   * Meja + SEMUA kursinya = SATU unit edit: geser/putar/duplikat/hapus
-   * selalu bersama, jadi susunan rapat tidak pernah berantakan. */
-  const table = b._static(
-    createMeetingTable({ w: 4.6, d: 1.3, h: 0.75 }),
-    cx, cz, 0, 0, { w: 4.6, d: 1.3 },
-  );
+  /* Meja rapat 4.6 × 1.3, sumbu panjang mengikuti x.
+   * Meja + SEMUA 11 kursinya = SATU perabot dengan SATU petak lewat
+   * `_workBundle`: geser/putar/duplikat/hapus selalu bersama, dan jarak
+   * kursi ke TEPI meja seragam dengan unit kerja lain. Kursi tetap punya
+   * collider sendiri per kursi supaya karakter bisa menyelip untuk duduk. */
   const chairs = [];
-
-  /* 5 kursi tiap sisi panjang (z -7.67 & -5.43) + 1 kursi kepala timur. */
   const sideXs = [-1.8, -0.9, 0, 0.9, 1.8];
-  for (const dz of [-1.12, 1.12]) {
-    const yaw = dz > 0 ? Math.PI : 0;
-    for (const dx of sideXs) {
-      chairs.push(b._static(createOfficeChair({ color: dz > 0 ? "charcoal" : "navy" }), cx + dx, cz + dz, yaw));
-      b._seat(cx + dx, cz + dz, yaw, "meeting");
-    }
+  for (const lateral of sideXs) {
+    chairs.push({ face: "+z", lateral, color: "navy", type: "meeting" });
+    chairs.push({ face: "-z", lateral, color: "charcoal", type: "meeting" });
   }
-  chairs.push(b._static(createOfficeChair({ color: "navy" }), -7.85, cz, -Math.PI / 2));
-  b._seat(-7.85, cz, -Math.PI / 2, "meeting");
-  b.linkAll([table, ...chairs]);
+  // 1 kursi kepala di ujung timur (di luar jalur pintu x -6.95..-5.65)
+  chairs.push({ face: "-x", color: "navy", type: "meeting", label: "Kursi kepala" });
+
+  b._workBundle(createMeetingTable({ w: 4.6, d: 1.3, h: 0.75 }), {
+    x: cx, z: cz, ry: 0,
+    label: "Meja rapat",
+    type: "meeting",
+    chairs,
+  });
 
   /* Papan tulis di dinding utara (muka dinding -9.93). */
   const board = createWhiteboard({ w: 2.6, h: 1.3 });

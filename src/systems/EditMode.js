@@ -86,7 +86,9 @@ export class EditMode {
 
     this._ray = new THREE.Raycaster();
     this._ndc = new THREE.Vector2();
+    this._aim = new THREE.Vector2();
     this._tmp = new THREE.Vector3();
+    this._fwd = new THREE.Vector3();
     this._box = new THREE.Box3();
     this._mBox = new THREE.Box3();
     this._roots = [];
@@ -195,7 +197,7 @@ export class EditMode {
     this.hud.toggleEditBar(next);
     this.hud.setHint(
       next
-        ? "Mode Edit: klik & drag perabot · ⟲⟳ putar ([ ]) · Duplikat/Hapus · Esc selesai"
+        ? "Mode Edit: klik & drag perabot · ⟲⟳ putar ([ ]) · Duplikat/Hapus · B atau Esc selesai"
         : "Drag untuk geser · scroll untuk zoom · klik pegawai untuk detail",
     );
     // Keluar Mode Edit saat masih di dalam tubuh (POV) → pulihkan petunjuk
@@ -208,7 +210,12 @@ export class EditMode {
       this.hud.renderEditMats(this.materialPalette(), null);
       this.hud.setEditSnap(this.snap);
       this.hud.setEditTarget("Klik perabot untuk memilih");
-      this.hud.toast("Mode Edit aktif — petak seragam 25 cm, sejajar grid jalan karakter 🛠️", 2800);
+      this.hud.toast(
+        this.input?.locked
+          ? "Mode Edit POV — bidik perabot dengan crosshair, tahan tombol untuk menggeser. Esc = lepas kursor 🛠️"
+          : "Mode Edit aktif — petak seragam 25 cm, sejajar grid jalan karakter 🛠️",
+        2800,
+      );
     } else {
       for (const g of this._grids) g.visible = false;
       this._hideFootCells();
@@ -290,7 +297,9 @@ export class EditMode {
       for (const s of item.seats) for (const o of s.overlaps || []) allowed.add(o);
     }
     for (const o of this.building.obstacles) {
-      if (o === own || allowed.has(o) || (ignore && ignore.has(o))) continue;
+      // collider milik perabot INI SENDIRI (mis. kotak tiap kursi pada unit
+      // meja+kursi) bukan tabrakan — unit memang satu kesatuan.
+      if (o === own || o.owner === item.obj || allowed.has(o) || (ignore && ignore.has(o))) continue;
       if (o.kind !== "wall" && !o.blocked) continue;
       if (box.minX >= o.maxX - margin || box.maxX <= o.minX + margin ||
           box.minZ >= o.maxZ - margin || box.maxZ <= o.minZ + margin) continue;
@@ -430,13 +439,17 @@ export class EditMode {
   update(dt) {
     if (!this.enabled || !this.input) return;
     const input = this.input;
+    const aim = this.aimNdc();
     const down = input.down;
 
-    if (down && !this._prevDown) this._press(input.ndc);
-    if (down && this._pressItem && !this.dragging && input.dragDistance > DRAG_THRESHOLD) {
+    if (down && !this._prevDown) this._press(aim);
+    // Kursor terkunci (Mode Edit dari POV): tidak ada jarak kursor, jadi
+    // "tahan tombol di perabot" langsung dianggap men-drag (ala Minecraft).
+    if (down && this._pressItem && !this.dragging
+      && (input.dragDistance > DRAG_THRESHOLD || input.locked)) {
       this._beginDrag();
     }
-    if (down && this.dragging) this._drag(input.ndc);
+    if (down && this.dragging) this._drag(aim);
     if (!down && this._prevDown) this._release();
     this._prevDown = down;
 
@@ -444,7 +457,7 @@ export class EditMode {
       this._timer += dt;
       if (this._timer >= PICK_PERIOD) {
         this._timer = 0;
-        const item = this._pick(input.ndc);
+        const item = this._pick(aim);
         this.hovered = item;
         const showObj = this.selected ? this.selected.obj : (item ? item.obj : null);
         this.fx?.setHover(showObj);
@@ -453,6 +466,18 @@ export class EditMode {
     }
 
     if (this.selected) this._refreshBox();
+  }
+
+  /**
+   * Titik bidik Mode Edit: posisi kursor di layar, atau TITIK TENGAH LAYAR
+   * (crosshair) saat kursor terkunci untuk mouse-look POV — di sana tidak
+   * ada kursor, jadi bidikannya crosshair.
+   */
+  aimNdc(out = this._aim) {
+    const i = this.input;
+    if (!i) return out.set(0, 0);
+    if (i.locked) return out.set(0, 0);
+    return out.set(i.ndc.x, i.ndc.y);
   }
 
   /* -------------------------------------------------------------- picking */
@@ -502,9 +527,18 @@ export class EditMode {
   _beginDrag() {
     const item = this._pressItem;
     if (!item) return;
-    const g = this.rig.screenToGround(this._pressNdc.x, this._pressNdc.y, this._tmp);
-    this._grab.x = g ? item.x - g.x : 0;
-    this._grab.z = g ? item.z - g.z : 0;
+    if (this.input?.locked) {
+      // POV / kursor terkunci: tidak ada posisi kursor, jadi pergeseran
+      // dihitung dari DELTA mouse (lihat `_dragLocked`). Buang sisa delta
+      // supaya perabot tidak "melompat" saat tombol baru ditekan.
+      this._grab.x = 0;
+      this._grab.z = 0;
+      this.input.consumeDelta();
+    } else {
+      const g = this.rig.screenToGround(this._pressNdc.x, this._pressNdc.y, this._tmp);
+      this._grab.x = g ? item.x - g.x : 0;
+      this._grab.z = g ? item.z - g.z : 0;
+    }
     this.dragging = true;
     this.fx?.setHover(item.obj);
   }
@@ -512,10 +546,41 @@ export class EditMode {
   _drag(ndc) {
     const item = this._pressItem;
     if (!item) return;
+    if (this.input?.locked) return this._dragLocked(item);
     const g = this.rig.screenToGround(ndc.x, ndc.y, this._tmp);
     if (!g) return;
-    let x = g.x + this._grab.x;
-    let z = g.z + this._grab.z;
+    this._moveTo(item, g.x + this._grab.x, g.z + this._grab.z);
+  }
+
+  /**
+   * Geser perabot ketika kursor TERKUNCI (Mode Edit dari POV): gerakan mouse
+   * diproyeksikan ke bidang lantai menurut arah kamera — tarik ke kanan →
+   * perabot ikut ke kanan layar, tarik ke bawah → maju ke arah pemain.
+   */
+  _dragLocked(item) {
+    const d = this.input.consumeDelta();
+    if (!d.x && !d.y) return;
+    const cam = this.rig.activeCamera;
+    cam.updateMatrixWorld(true);
+    cam.getWorldDirection(this._fwd);
+    this._fwd.y = 0;
+    if (this._fwd.lengthSq() < 1e-6) return;
+    this._fwd.normalize();
+    // kanan layar di bidang lantai = F × up
+    const rx = -this._fwd.z;
+    const rz = this._fwd.x;
+    // meter per piksel pada jarak perabot → gerakan terasa 1:1
+    const dist = Math.max(0.8, cam.position.distanceTo(item.obj.position));
+    const h = Math.max(1, this.rig.canvas?.clientHeight || 720);
+    const perPixel = (2 * dist * Math.tan(((cam.fov || 55) * Math.PI) / 360)) / h;
+    const k = perPixel * 1.15;
+    const dx = (rx * d.x - this._fwd.x * d.y) * k;
+    const dz = (rz * d.x - this._fwd.z * d.y) * k;
+    this._moveTo(item, item.x + dx, item.z + dz);
+  }
+
+  /** Terapkan posisi kandidat ke perabot (snap + kunci dinding + validasi). */
+  _moveTo(item, x, z) {
     if (this.snap) {
       // setrik ke petak perabot ini: sisi footprint tepat di garis petak
       const f = this._footprint(item, item.ry);
@@ -530,6 +595,8 @@ export class EditMode {
     const b = this.building.bounds;
     x = THREE.MathUtils.clamp(x, b.x0 + BODY_MARGIN, b.x1 - BODY_MARGIN);
     z = THREE.MathUtils.clamp(z, b.z0 + BODY_MARGIN, b.z1 - BODY_MARGIN);
+    // tidak berubah (mis. klik tanpa geser) → jangan tandai "kotor"
+    if (Math.abs(x - item.x) < 1e-4 && Math.abs(z - item.z) < 1e-4) return;
     this.building.moveGroup(item, x, z);
     item.obj.updateMatrixWorld(true);
     this._placeOk = this.groupOverlapOnly(item);

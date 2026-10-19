@@ -160,7 +160,7 @@ export class HUD {
     this.dom.crosshair?.classList.remove("is-hot");
     this.setHint(
       this._fps
-        ? "Klik untuk mouse-look · WASD jalan · Shift lari · E sapa/pakai · Esc keluar"
+        ? "Klik untuk mouse-look · WASD jalan · Shift lari · Space lompat · E sapa/pakai · B edit · Esc keluar"
         : "Drag untuk geser · scroll untuk zoom · klik pegawai untuk detail",
     );
   }

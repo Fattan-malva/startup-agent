@@ -7,7 +7,7 @@
  *    - stasiun printer di pojok tenggara dekat pintu, lemari arsip di
  *      dinding barat, sofa huddle + side table di sudut barat daya
  *    - 2 sekat tanaman sebagai pembatas zona di dinding selatan
- *    - 1 staf kantor (baju normal) yang duduk di kursi workstation
+ *    - karakter TIDAK di-hard-code di sini (semua staf dari staff.json)
  *  Pintu ada di dinding timur x = -7.1 (z = -0.9), menghadap koridor U.
  * ===================================================================== */
 import {
@@ -34,10 +34,13 @@ export function build(b) {
   let idx = 0;
   for (const row of rows) {
     for (const x of podXs) {
-      const ws = createWorkstation({ desk: { width: 1.55 } });
-      b._place(ws, x, row.z, row.ry, 0, { w: 1.8, d: 1.2 });
-      b._deskParts(ws, `staff-${String.fromCharCode(97 + idx)}`);
-      b._deskChair(x, row.z, row.ry, { color: row.color, type: "desk", desk: ws });
+      b._workBundle(createWorkstation({ desk: { width: 1.55 } }), {
+        x, z: row.z, ry: row.ry,
+        label: "Workstation staff",
+        type: "desk",
+        partsKey: `staff-${String.fromCharCode(97 + idx)}`,
+        chairs: [{ face: "-z", color: row.color, type: "desk" }],
+      });
       idx++;
     }
   }
@@ -76,21 +79,6 @@ export function build(b) {
   b._plant(-15.4, 2.4, 0, { variant: 0, scale: 0.62, seed: 61 });
   b._static(createBin(), -8.5, 0.6, 0);
 
-  /* ── Staf kantor (baju normal, bukan hitam — hitam hanya Developer) ─ */
-  b._spawnStaffCritter({
-    id: "office-staff",
-    species: "people",
-    name: "Staf Kantor",
-    tieColor: 0x6b7fa8,
-    department: { id: "staff", name: "Staff Room" },
-    variant: 3,
-    x: -14.5, z: -0.15, yaw: Math.PI / 2,
-    hotspotLabel: "Staf kantor",
-    hotspotHint: "Klik untuk menyapa",
-    hotspotMessage: "Staf: laporan mingguan sudah aku kirim, cek ya 📨",
-    radius: 1.5,
-    room: "staff",
-    seatType: "desk",
-    homeStatus: "Menyusun laporan 📊",
-  });
+  /* Karakter TIDAK dibuat di sini — semua staf lahir dari staff.json
+   * lewat modal Management Staf. Tidak ada NPC statis. */
 }

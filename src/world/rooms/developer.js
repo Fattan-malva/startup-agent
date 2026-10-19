@@ -8,7 +8,7 @@
  *      selatan, papan ritme engineering di dinding timur
  *    - panel akustik di dinding utara, nook lounge (armchair + side
  *      table + lampu lantai) di sudut barat daya
- *    - Staff di room ini HANYA yang berbaju hitam (species "staff")
+ *    - karakter TIDAK di-hard-code di sini (semua staf dari staff.json)
  *  Pintu ada di dinding barat x = 7.1 (z = 7), menghadap koridor U.
  * ===================================================================== */
 import {
@@ -26,13 +26,20 @@ import {
 
 export function build(b) {
   /* ── 4 workstation benching (baris digeser sedikit ke utara supaya jalur
-   *    selatan di belakang kursi tetap tersambung, tidak jadi kantong) ── */
+   *    selatan di belakang kursi tetap tersambung, tidak jadi kantong).
+   *    Tiap meja + kursinya = SATU perabot dengan SATU petak lewat
+   *    `_workBundle`; jarak kursi ke TEPI meja seragam di seluruh gedung. ── */
   const devXs = [9.4, 11.0, 12.6, 14.2];
   devXs.forEach((x, i) => {
-    const ws = createWorkstation({ desk: { width: 1.5 } });
-    b._place(ws, x, 6.15, 0, 0, { w: 1.5, d: 1.2 });
-    b._deskParts(ws, `dev-${String.fromCharCode(97 + i)}`);
-    b._deskChair(x, 6.15, 0, { color: i % 2 === 0 ? "navy" : "charcoal", type: "desk", desk: ws });
+    b._workBundle(createWorkstation({ desk: { width: 1.5 } }), {
+      x, z: 6.15, ry: 0,
+      label: "Workstation developer",
+      type: "desk",
+      partsKey: `dev-${String.fromCharCode(97 + i)}`,
+      chairs: [
+        { face: "-z", color: i % 2 === 0 ? "navy" : "charcoal", type: "desk" },
+      ],
+    });
   });
 
   /* ── Meja tinggi berdiri + rak server ────────────────────────────── */
@@ -72,41 +79,7 @@ export function build(b) {
   b._plant(7.7, 8.6, 0, { variant: 0, scale: 0.6, seed: 92 });
   b._static(createBin(), 7.6, 5.5, 0);
 
-  /* ── STAFF DEVELOPER — wajib hitam total ─────────────────────────── *
-   *  species "staff" = outfit 0x101218 + celana 0x0a0c10 (hitam);      *
-   *  aksen (tie/badge) juga gelap supaya tidak ada warna lain.         *
-   * ───────────────────────────────────────────────────────────────── */
-  b._spawnStaffCritter({
-    id: "dev-senior",
-    species: "staff",
-    name: "Developer",
-    tieColor: 0x11151c,
-    department: { id: "developer", name: "Developer Room" },
-    variant: 0,
-    x: 10.4, z: 8.3, yaw: 0.35,
-    hotspotLabel: "Developer",
-    hotspotHint: "Klik untuk tanya progres",
-    hotspotMessage: "Developer: build hijau semua, aku push sekarang 💻",
-    radius: 1.6,
-    room: "developer",
-    seatType: "desk",
-    wanderRadius: 2.0,
-    homeStatus: "Coding fitur 💻",
-  });
-  b._spawnStaffCritter({
-    id: "dev-ops",
-    species: "staff",
-    name: "Dev Ops",
-    tieColor: 0x0d1117,
-    department: { id: "developer", name: "Developer Room" },
-    variant: 2,
-    x: 12.3, z: 8.5, yaw: -0.5,
-    hotspotLabel: "Dev Ops",
-    hotspotHint: "Klik untuk tanya deploy",
-    hotspotMessage: "Dev Ops: staging sudah deploy, tunggu release Jumat 🚀",
-    radius: 1.6,
-    room: "developer",
-    wanderRadius: 2.0,
-    homeStatus: "Ngawasin pipeline ⚙️",
-  });
+  /* Karakter TIDAK dibuat di sini. Semua staf lahir dari data
+   * src/data/staff.json lewat modal Management Staf, jadi tidak ada
+   * satu pun karakter statis/hard-coded di dunia. */
 }

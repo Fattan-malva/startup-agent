@@ -10,6 +10,10 @@ import * as THREE from "three";
  * ===================================================================== */
 
 const INTERACT_RANGE = 1.9;
+/* Jalan & lari hanya dipercepat saat POV (first-person): sudut pandang orang
+ * pertama terasa lambat kalau memakai kecepatan NPC, sementara di kamera atas
+ * kecepatan normal justru lebih enak dilihat. */
+const FPS_SPEED_SCALE = 1.7;
 
 export class Player {
   constructor({ building, crew, rig, input, fx, hud, onInteract = null }) {
@@ -50,6 +54,7 @@ export class Player {
     this.controlled = critter;
     this.crew.takeover(critter);
     critter.walkScale = 1.3; // a hand on the wheel walks a bit brisker
+    critter.speedScale = 1;  // dipercepat hanya saat POV (lihat update)
     critter.status = "Kamu kendalikan";
     // control the character: first-person camera in the world
     this.rig.enterFps(critter);
@@ -72,6 +77,7 @@ export class Player {
     this.crew.release(this.controlled);
     this.controlled.status = "Balik kerja";
     this.controlled.walkScale = 1;
+    this.controlled.speedScale = 1;
     this.controlled = null;
     // keluar dari mode kendalikan → plafon menghilang lagi
     this.building?.setCeilings?.(false);
@@ -84,6 +90,12 @@ export class Player {
     this.hud?.setControlling(null);
     this.hud?.setFirstPerson(false);
     this.input?.releaseLock();
+  }
+
+  /** Lompat (Space) — hanya saat berada di dalam tubuh. */
+  jump() {
+    if (!this.controlled) return false;
+    return this.controlled.jump();
   }
 
   setWalkTarget(point) {
@@ -113,6 +125,7 @@ export class Player {
 
     /* ---- inside the body: WASD relative to where you are looking ---- */
     if (this.rig.firstPerson) {
+      c.speedScale = FPS_SPEED_SCALE; // POV: jalan & lari lebih gesit
       const ax = this.input.moveAxis(this._ax);
       const yaw = this.rig.fpsYaw;
       const sin = Math.sin(yaw);
@@ -129,6 +142,7 @@ export class Player {
     }
 
     const ax = this.input.moveAxis(this._ax);
+    c.speedScale = 1; // kamera atas: kecepatan normal
     if (ax.x !== 0 || ax.y !== 0) {
       this._standFromSeat();
       this.walkTarget = null;

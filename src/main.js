@@ -324,12 +324,11 @@ async function boot() {
         }
         /* ---- mode edit (tata ulang world) ------------------------ */
         case "edit-mode":
-          if (!edit.enabled) {
-            // Mode Edit juga bisa dipakai dari POV / saat mengendalikan
-            // karakter: JANGAN keluar dari tubuh. Cukup lepas pointer-lock
-            // supaya kursor bebas untuk memilih & menggeser perabot.
-            input.releaseLock();
-          }
+          // Mode Edit juga bisa dipakai dari POV / saat mengendalikan
+          // karakter: JANGAN keluar dari tubuh. Kalau kursor sedang
+          // TERKUNCI (mouse-look POV) kuncinya DIPERTAHANKAN — gaya
+          // Minecraft: bidik perabot dengan crosshair, tahan tombol untuk
+          // menggesernya. Tekan Esc kalau mau kursor bebas (HUD bisa diklik).
           edit.toggle();
           break;
         case "edit-close":
@@ -379,8 +378,11 @@ async function boot() {
 
     input.onKey("KeyE", () => player.interact());
     input.onKey("Space", () => {
-      if (player.controlled) {
-        player.controlled.gesture("wave", 1.4);
+      if (!player.controlled) return;
+      // Di dalam tubuh (POV) Space = LOMPAT; di kamera atas tetap lambaian.
+      if (rig.firstPerson) player.controlled.jump();
+      else {
+        player.controlled.gesture("wave");
         player.controlled.status = "Melambai 👋";
       }
     });
@@ -391,6 +393,11 @@ async function boot() {
     });
     input.onKey("KeyR", reset);
     input.onKey("KeyH", () => hud.toggleHelp());
+    // B = buka/tutup Mode Edit dari mana saja (termasuk saat POV).
+    input.onKey("KeyB", () => {
+      if (hud.modalOpen) return;
+      edit.toggle();
+    });
     input.onKey("BracketLeft", () => {
       if (edit.enabled) edit.rotateSelected(-15);
     });
@@ -412,7 +419,10 @@ async function boot() {
     });
     input.onKey("Escape", () => {
       if (edit.enabled) {
-        edit.setEnabled(false);
+        // Kursor terkunci (Mode Edit dari POV): Esc pertama melepas kursor
+        // supaya HUD/panel bisa diklik — Mode Edit tetap aktif.
+        if (input.locked) input.releaseLock();
+        else edit.setEnabled(false);
       } else if (hud.modalOpen) {
         hud.toggleHelp(false);
         hud.toggleSpawn(false);
@@ -509,7 +519,10 @@ async function boot() {
       } else {
         input.consumeClick();
         input.consumeDoubleClick();
-        input.consumeDelta();
+        // Di POV delta mouse = mouse-look (bukan geser peta), jadi JANGAN
+        // dibuang — crosshair Mode Edit tetap harus bisa dibidikkan.
+        // Modal & drag perabot sudah ditahan lewat `suppressDragPan`.
+        if (!rig.firstPerson) input.consumeDelta();
         interaction.hovered = null;
         hud.hideTooltip();
       }

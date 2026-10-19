@@ -15,7 +15,6 @@ import * as THREE from "three";
 import { MAT } from "../materials.js";
 import {
   createMeetingTable,
-  createOfficeChair,
   createWhiteboard,
   createAcousticPanel,
   createStorageCabinet,
@@ -28,22 +27,21 @@ import {
 } from "../props.js";
 
 export function build(b) {
-  /* ── 2 meja kerja besar + kursi ──────────────────────────────────── */
+  /* ── 2 meja kerja besar + kursi (tiap meja = SATU perabot) ───────── */
   const tables = [
     { x: 10.6, w: 2.6 },
     { x: 13.4, w: 2.6 },
   ];
   for (const t of tables) {
-    const table = b._static(
-      createMeetingTable({ w: t.w, d: 1.2, h: 0.75 }),
-      t.x, 2.9, 0, 0, { w: t.w, d: 1.2 },
-    );
-    const chairN = b._static(createOfficeChair({ color: "navy" }), t.x, 2.38, 0);
-    b._seat(t.x, 2.38, 0, "meeting");
-    const chairS = b._static(createOfficeChair({ color: "charcoal" }), t.x, 3.42, Math.PI);
-    b._seat(t.x, 3.42, Math.PI, "meeting");
-    // meja + 2 kursinya = SATU unit edit
-    b.linkAll([table, chairN, chairS]);
+    b._workBundle(createMeetingTable({ w: t.w, d: 1.2, h: 0.75 }), {
+      x: t.x, z: 2.9, ry: 0,
+      label: "Meja studio",
+      type: "meeting",
+      chairs: [
+        { face: "+z", color: "navy", type: "meeting" },
+        { face: "-z", color: "charcoal", type: "meeting" },
+      ],
+    });
   }
 
   /* ── Karpet NAVY di bawah meja ───────────────────────────────────── */

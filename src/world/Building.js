@@ -3,8 +3,8 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import { MAT } from "./materials.js";
 import { mulberry32 } from "./textures.js";
+import { NavMesh } from "./NavMesh.js";
 import { Critter } from "../character/Critter.js";
-import { StaffBrain } from "../systems/AI.js";
 import {
   box,
   rbox,
@@ -29,12 +29,33 @@ import { furnishRooms } from "./rooms/index.js";
  *  Building — one floor of Atelier Corp.
  * ===================================================================== */
 
-const SIT_FWD = 0.16;
-// Kursi kerja DITUTUP ke meja (0.62 m): persis seperti orang menaruh kursi
-// di meja. Ini penting bukan cuma soal rapi — kalau kursi ditarik jauh
-// (1.05 m), dua baris kursi yang berhadapan menyegel lorong pod sehingga
-// grid navigasi terpecah dan NPC tidak akan pernah bisa duduk di sana.
-const DESK_CHAIR_GAP = 0.62;
+/* Seberapa jauh badan (pinggul) maju dari pusat kursi ke arah meja. Bodinya
+ * kecil saja: kalau terlalu besar, badan karakter menembus meja. */
+const SIT_FWD = 0.10;
+
+/* ── Jarak SERAGAM meja ↔ kursi ────────────────────────────────────────
+ * Semua unit kerja (workstation, meja rapat, meja studio, meja resepsionis,
+ * meja CEO) memakai ATURAN yang sama: pusat kursi berjarak tetap dari TEPI
+ * meja (bukan dari pusatnya, supaya meja tipis & tebal terasa sama).
+ *
+ * Nilainya cukup longgar supaya BADAN karakter tidak menembus meja saat
+ * duduk (dulu 0.06 → kaki & perut karakter tembus ke dalam meja, jelek).
+ * Tapi jangan pula ditarik jauh: barisan kursi yang berhadapan bisa
+ * menyegel lorong sehingga grid navigasi terpecah dan NPC tidak akan
+ * pernah bisa duduk atau berdiri lagi di sana — jadi ada batas atasnya.
+ */
+const CHAIR_EDGE_GAP = 0.20;
+/** Lebar collider kursi ergonomis (samakan dengan createOfficeChair). */
+const CHAIR_FP = 0.72;
+
+/* Arah kursi → offset lokal terhadap meja (lihat `_workBundle`).
+ *  `face` = arah PANDANG kursi; kursi duduk di sisi berlawanannya. */
+const SEAT_FACES = {
+  "-z": { yaw: Math.PI, ox: 0, oz: 1, swap: false },
+  "+z": { yaw: 0, ox: 0, oz: -1, swap: false },
+  "-x": { yaw: -Math.PI / 2, ox: 1, oz: 0, swap: true },
+  "+x": { yaw: Math.PI / 2, ox: -1, oz: 0, swap: true },
+};
 
 /* Normalisasi daftar collider yang boleh diabaikan (bisa satu obstacle
  * atau array: kursi + meja yang ditutup kursi). */
@@ -565,6 +586,10 @@ export class Building {
       id: id || `p${this._editSeq++}`,
       label: obj.userData.interactionLabel || obj.name || null,
       fp: fp || obj.userData.footprint || null,
+      // collider fisik boleh lebih kecil dari petak edit (mis. unit
+      // meja+kursi: petak = seluruh unit, collider = meja saja supaya
+      // karakter tetap bisa berjalan ke belakang kursi untuk duduk)
+      collideFp: obj.userData.collideFootprint || null,
       obstacle: null,
       hotspot: null,
       extras: null,
@@ -585,8 +610,9 @@ export class Building {
     this._editItems.set(obj, item);
     this._editById.set(item.id, item);
 
-    if (item.fp) {
-      const o = this._obstacleFor(item, x, z, ry, item.fp);
+    const ofp = item.collideFp || item.fp;
+    if (ofp) {
+      const o = this._obstacleFor(item, x, z, ry, ofp);
       item.obstacle = o;
       this.obstacles.push(o);
     }
@@ -672,6 +698,10 @@ export class Building {
     const seat = {
       id: `${type}-${this.seats.length}`,
       x, z, yaw, type, taken: null, takenAt: 0, uses: 0, obstacle, overlaps, sit,
+      // Posisi kursi RELATIF terhadap perabot pemiliknya. Dipakai supaya
+      // unit ber-kursi-banyak (mis. meja rapat + 11 kursi) tetap utuh saat
+      // dipindah / diputar di Mode Edit.
+      lx: 0, lz: 0, ry: 0,
       height: obstacle?.owner?.userData?.seatTop ?? 0.505,
       seatable: true,
       blocked: true,          // tetap padat untuk yang BERJALAN
@@ -679,7 +709,20 @@ export class Building {
 
     // 3) tautkan ke record perabot pemiliknya → ikut bergerak saat Mode Edit
     const item = obstacle ? this._editItems.get(obstacle.owner) : null;
-    if (item) (item.seats || (item.seats = [])).push(seat);
+    if (item) {
+      // OFFSET LOKAL (bukan world) — supaya meja/kursi yang diputar
+      // (ry ≠ 0, mis. meja HR/CEO/resepsionis) tetap utuh saat dipindah/
+      // diputar di Mode Edit. Sebelumnya pakai selisih world → di unit yang
+      // sudah diputar, kursi "kembali" ke posisi yang salah.
+      const cos = Math.cos(-item.ry);
+      const sin = Math.sin(-item.ry);
+      const wxl = x - item.x;
+      const wzl = z - item.z;
+      seat.lx = wxl * cos - wzl * sin;
+      seat.lz = wxl * sin + wzl * cos;
+      seat.ry = yaw - item.ry;
+      (item.seats || (item.seats = [])).push(seat);
+    }
     if (obstacle) {
       obstacle.seatable = true;   // AI tahu: ini dudukan, bukan halangan buta
       obstacle.type = "dudukan";
@@ -713,15 +756,131 @@ export class Building {
     return list.length ? list : null;
   }
 
-  _deskChair(deskX, deskZ, deskRy, { color = "charcoal", gap = DESK_CHAIR_GAP, type = "desk", desk = null } = {}) {
-    const x = deskX + Math.sin(deskRy) * gap;
-    const z = deskZ + Math.cos(deskRy) * gap;
-    const yaw = deskRy + Math.PI;
-    this._static(createOfficeChair({ color }), x, z, yaw);
-    const seat = this._seat(x, z, yaw, type);
-    // meja + kursi ergonomis = SATU unit edit (geser/putar/hapus/duplikat)
-    if (desk) this.pairProps(desk, seat);
-    return seat;
+  /* ------------------------------------------------------------------ *
+   *  Unit kerja: meja (+ isinya) + kursi = SATU perabot dengan SATU petak
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Rakit SATU perabot utuh: meja (+ peralatan di atasnya) + kursi-kursinya.
+   *
+   * Kenapa dibuat begini:
+   *  • Pemain memindah/memutar/menduplikat/menghapus unit ini sebagai SATU
+   *    furnitur dengan SATU petak — bukan meja dan kursi yang terpisah.
+   *  • COLLIDER-nya tetap terpisah: satu kotak untuk meja + satu kotak per
+   *    kursi. Ini wajib: kalau seluruh petak jadi satu collider besar,
+   *    karakter tidak akan pernah bisa berjalan ke belakang kursi untuk
+   *    duduk — lalu berdiri — lalu jalan lagi (penyebab utama "stuck").
+   *  • Jarak kursi ke TEPI meja SERAGAM untuk semua unit (CHAIR_EDGE_GAP),
+   *    jadi tidak ada lagi jarak yang beda-beda antar ruangan.
+   *  • Badan meja+kursi sengaja TIDAK ditandai "live", jadi tetap ikut
+   *    di-merge (hemat draw call). Yang dilepas hanya hotspot interaktif:
+   *    satu hotspot duduk per kursi, plus lampu/layar dari `_deskParts`.
+   *
+   * @param {THREE.Object3D} desk  meja (createWorkstation/createMeetingTable/
+   *                               dll). Ditaruh di pusat unit (0,0).
+   * @param {Object} opts
+   *   x, z, ry  posisi & arah unit (pusat meja)
+   *   chairs    [{ face: "-z"|"+z"|"-x"|"+x", lateral, color, type, label }]
+   *             `face` = arah PANDANG kursi; kursi otomatis diletakkan di
+   *             sisi seberangnya, tepat di tepi meja.
+   *   fp        petak unit; default dihitung dari meja + semua kursi
+   *   label     nama perabot di Mode Edit
+   *   type      tipe kursi default (dipakai AI: "desk" / "meeting" / …)
+   *   partsKey  kalau diisi → jalankan `_deskParts` (lampu & layar hidup)
+   * @returns {THREE.Object3D} grup unit (record ada di userData.editItem)
+   */
+  _workBundle(desk, {
+    x, z, ry = 0,
+    chairs = [],
+    fp = null,
+    label = null,
+    type = "desk",
+    partsKey = null,
+  } = {}) {
+    // Ukuran ALAS meja (bukan ukuran seluruh grup): kalau ada `parts.desk`
+    // (workstation) pakai itu, kalau tidak pakai footprint meja itu sendiri.
+    // Dipakai untuk menaruh kursi tepat di TEPI meja + collider meja.
+    const surface = (desk.userData.parts && desk.userData.parts.desk) || desk;
+    const dfp = surface.userData.footprint || { w: 1.5, d: 0.82 };
+    const halfW = dfp.w / 2;
+    const halfD = dfp.d / 2;
+
+    /* 1) rencanakan posisi lokal tiap kursi + petak keseluruhan unit */
+    const plan = [];
+    let minX = -halfW, maxX = halfW, minZ = -halfD, maxZ = halfD;
+    for (const spec of chairs) {
+      const face = SEAT_FACES[spec.face] || SEAT_FACES["-z"];
+      const lateral = spec.lateral || 0;
+      const d = (face.swap ? halfW : halfD) + CHAIR_EDGE_GAP;
+      const ox = face.ox * d + (face.swap ? 0 : lateral);
+      const oz = face.oz * d + (face.swap ? -lateral : 0);
+      plan.push({ spec, face, ox, oz });
+      minX = Math.min(minX, ox - CHAIR_FP / 2);
+      maxX = Math.max(maxX, ox + CHAIR_FP / 2);
+      minZ = Math.min(minZ, oz - CHAIR_FP / 2);
+      maxZ = Math.max(maxZ, oz + CHAIR_FP / 2);
+    }
+
+    /* 2) rakit grup: meja + kursi (kursi hanya properti visual di sini) */
+    const bundle = new THREE.Group();
+    bundle.name = label || desk.name || "Workstation";
+    bundle.userData.interactionLabel =
+      label || desk.userData.interactionLabel || bundle.name;
+    // hotspot duduk dibuat manual (satu per kursi) → `_seat` tidak
+    // menempelkan hotspot ke badan unit, jadi badan tetap bisa di-merge
+    bundle.userData.interactionManaged = true;
+    bundle.add(desk);
+
+    for (const p of plan) {
+      const chair = createOfficeChair({ color: p.spec.color || "charcoal" });
+      chair.position.set(p.ox, 0, p.oz);
+      chair.rotation.y = p.face.yaw;
+      chair.traverse((n) => { n.userData = {}; });  // jangan bikin badan live
+      bundle.add(chair);
+    }
+
+    /* 3) daftarkan sebagai SATU perabot:
+     *    petak = seluruh unit, collider = meja saja (kursi punya sendiri) */
+    bundle.userData.footprint = fp || {
+      w: 2 * Math.max(-minX, maxX),
+      d: 2 * Math.max(-minZ, maxZ),
+    };
+    bundle.userData.collideFootprint = { w: dfp.w, d: dfp.d };
+    bundle.userData.seatTop = 0.505;
+    this._static(bundle, x, z, ry, 0, bundle.userData.footprint);
+    const item = bundle.userData.editItem;
+
+    /* 4) tiap kursi: collider sendiri + dudukan + hotspot klik */
+    const c = Math.cos(ry);
+    const s = Math.sin(ry);
+    const roomName = this.room(this.roomAt(x, z))?.name || "Kantor";
+    for (const p of plan) {
+      const wx = x + p.ox * c + p.oz * s;
+      const wz = z - p.ox * s + p.oz * c;
+      const wyaw = ry + p.face.yaw;
+
+      const collider = this._obstacleFor(item, wx, wz, wyaw, { w: CHAIR_FP, d: CHAIR_FP });
+      collider.isSeatCollider = true;
+      collider.label = p.spec.label || "Kursi ergonomis";
+      this.obstacles.push(collider);
+
+      const seat = this._seat(wx, wz, wyaw, p.spec.type || type);
+
+      const hs = this._hotspot(wx, wz, 0.62, 0.85, {
+        id: `seat-${seat.id}`,
+        label: `${p.spec.label || "Kursi ergonomis"} · ${roomName}`,
+        hint: "Klik untuk duduk di sini",
+        radius: 1.0,
+        seat,
+        onClick: () => "Kursi bebas — siap diduduki.",
+      });
+      (item.extras || (item.extras = [])).push(hs);
+    }
+
+    /* 5) bagian meja yang "hidup" (lampu + layar) dilepas ke extras */
+    if (partsKey) this._deskParts(desk, partsKey, bundle);
+
+    return bundle;
   }
 
   _interactive(obj, meta) {
@@ -798,66 +957,6 @@ export class Building {
     furnishRooms(this);
   }
 
-  /* ------------------------------------------------- staff critter (NPC) */
-
-  _spawnStaffCritter({
-    id,
-    species = "staff",    // "staff" = baju hitam (developer room); lainnya normal
-    name,
-    tieColor,
-    department,
-    variant = 0,
-    x, z, yaw = 0,
-    hotspotLabel,
-    hotspotHint,
-    hotspotMessage,
-    radius = 1.2,
-    room,
-    seatType = null,      // mis. "reception" → staf duduk di kursi posnya
-    homeStatus = null,
-    wanderRadius = 5,     // radius merdeka berkeliling (di clamp ruangan saja)
-  }) {
-    const critter = new Critter({
-      species,
-      name,
-      tieColor,
-      department,
-      variant,
-    });
-
-    // penanda "live" supaya root ini tidak ikut digabung ke mesh statis;
-    // update sesungguhnya dilakukan Building lewat staffRoster
-    critter.root.userData.interactionManaged = true;
-    critter.root.userData.liveMarker = true;
-    critter.root.userData.update = () => {};
-
-    this._static(critter.root, x, z, yaw);
-    critter.teleport(x, z, yaw);
-
-    this._hotspot(x, z, 0.9, 0.6, {
-      id: `${id}-hotspot`,
-      label: hotspotLabel,
-      hint: hotspotHint,
-      radius,
-      onClick: () => hotspotMessage,
-    });
-
-    const post = {
-      room,
-      x, z, yaw,
-      radius: wanderRadius,
-      homeStatus: homeStatus || "Standby",
-    };
-    this.staffPosts[id] = post;
-    this.staffCritters[id] = critter;
-
-    const brain = new StaffBrain(critter, this, post, { seatType, homeStatus });
-    this.staffRoster.push({ critter, brain, postId: id });
-    critter.brain = brain;
-
-    return critter;
-  }
-
   /* ------------------------------------------------------------- merge */
 
   _isLive(node) {
@@ -881,34 +980,43 @@ export class Building {
     }
   }
 
-  _deskParts(ws, key) {
-    const parts = ws.userData.parts;
-    ws.updateWorldMatrix(true, true);
-    const monitor = parts.monitor;
-    const mwp = monitor.getWorldPosition(new THREE.Vector3());
-    this._splitLive(ws, [parts.lamp]);
+  _deskParts(ws, key, container = null) {
+    // `ws` = grup workstation (punya userData.parts). `container` = perabot
+    // yang TERDAFTAR — bisa `ws` sendiri, atau unit bundle yang membungkusnya.
+    // Semua hotspot & bagian lepas menempel ke record `container`.
+    const host = container || ws;
+    const parts = ws.userData.parts || {};
+    host.updateWorldMatrix(true, true);
+    const monitor = parts.monitor || null;
+    const mwp = monitor ? monitor.getWorldPosition(new THREE.Vector3()) : null;
+    if (parts.lamp) this._splitLive(host, [parts.lamp]);
     delete ws.userData.update;
-    delete monitor.userData.update;
+    delete host.userData.update;
+    if (monitor) delete monitor.userData.update;
 
-    const item = ws.userData.editItem;
+    const item = host.userData.editItem;
     const extras = item ? (item.extras || (item.extras = [])) : null;
 
-    this._interactive(parts.lamp, {
-      id: `lamp-${key}`,
-      label: "Lampu meja",
-      hint: "Klik untuk nyala / mati",
-      radius: 0.75,
-      onClick: (self) => (self.userData.api.toggle() ? "Lampu meja nyala" : "Lampu meja mati"),
-    });
+    if (parts.lamp) {
+      this._interactive(parts.lamp, {
+        id: `lamp-${key}`,
+        label: "Lampu meja",
+        hint: "Klik untuk nyala / mati",
+        radius: 0.75,
+        onClick: (self) => (self.userData.api.toggle() ? "Lampu meja nyala" : "Lampu meja mati"),
+      });
+    }
 
-    const monHs = this._hotspot(mwp.x, mwp.z, 0.95, 0.8, {
-      id: `monitor-${key}`,
-      label: "Layar telemetri",
-      hint: "Klik untuk ganti tampilan",
-      radius: 1.0,
-      onClick: () => { monitor.userData.api.cycle(); return "Layar berganti"; },
-    });
-    if (extras) extras.push(monHs);
+    if (monitor && mwp) {
+      const monHs = this._hotspot(mwp.x, mwp.z, 0.95, 0.8, {
+        id: `monitor-${key}`,
+        label: "Layar telemetri",
+        hint: "Klik untuk ganti tampilan",
+        radius: 1.0,
+        onClick: () => { monitor.userData.api.cycle(); return "Layar berganti"; },
+      });
+      if (extras) extras.push(monHs);
+    }
 
     const peripherals = [
       [parts.keyboard, "Keyboard", "Periksa keyboard workstation"],
@@ -1055,7 +1163,7 @@ export class Building {
   _syncObstacle(item) {
     const o = item.obstacle;
     if (!o) return;
-    const f = item.fp;
+    const f = item.collideFp || item.fp;
     if (!f) { o.centerX = item.x; o.centerZ = item.z; return; }
     const q = ((Math.round(item.ry / (Math.PI / 2)) % 4) + 4) % 4;
     const swap = q % 2 === 1;
@@ -1080,10 +1188,16 @@ export class Building {
     if (item.hotspot) { item.hotspot.position.x += dx; item.hotspot.position.z += dz; }
     if (item.plantSpot) { item.plantSpot.x = x; item.plantSpot.z = z; }
     if (item.seats) {
-      for (const s of item.seats) {
-        s.x = x; s.z = z;
-        s.sit.x = x + Math.sin(s.yaw) * SIT_FWD;
-        s.sit.z = z + Math.cos(s.yaw) * SIT_FWD;
+      // Kursi ikut lewat OFFSET LOKAL-nya, bukan dipaku ke pusat perabot —
+      // jadi meja rapat dengan 11 kursi tetap utuh saat dipindah.
+      const c = Math.cos(item.ry);
+      const s = Math.sin(item.ry);
+      for (const st of item.seats) {
+        st.x = x + st.lx * c + st.lz * s;
+        st.z = z - st.lx * s + st.lz * c;
+        st.sit.x = st.x + Math.sin(st.yaw) * SIT_FWD;
+        st.sit.z = st.z + Math.cos(st.yaw) * SIT_FWD;
+        this._syncSeatObstacle(st);
       }
     }
     item.x = x; item.z = z;
@@ -1100,23 +1214,35 @@ export class Building {
     }
     if (item.hotspot) this._orbit(item.hotspot, item.x, item.z, d);
     if (item.seats) {
-      for (const s of item.seats) {
-        s.yaw = ry;
-        s.sit.x = s.x + Math.sin(ry) * SIT_FWD;
-        s.sit.z = s.z + Math.cos(ry) * SIT_FWD;
+      const c = Math.cos(ry);
+      const s = Math.sin(ry);
+      for (const st of item.seats) {
+        st.yaw = ry + st.ry;
+        st.x = item.x + st.lx * c + st.lz * s;
+        st.z = item.z - st.lx * s + st.lz * c;
+        st.sit.x = st.x + Math.sin(st.yaw) * SIT_FWD;
+        st.sit.z = st.z + Math.cos(st.yaw) * SIT_FWD;
+        this._syncSeatObstacle(st);
       }
     }
     item.ry = ry;
     this._syncObstacle(item);
   }
 
+  /**
+   * Putar satu titik mengelilingi (cx,cz) sejauh `d`.
+   * Rumus ini HARUS sama dengan RotationY milik three.js:
+   *   x' = x·cos + z·sin      z' = −x·sin + z·cos
+   * (sebelumnya terbalik, jadi extras/lampu ikut bergeser ke sisi yang salah
+   * saat perabot diputar).
+   */
   _orbit(o, cx, cz, d) {
     const dx = o.position.x - cx;
     const dz = o.position.z - cz;
     const cos = Math.cos(d);
     const sin = Math.sin(d);
-    o.position.x = cx + dx * cos - dz * sin;
-    o.position.z = cz + dx * sin + dz * cos;
+    o.position.x = cx + dx * cos + dz * sin;
+    o.position.z = cz - dx * sin + dz * cos;
     o.rotation.y += d;
   }
 
@@ -1217,10 +1343,11 @@ export class Building {
       if (m === item) return { m, x: ax, z: az, ry };
       const dx = m.x - ax;
       const dz = m.z - az;
+      // sama dengan RotationY three.js (lihat `_orbit`)
       return {
         m,
-        x: ax + dx * cos - dz * sin,
-        z: az + dx * sin + dz * cos,
+        x: ax + dx * cos + dz * sin,
+        z: az - dx * sin + dz * cos,
         ry: m.ry + d,
       };
     });
@@ -1308,14 +1435,33 @@ export class Building {
 
   /* ----------------------------------------------------- duplikat & hapus */
 
-  /** Aktif/nonaktif collider sebuah perabot tanpa membuang recordnya. */
-  _setObstacleActive(item, on) {
-    const o = item.obstacle;
+  /** Aktif/nonaktif SATU collider di daftar `obstacles`. */
+  _setColliderActive(o, on) {
     if (!o) return;
     const i = this.obstacles.indexOf(o);
     if (on && i < 0) this.obstacles.push(o);
     else if (!on && i >= 0) this.obstacles.splice(i, 1);
+    this._nav = null;
+  }
+
+  /** Aktif/nonaktif collider sebuah perabot tanpa membuang recordnya. */
+  _setObstacleActive(item, on) {
+    this._setColliderActive(item.obstacle, on);
     if (on) this._syncObstacle(item);
+    this._nav = null;
+  }
+
+  /**
+   * Segerakan collider khusus KURSI (unit ber-kursi-banyak, mis. meja rapat
+   * + 11 kursi). Collider kursi hanya ada pada unit yang dibuat `_workBundle`.
+   */
+  _syncSeatObstacle(seat) {
+    const o = seat && seat.obstacle;
+    if (!o || !o.isSeatCollider) return;
+    const h = CHAIR_FP / 2;
+    o.minX = seat.x - h; o.maxX = seat.x + h;
+    o.minZ = seat.z - h; o.maxZ = seat.z + h;
+    o.centerX = seat.x; o.centerZ = seat.z;
     this._nav = null;
   }
 
@@ -1354,6 +1500,7 @@ export class Building {
       for (const s of item.seats) {
         const i = this.seats.indexOf(s);
         if (i >= 0) this.seats.splice(i, 1);
+        if (s.obstacle && s.obstacle.isSeatCollider) this._setColliderActive(s.obstacle, false);
       }
     }
     this._nav = null;
@@ -1379,7 +1526,10 @@ export class Building {
       this.plantSpots.push(item.plantSpot);
     }
     if (item.seats) {
-      for (const s of item.seats) if (!this.seats.includes(s)) this.seats.push(s);
+      for (const s of item.seats) {
+        if (!this.seats.includes(s)) this.seats.push(s);
+        if (s.obstacle && s.obstacle.isSeatCollider) this._setColliderActive(s.obstacle, true);
+      }
     }
   }
 
@@ -1434,6 +1584,12 @@ export class Building {
     item.isCopy = true;
     item.srcId = base.id;
     item.label = srcItem.label;
+    // collider fisik unit (meja saja) harus dipulihkan — klon tidak membawa
+    // userData, jadi `_register` tadi memakai petak penuh.
+    if (srcItem.collideFp) {
+      item.collideFp = { w: srcItem.collideFp.w, d: srcItem.collideFp.d };
+      this._syncObstacle(item);
+    }
     const m = /^c(\d+)$/.exec(finalId);
     if (m) this._copySeq = Math.max(this._copySeq, Number(m[1]));
 
@@ -1460,32 +1616,68 @@ export class Building {
       item.seats = [];
       const roomName = this.room(this.roomAt(x, z))?.name || "Studio";
       const seatLabel = item.label || "Kursi";
+      const cc = Math.cos(ry);
+      const ss = Math.sin(ry);
       for (const s of srcItem.seats) {
-        const sit = { x: x + Math.sin(ry) * SIT_FWD, z: z + Math.cos(ry) * SIT_FWD };
+        const lx = s.lx || 0;
+        const lz = s.lz || 0;
+        const sx = x + lx * cc + lz * ss;
+        const sz = z - lx * ss + lz * cc;
+        const syaw = ry + (s.ry || 0);
+
+        // Unit bundle punya collider SENDIRI per kursi; kalau tidak
+        // (mis. kursi lama yang menempel ke collider meja), pakai collider
+        // perabot seperti dulu.
+        const multi = !!(s.obstacle && s.obstacle.isSeatCollider);
+        let collider = item.obstacle;
+        if (multi) {
+          collider = this._obstacleFor(item, sx, sz, syaw, { w: CHAIR_FP, d: CHAIR_FP });
+          collider.isSeatCollider = true;
+          collider.label = "Kursi ergonomis";
+          this.obstacles.push(collider);
+        }
+
+        const sit = {
+          x: sx + Math.sin(syaw) * SIT_FWD,
+          z: sz + Math.cos(syaw) * SIT_FWD,
+        };
         const ns = {
           id: `${s.type}-${this.seats.length}`,
-          x, z, yaw: ry, type: s.type, taken: null, takenAt: 0, uses: 0,
-          obstacle: item.obstacle,
+          x: sx, z: sz, yaw: syaw, type: s.type, taken: null, takenAt: 0, uses: 0,
+          obstacle: collider,
           sit,
           overlaps: [],
+          lx, lz, ry: s.ry || 0,
           height: s.height ?? 0.505,
           seatable: true,
           blocked: true,
         };
         // meja yang menutupi titik duduk ikut boleh "diselipi" saat duduk
         for (const b of this.obstacles) {
-          if (b === item.obstacle || b.kind === "wall") continue;
+          if (b === collider || b.kind === "wall") continue;
           const cx = THREE.MathUtils.clamp(sit.x, b.minX, b.maxX);
           const cz = THREE.MathUtils.clamp(sit.z, b.minZ, b.maxZ);
           if ((sit.x - cx) ** 2 + (sit.z - cz) ** 2 < 0.34 * 0.34) ns.overlaps.push(b);
         }
-        if (item.obstacle) {
-          item.obstacle.seatable = true;
-          item.obstacle.type = "dudukan";
-          item.obstacle.seatType = s.type;
+        if (collider) {
+          collider.seatable = true;
+          collider.type = "dudukan";
+          collider.seatType = s.type;
         }
-        // duplikat kursi tetap bisa diklik untuk diduduki (pemain)
-        if (!obj.userData.interactive) {
+        // Kursi tetap bisa diklik untuk diduduki (pemain).
+        if (multi) {
+          // hotspot terpisah, supaya badan unit tetap bisa di-merge
+          const hs = this._hotspot(sx, sz, 0.62, 0.85, {
+            id: `seat-${ns.id}`,
+            label: `${seatLabel} · ${roomName}`,
+            hint: "Klik untuk duduk di sini",
+            radius: 1.0,
+            seat: ns,
+            onClick: () => "Kursi bebas — siap diduduki.",
+          });
+          if (!item.extras) item.extras = [];
+          item.extras.push(hs);
+        } else if (!obj.userData.interactive) {
           this._interactive(obj, {
             id: `seat-${ns.id}`,
             label: `${seatLabel} · ${roomName}`,
@@ -2273,6 +2465,20 @@ export class Building {
   }
 
   /**
+   * NavMesh: graf kotak + portal di atas grid yang sama (lihat NavMesh.js).
+   * Dibangun malas (lazy) dan dibuang otomatis begitu grid berubah — cukup
+   * dengan membandingkan identitas objek grid, jadi tak perlu mengubah
+   * semua tempat yang menulis `this._nav = null`.
+   */
+  _navMeshEnsure() {
+    const grid = this._navEnsure();
+    if (this._navMesh && this._navMeshGrid === grid) return this._navMesh;
+    this._navMesh = NavMesh.build(grid);
+    this._navMeshGrid = grid;
+    return this._navMesh;
+  }
+
+  /**
    * Apakah (x,z) benar-benar punya sel jalan di dekatnya (bisa dipijak)?
    * `mainOnly` = harus tersambung ke jaringan utama (bukan kantong buntu).
    */
@@ -2518,6 +2724,28 @@ export class Building {
       goal = near;
     }
 
+    /* 1) NavMesh (NavMesh.js): A* di graf kotak + funnel.
+       Sangat murah — puluhan kotak, bukan puluhan ribu sel — dan hasilnya
+       sudah "memotong sudut" seperti manusia. Penyaring `check` memastikan
+       tiap ruas benar-benar bebas; kalau gagal, NavMesh sendiri turun ke
+       jalur titik-tengah portal, baru kemudian A* grid lama dipakai. */
+    const nm = this._navMeshEnsure();
+    if (nm) {
+      const raw = nm.path(start, goal, avoid, (ax, az, bx, bz) => {
+        if (Math.abs(bx - ax) < 1e-6 && Math.abs(bz - az) < 1e-6) return true;
+        return this._lineFree(ax, az, bx, bz, 0.26);
+      });
+      if (raw && raw.length > 1) {
+        const simp = this._simplify(raw).slice(1);
+        if (simp.length) {
+          const out = simp.map((p) => ({ x: p.x, z: p.z }));
+          if (this.isFree(target.x, target.z, 0.18)) out.push({ x: target.x, z: target.z });
+          return out;
+        }
+      }
+    }
+
+    /* 2) Cadangan: A* grid lama. */
     const cells = start.i !== goal.i ? this._navSearch(nav, start.i, goal.i, avoid) : null;
     if (!cells) {
       return this._lineFree(start.x, start.z, goal.x, goal.z, 0.24)

@@ -7,7 +7,8 @@
  *    - kulkas + media cabinet + TV lounge + PlayStation di dinding utara
  *      bagian timur, lounge sofa menghadap TV di atas karpet navy
  *    - 2 meja bundar dengan armchair (area makan)
- *    - barista (NPC) keliling cafe, kembali ke dekat konter
+ *    - bangku/kursi tetap ada; KARAKTER tidak di-hard-code di sini
+ *      (semua staf lahir dari src/data/staff.json lewat modal Staf)
  *  Pintu ada di dinding selatan z = -3.1 (x = 6.3), menghadap koridor U.
  * ===================================================================== */
 import * as THREE from "three";
@@ -259,20 +260,6 @@ export function build(b) {
   b._plant(15.5, -3.9, 0, { variant: 2, scale: 0.6, seed: 34 });
   b._static(createBin(), 7.75, -3.5, 0);
 
-  /* ── Barista (NPC) — keliling cafe, kembali dekat konter ─────────── */
-  b._spawnStaffCritter({
-    id: "barista",
-    name: "Barista",
-    tieColor: 0x4f9b78,
-    department: { id: "cafe", name: "Cafe" },
-    variant: 0,
-    x: 13.5, z: -8.9, yaw: Math.PI,
-    hotspotLabel: "Barista cafe",
-    hotspotHint: "Klik untuk memesan kopi",
-    hotspotMessage: "Barista: pesanan dicatat, silakan tunggu di lounge ☕",
-    radius: 1.6,
-    room: "cafe",
-    wanderRadius: 3.5,
-    homeStatus: "Menyeduh kopi ☕",
-  });
+  /* Karakter TIDAK dibuat di sini — semua staf lahir dari staff.json
+   * lewat modal Management Staf. Tidak ada NPC statis. */
 }

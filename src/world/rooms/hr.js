@@ -7,7 +7,7 @@
  *    - papan kebijakan People Ops di dinding masuk
  *    - sudut wawancara: meja bundar + 3 armchair di sisi timur
  *    - lemari arsip ×2 + rak dokumen, tanaman, bin
- *    - 1 HR manager (baju normal/warna, bukan hitam)
+ *    - karakter TIDAK di-hard-code di sini (semua staf dari staff.json)
  *  Pintu ada di dinding barat x = 7.1 (z = -1.5), menghadap koridor U.
  * ===================================================================== */
 import {
@@ -24,11 +24,14 @@ import {
 import { WALL_H } from "../layout.js";
 
 export function build(b) {
-  /* ── Meja kerja HR ───────────────────────────────────────────────── */
-  const ws = createWorkstation({ desk: { width: 1.85 } });
-  b._place(ws, 9.6, -1.6, Math.PI / 2, 0, { w: 2.05, d: 1.25 });
-  b._deskParts(ws, "hr-desk");
-  b._deskChair(9.6, -1.6, Math.PI / 2, { color: "charcoal", type: "desk", desk: ws });
+  /* ── Meja kerja HR (meja + kursi = SATU perabot) ─────────────────── */
+  const bundle = b._workBundle(createWorkstation({ desk: { width: 1.85 } }), {
+    x: 9.6, z: -1.6, ry: Math.PI / 2,
+    label: "Meja HR",
+    type: "desk",
+    partsKey: "hr-desk",
+    chairs: [{ face: "-z", color: "charcoal", type: "desk" }],
+  });
   // Meja HR bisa diklik untuk membuka manajemen staf (hotspot live, tidak ikut merge)
   const deskHotspot = b._hotspot(9.6, -1.6, 0.95, 1.1, {
     id: "hr-desk",
@@ -38,7 +41,10 @@ export function build(b) {
     openStaffModal: true,
     onClick: () => "Manajemen staf HR",
   });
-  if (ws.userData.editItem) (ws.userData.editItem.extras || (ws.userData.editItem.extras = [])).push(deskHotspot);
+  {
+    const it = bundle.userData.editItem;
+    (it.extras || (it.extras = [])).push(deskHotspot);
+  }
 
   /* ── Papan kebijakan di dinding masuk (x = 7.1) ──────────────────── *
    *  Lebar 1.4 + digeser ke z = 0.2 supaya pintu HR (1.8 m, z -2.4..-0.6)
@@ -91,21 +97,6 @@ export function build(b) {
   b._plant(15.5, 0.5, 0, { variant: 0, scale: 0.62, seed: 78 });
   b._static(createBin(), 8.4, 0.6, 0);
 
-  /* ── HR Manager (baju normal — hitam hanya untuk Developer Room) ─── */
-  b._spawnStaffCritter({
-    id: "hr-manager",
-    species: "people",
-    name: "HR Manager",
-    tieColor: 0xd66e91,
-    department: { id: "hr", name: "Human Resource" },
-    variant: 0,
-    x: 11.4, z: -1.4, yaw: Math.PI,
-    hotspotLabel: "HR Manager",
-    hotspotHint: "Klik untuk tanya cuti & manfaat",
-    hotspotMessage: "HR: review 1-on-1 minggu depan ya, dipersilakan siap-siap 📋",
-    radius: 1.5,
-    room: "hr",
-    wanderRadius: 1.6,
-    homeStatus: "Memproses cuti tim 📋",
-  });
+  /* Karakter TIDAK dibuat di sini — semua staf lahir dari staff.json
+   * lewat modal Management Staf. Tidak ada NPC statis. */
 }
