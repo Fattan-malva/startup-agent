@@ -69,12 +69,6 @@ export function build(b) {
     onClick: () => "Pengumuman: agenda all-hands · pelatihan keamanan · kantin baru 🍜",
   });
 
-  /* ── Keset pintu masuk taman (segaris sumbu x = 0) ────────────────── */
-  const doormat = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), MAT.rug);
-  doormat.rotation.x = -Math.PI / 2;
-  doormat.position.set(0.0, 0.014, -1.62);
-  doormat.receiveShadow = true;
-  b.staticGroup.add(doormat);
 
   /* ── Tanaman sudut (dipindah ke kaki koridor: mulut koridor utara kini
    *  jadi jalur pintu Meeting & Cafe yang lebar, tidak boleh terhalang) ─ */
