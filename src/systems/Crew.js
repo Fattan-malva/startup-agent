@@ -1,7 +1,7 @@
 import { Critter } from "../character/Critter.js";
 import { Brain } from "./AI.js";
 import { SPECIES, DEPARTMENTS } from "../character/species.js";
-import { STAFF } from "../data/staff.js";
+import { STAFF, appearanceFromModel } from "../data/staff.js";
 
 /* ===================================================================== *
  *  Crew — the population of the office.
@@ -35,7 +35,7 @@ export class Crew {
   }
 
   /** Spawn a critter (with a brain) and drop it into the world. */
-  spawn({ species = null, name = null, department = null, tieColor = undefined, at = null, roomId = null, deskId = null, staffId = null, appearance = null } = {}) {
+  spawn({ species = null, name = null, department = null, tieColor = undefined, at = null, roomId = null, deskId = null, staffId = null, appearance = null, wander = 0 } = {}) {
     const spec = species ? SPECIES.find((s) => s.id === species) || SPECIES[0] : SPECIES[Math.floor(Math.random() * SPECIES.length)];
     const dept = (typeof department === "string")
       ? (DEPARTMENTS.find((d) => d.name === department) || { name: department, tie: tieColor ?? 0x737f90 })
@@ -66,10 +66,21 @@ export class Crew {
     critter.roomId = roomId || null;
     critter.deskId = deskId || null;
     critter.staffId = staffId || null;
+    critter.wanderRadius = Number(wander) || 0;
+
+    // Titik "rumah" dipakai Brain untuk membatasi radius keliling staf
+    // sesuai pengaturan HR (staff.json → wander).
+    if (deskId) {
+      const seat = this.building.seats.find(
+        (s) => s.type === "desk" && (s.obstacle?.owner?.userData?.editId || s.id) === deskId,
+      );
+      if (seat) critter.homeSpot = { x: seat.x, z: seat.z };
+    }
 
     const requested = at || (roomId ? this.building.randomSpot(roomId, { x: 0, z: 0 }) : this._randomSpawn());
     const spawnAt = this._findSafeSpawn(requested);
     critter.teleport(spawnAt.x, spawnAt.z, spawnAt.yaw ?? Math.random() * Math.PI * 2);
+    critter.homeSpot = critter.homeSpot || { x: critter.position.x, z: critter.position.z };
     critter.onFootstep = (c) => this.onFootstep?.(c);
     critter.root.userData.critter = critter;
 
@@ -138,17 +149,6 @@ export class Crew {
   populateFromStaff() {
     for (const s of STAFF) {
       const m = s.model || {};
-      const appearance = {
-        species: m.species || "developer",
-        skin: m.skin || "#dca787",
-        shirt: m.shirt || "#506a85",
-        pants: m.pants || "#333943",
-        tieColor: m.tieColor || 0x477da6,
-        accessory: m.accessory || "none",
-        glasses: m.accessory === "glasses",
-        headphones: m.accessory === "headphones",
-        hat: m.accessory === "hat",
-      };
       this.spawn({
         species: m.species || null,
         name: s.name,
@@ -157,7 +157,8 @@ export class Crew {
         roomId: s.roomId,
         deskId: s.deskId,
         staffId: s.id,
-        appearance,
+        wander: s.wander,
+        appearance: appearanceFromModel(m),
       });
     }
     return this;

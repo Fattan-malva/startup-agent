@@ -186,7 +186,19 @@ export class Brain {
   }
 
   _goalWander() {
-    const spot = this.b.randomSpot(null, { x: 0, z: 0 });
+    // Radius keliling dari pengaturan HR (staff.json → wander).
+    let spot = this.b.randomSpot(null, { x: 0, z: 0 });
+    const r = Number(this.c.wanderRadius) || 0;
+    const home = this.c.homeSpot;
+    if (r > 0 && home) {
+      for (let i = 0; i < 10; i++) {
+        const t = this.b.randomSpot(null, { x: 0, z: 0 });
+        if (Math.hypot(t.x - home.x, t.z - home.z) <= r) {
+          spot = t;
+          break;
+        }
+      }
+    }
     if (Math.abs(spot.x) < 0.01 && Math.abs(spot.z) < 0.01) return this._beginAct(3, "Mikir bentar");
     this._beginTravel({
       type: "wander",

@@ -217,124 +217,217 @@
       <input type="file" id="edit-file" accept="application/json,.json" hidden />
     </aside>
 
-    <!-- staff management modal -->
-    <!-- staff management modal (maximized dashboard) -->
-    <div id="staff-modal" class="modal" role="dialog" aria-modal="true" aria-label="Manajemen staf HR">
+    <!-- staff management modal (dashboard HR) -->
+    <div id="staff-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="staff-modal-title">
       <div class="modal-card staff-modal-card">
-        <button class="card-close" type="button" aria-label="Tutup" data-action="staff-close">&times;</button>
         <p class="card-kicker">People Ops</p>
-        <h2 class="modal-title">Manajemen staf</h2>
-        <p class="modal-lead">Kelola profil, model, dan penempatan staf kantor.</p>
+        <h2 id="staff-modal-title" class="modal-title">Manajemen staf</h2>
+        <p class="modal-lead">Data nyata kantor: tambah, ubah, dan hapus staf, edit model karakternya, lalu simpan ke
+          <code>src/data/staff.json</code>.</p>
+
         <div class="staff-modal-body">
-          <aside class="staff-sidebar">
+          <!-- kolom 1: daftar staf -->
+          <aside class="staff-col staff-sidebar" aria-label="Daftar staf">
             <div class="staff-search">
+              <i data-lucide="search"></i>
               <input id="staff-search" type="search" placeholder="Cari nama / jabatan…" aria-label="Cari staf" />
             </div>
-            <div class="staff-stats">
-              <span id="staff-stat-total">Total: 0</span>
-              <span id="staff-stat-dept">Departemen: 0</span>
-            </div>
+            <p class="staff-stats">
+              <span><b id="staff-stat-total">0</b> staf</span>
+              <span><b id="staff-stat-dept">0</b> departemen</span>
+              <span><b id="staff-stat-active">0</b> aktif</span>
+            </p>
             <button class="btn is-accent staff-new-btn" type="button" data-action="staff-new">+ Staf baru</button>
-            <ul id="staff-list" class="staff-list"></ul>
+            <ul id="staff-list" class="staff-list" aria-label="Staf"></ul>
           </aside>
-          <section class="staff-content">
-            <div class="staff-tabs" style="flex-shrink:0;">
-              <button class="seg-item is-active" type="button" data-action="staff-tab" data-value="profile">Profil</button>
-              <button class="seg-item" type="button" data-action="staff-tab" data-value="model">Model</button>
-              <button class="seg-item" type="button" data-action="staff-tab" data-value="placement">Penempatan</button>
+
+          <!-- kolom 2: formulir -->
+          <section class="staff-col staff-content" aria-label="Formulir staf">
+            <div class="staff-tabs seg" role="tablist" aria-label="Bagian formulir">
+              <button class="seg-item is-active" type="button" role="tab" aria-selected="true"
+                data-action="staff-tab" data-value="profile">Profil</button>
+              <button class="seg-item" type="button" role="tab" aria-selected="false"
+                data-action="staff-tab" data-value="model">Model karakter</button>
+              <button class="seg-item" type="button" role="tab" aria-selected="false"
+                data-action="staff-tab" data-value="placement">Penempatan</button>
             </div>
-            <div class="staff-form-wrapper" style="flex:1; overflow:auto; min-height:0;">
-              <div id="staff-form-profile" class="staff-form">
-                <div class="form-row">
-                  <label>ID <input id="staff-id" type="text" readonly /></label>
+
+            <div class="staff-form-wrapper">
+              <!-- profil -->
+              <div id="staff-form-profile" class="staff-form" role="tabpanel">
+                <div class="staff-row">
+                  <label class="ff">
+                    <span>Nama lengkap</span>
+                    <input id="staff-name" type="text" placeholder="mis. Alya Pratama" maxlength="40" />
+                  </label>
+                  <label class="ff">
+                    <span>Jabatan</span>
+                    <input id="staff-title" type="text" placeholder="mis. Frontend Engineer" maxlength="40" />
+                  </label>
                 </div>
-                <label>Nama <input id="staff-name" type="text" placeholder="Nama lengkap" /></label>
-                <label>Jabatan <input id="staff-title" type="text" placeholder="Jabatan" /></label>
-                <label>Departemen
-                  <select id="staff-dept"></select>
-                </label>
-                <label>Status
-                  <select id="staff-status">
-                    <option value="active">Aktif</option>
-                    <option value="on-leave">Cuti</option>
-                    <option value="inactive">Tidak aktif</option>
-                  </select>
+                <div class="staff-row">
+                  <label class="ff">
+                    <span>Departemen</span>
+                    <select id="staff-dept"></select>
+                  </label>
+                  <label class="ff">
+                    <span>Status kerja</span>
+                    <select id="staff-status"></select>
+                  </label>
+                </div>
+                <label class="ff">
+                  <span>ID staf</span>
+                  <input id="staff-id" type="text" readonly />
                 </label>
               </div>
-              <div id="staff-form-model" class="staff-form" hidden>
-                <div class="form-row" style="flex-shrink:0;">
-                  <label>Spesies
-                    <select id="staff-species"></select>
-                  </label>
-                  <label>Warna dasi <input id="staff-tie" type="color" /></label>
-                </div>
-                <div class="form-row" style="flex-shrink:0;">
-                  <label>Kulit <input id="staff-skin" type="color" /></label>
-                  <label>Baju <input id="staff-shirt" type="color" /></label>
-                  <label>Celana <input id="staff-pants" type="color" /></label>
-                </div>
-                <label style="flex-shrink:0;">Aksesoris kepala
-                  <select id="staff-accessory">
-                    <option value="none">Tanpa</option>
-                    <option value="glasses">Kacamata</option>
-                    <option value="hat">Topi</option>
-                    <option value="headset">Headset</option>
-                  </select>
+
+              <!-- model karakter -->
+              <div id="staff-form-model" class="staff-form" role="tabpanel" hidden>
+                <label class="ff">
+                  <span>Spesies</span>
+                  <select id="staff-species"></select>
                 </label>
-                <div class="model-presets" style="flex-shrink:0;">
-                  <span class="preset-label">Preset cepat:</span>
+                <div class="staff-row staff-row--3">
+                  <label class="ff">
+                    <span>Kulit</span>
+                    <span class="color-box">
+                      <input id="staff-skin" type="color" />
+                      <output id="staff-skin-out" for="staff-skin"></output>
+                    </span>
+                  </label>
+                  <label class="ff">
+                    <span>Baju</span>
+                    <span class="color-box">
+                      <input id="staff-shirt" type="color" />
+                      <output id="staff-shirt-out" for="staff-shirt"></output>
+                    </span>
+                  </label>
+                  <label class="ff">
+                    <span>Celana</span>
+                    <span class="color-box">
+                      <input id="staff-pants" type="color" />
+                      <output id="staff-pants-out" for="staff-pants"></output>
+                    </span>
+                  </label>
+                </div>
+                <div class="staff-row">
+                  <label class="ff">
+                    <span>Warna dasi</span>
+                    <span class="color-box">
+                      <input id="staff-tie" type="color" />
+                      <output id="staff-tie-out" for="staff-tie"></output>
+                    </span>
+                  </label>
+                  <label class="ff">
+                    <span>Aksesoris kepala</span>
+                    <select id="staff-accessory">
+                      <option value="none">Tanpa aksesoris</option>
+                      <option value="glasses">Kacamata</option>
+                      <option value="headphones">Headset</option>
+                      <option value="hat">Topi kerja</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="staff-row">
+                  <label class="ff">
+                    <span>Rambut</span>
+                    <span class="color-box">
+                      <input id="staff-hair" type="color" />
+                      <output id="staff-hair-out" for="staff-hair"></output>
+                    </span>
+                  </label>
+                  <label class="ff">
+                    <span>Warna mata</span>
+                    <span class="color-box">
+                      <input id="staff-eyes" type="color" />
+                      <output id="staff-eyes-out" for="staff-eyes"></output>
+                    </span>
+                  </label>
+                </div>
+                <div class="staff-presets">
+                  <span class="preset-label">Preset</span>
                   <button type="button" class="chip" data-action="staff-preset" data-value="dev">Dev</button>
                   <button type="button" class="chip" data-action="staff-preset" data-value="design">Design</button>
                   <button type="button" class="chip" data-action="staff-preset" data-value="exec">Eksekutif</button>
                   <button type="button" class="chip" data-action="staff-preset" data-value="ops">Operasional</button>
+                  <button type="button" class="chip" data-action="staff-preset" data-value="reset">Setel ulang</button>
                 </div>
               </div>
-              <div id="staff-form-placement" class="staff-form" hidden>
-                <label style="flex-shrink:0;">Ruangan (otomatis dari departemen)
-                  <select id="staff-room" disabled></select>
-                </label>
-                <label style="flex-shrink:0;">Meja
-                  <select id="staff-desk"></select>
-                </label>
-                <label style="flex-shrink:0;">Radius keliling
-                  <input id="staff-wander" type="range" min="0.5" max="5" step="0.5" value="1.6" />
-                  <span id="staff-wander-val">1.6 m</span>
-                </label>
-                <div class="placement-preview" style="flex-shrink:0;">
-                  <canvas id="staff-map-canvas" width="200" height="160"></canvas>
+
+              <!-- penempatan -->
+              <div id="staff-form-placement" class="staff-form" role="tabpanel" hidden>
+                <div class="staff-row">
+                  <label class="ff">
+                    <span>Ruangan</span>
+                    <select id="staff-room"></select>
+                  </label>
+                  <label class="ff">
+                    <span>Meja kerja</span>
+                    <select id="staff-desk"></select>
+                  </label>
                 </div>
+                <label class="ff">
+                  <span>Radius keliling</span>
+                  <span class="range-line">
+                    <input id="staff-wander" type="range" min="0.5" max="5" step="0.1" value="1.6" />
+                    <output id="staff-wander-out" for="staff-wander">1.6 m</output>
+                  </span>
+                </label>
+                <div class="staff-map">
+                  <canvas id="staff-map-canvas" width="520" height="190" aria-label="Peta penempatan staf"></canvas>
+                </div>
+                <p class="staff-map-legend">
+                  <span>● meja staf ini</span>
+                  <span>○ meja kosong</span>
+                  <span>× meja terisi staf lain</span>
+                </p>
               </div>
             </div>
-            <div class="staff-actions" style="flex-shrink:0; margin-top:10px;">
-              <button class="btn" type="button" data-action="staff-save">Simpan</button>
-              <button class="btn chip--danger" type="button" data-action="staff-delete">Hapus</button>
+
+            <div class="staff-actions">
+              <span id="staff-state" class="staff-state">Perubahan tersimpan</span>
+              <button class="btn is-accent" type="button" data-action="staff-save">Simpan</button>
+              <button class="btn chip--danger" type="button" data-action="staff-delete">Hapus staf</button>
             </div>
           </section>
-          <aside class="staff-preview">
-            <canvas id="staff-preview-canvas" class="viewchar-canvas" width="300" height="360"></canvas>
+
+          <!-- kolom 3: preview 3D -->
+          <aside class="staff-col staff-preview" aria-label="Preview karakter">
+            <div class="staff-preview-stage">
+              <canvas id="staff-preview-canvas" aria-label="Preview 3D karakter"></canvas>
+            </div>
+            <p class="staff-preview-meta">
+              <span id="staff-preview-name" class="staff-preview-name">—</span>
+              <span id="staff-preview-sub" class="staff-preview-sub"></span>
+            </p>
             <div class="staff-preview-menus">
-              <label>Kulit <input id="staff-skin" type="color" /></label>
-              <label>Baju <input id="staff-shirt" type="color" /></label>
-              <label>Celana <input id="staff-pants" type="color" /></label>
-              <label>Aksesoris
-                <select id="staff-accessory">
-                  <option value="none">Tanpa</option>
-                  <option value="glasses">Kacamata</option>
-                  <option value="hat">Topi</option>
-                  <option value="headset">Headset</option>
-                </select>
-              </label>
-              <label>Animasi preview
+              <label class="ff">
+                <span>Animasi</span>
                 <select id="staff-preview-anim">
                   <option value="idle">Diam</option>
+                  <option value="walk">Jalan</option>
                   <option value="wave">Melambai</option>
                   <option value="thumbsup">Thumbs up</option>
-                  <option value="walk">Jalan</option>
+                  <option value="dance">Dansa</option>
+                </select>
+              </label>
+              <label class="ff">
+                <span>Putar otomatis</span>
+                <select id="staff-preview-spin">
+                  <option value="on">Hidup</option>
+                  <option value="off">Mati</option>
                 </select>
               </label>
             </div>
-            <p class="staff-preview-hint">Drag putar · Scroll zoom</p>
+            <p class="staff-preview-hint">Drag untuk memutar · scroll untuk zoom</p>
           </aside>
+        </div>
+
+        <!-- tutup: di tengah bawah, ikon + teks -->
+        <div class="staff-modal-foot">
+          <button class="btn staff-close-btn" type="button" data-action="staff-close">
+            <i data-lucide="x"></i><span>Close</span>
+          </button>
         </div>
       </div>
     </div>

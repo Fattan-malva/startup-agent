@@ -72,8 +72,8 @@ export class HUD {
     this._selectedSpecies = SPECIES[0].id;
     this._lastMsg = null;
     this._fps = false;
-    this._modalOpen = false;
     this._viewcharOpen = false;
+    this._staffOpen = false;
 
     this._buildSpeciesGrid();
     this._bind();
@@ -133,7 +133,7 @@ export class HUD {
   }
 
   get modalOpen() {
-    return this._spawnOpen || this._helpOpen || this._viewcharOpen;
+    return this._spawnOpen || this._helpOpen || this._viewcharOpen || this._staffOpen;
   }
 
   /* --------------------------------------------------------------- stats */
@@ -351,7 +351,6 @@ export class HUD {
       typeof force === "boolean" ? force : !this._spawnOpen;
     this._spawnOpen = open;
     this.dom.spawn?.classList.toggle("is-open", open);
-    this._modalOpen = this._spawnOpen || this._helpOpen;
     return open;
   }
 
@@ -361,7 +360,6 @@ export class HUD {
       typeof force === "boolean" ? force : !this._helpOpen;
     this._helpOpen = open;
     this.dom.help?.classList.toggle("is-open", open);
-    this._modalOpen = this._spawnOpen || this._helpOpen;
     return open;
   }
 
@@ -371,8 +369,12 @@ export class HUD {
       typeof force === "boolean" ? force : !this._viewcharOpen;
     this._viewcharOpen = open;
     this.dom.viewchar?.classList.toggle("is-open", open);
-    this._modalOpen = this._spawnOpen || this._helpOpen || this._viewcharOpen;
     return open;
+  }
+
+  /* ------------------------------------------------------------- staff */
+  setStaffModal(open) {
+    this._staffOpen = !!open;
   }
 
   renderViewCharSpecies(selectedId) {

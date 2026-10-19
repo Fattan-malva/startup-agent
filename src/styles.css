@@ -15,6 +15,8 @@
   --warm: #e2b077;
   --warm-dim: rgba(226, 176, 119, 0.18);
   --cool: #63d8ff;
+  /* alias aksen dipakai outline focus & item aktif di seluruh HUD */
+  --accent: #e2b077;
   --radius: 14px;
   --radius-sm: 9px;
   --pad: 14px;
@@ -839,9 +841,9 @@ kbd {
   background: transparent;
   color: var(--ink-mute);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition: color 0.15s;
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-left: -3px;
   padding: 0;
 }
 .roster-settings svg {
@@ -851,8 +853,6 @@ kbd {
 }
 .roster-settings:hover {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--hair);
 }
 .roster-settings:focus-visible {
   outline: 2px solid var(--accent);
@@ -909,8 +909,13 @@ kbd {
 .roster-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 0;
   padding: 2px 2px 8px 6px;
+}
+
+.roster-head .card-close.is-static {
+  margin-left: auto;
 }
 
 .roster-title {
@@ -1305,37 +1310,650 @@ kbd {
   border-color: rgba(255, 110, 92, 0.7);
   background: rgba(255, 110, 92, 0.22);
 }
-/* staff modal */
-.modal-card.staff-modal-card { width: min(1280px, 98vw); max-height: 92vh; overflow: hidden; display: flex; flex-direction: column; }
-.staff-modal-body { display: grid; grid-template-columns: 280px 1fr 320px; gap: 16px; margin-top: 12px; flex: 1; overflow: hidden; }
-.staff-sidebar, .staff-content, .staff-preview { background: rgba(255,255,255,.04); border: 1px solid var(--hair); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; overflow: hidden; }
-.staff-search input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--hair); background: rgba(0,0,0,.3); color: var(--ink); font-size: 12px; flex-shrink: 0; }
-.staff-stats { display: flex; gap: 12px; font-size: 11px; color: var(--ink-mute); margin: 8px 0; flex-shrink: 0; }
-.staff-new-btn { flex-shrink: 0; }
-.staff-list { list-style: none; padding: 0; margin: 8px 0 0; flex: 1; overflow: auto; min-height: 0; }
-.staff-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 12px; transition: background .15s; }
-.staff-item:hover { background: rgba(255,255,255,.06); }
-.staff-item.is-active { background: rgba(255,255,255,.1); outline: 1px solid var(--accent); }
-.staff-form { display: grid; gap: 10px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.staff-form label { display: grid; gap: 4px; font-size: 11.5px; color: var(--ink-soft); }
-.staff-form input, .staff-form select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--hair); background: rgba(0,0,0,.25); color: var(--ink); font-size: 12px; }
-.staff-form input[type="range"] { padding: 0; }
-.staff-form input:focus, .staff-form select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
-.staff-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
-.staff-actions { display: flex; gap: 8px; margin-top: 10px; }
-.staff-preview { display: grid; place-items: center; }
-.staff-preview-menus { display: grid; gap: 8px; width: 100%; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--hair); }
-.staff-preview-menus label { display: grid; gap: 6px; font-size: 11px; color: var(--ink-soft); }
-.staff-preview-hint { font-size: 10px; color: var(--ink-mute); margin: 8px 0 0; text-align: center; }
-.model-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
-.preset-label { font-size: 11px; color: var(--ink-mute); margin-right: 6px; }
-.placement-preview { margin-top: 8px; border-radius: 8px; overflow: hidden; border: 1px solid var(--hair); }
-#staff-map-canvas { display: block; width: 100%; height: 160px; }
+/* ===================================================================== *
+ *  Manajemen staf — modal dashboard HR (3 kolom: daftar · formulir ·
+ *  preview 3D). Memakai bahasa visual yang sama dengan dock & modal
+ *  lain: hairline, glass gelap, satu aksen hangat.
+ * ===================================================================== */
+.modal-card.staff-modal-card {
+  width: min(1620px, 97vw);
+  max-height: 94vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 26px 20px;
+}
+
+/* ── tutup modal: tombol di tengah bawah ──────────────────────────── */
+.staff-modal-foot {
+  display: flex;
+  justify-content: center;
+  padding-top: 16px;
+  flex: none;
+}
+
+.staff-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 22px;
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.staff-close-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.staff-close-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--hair-strong);
+}
+
+.staff-modal-body {
+  display: grid;
+  grid-template-columns: 288px minmax(0, 1fr) 400px;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 16px;
+}
+
+.staff-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 13px;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* ── kolom 1: cari + daftar staf ───────────────────────────────────── */
+.staff-search {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.staff-search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translateY(-50%);
+  color: var(--ink-mute);
+  pointer-events: none;
+}
+
+.staff-search input {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border-radius: 9px;
+  border: 1px solid var(--hair);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.staff-search input::placeholder {
+  color: var(--ink-mute);
+}
+
+.staff-search input:focus {
+  outline: none;
+  border-color: var(--warm);
+  background: rgba(0, 0, 0, 0.44);
+}
+
+.staff-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  margin: 10px 0;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+}
+
+.staff-stats b {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.staff-new-btn {
+  flex-shrink: 0;
+}
+
+.staff-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+}
+
+.staff-item {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1px 9px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.staff-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.staff-item.is-active {
+  background: var(--warm-dim);
+  border-color: rgba(226, 176, 119, 0.5);
+}
+
+.staff-dot {
+  grid-row: span 2;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--dot, var(--ink-mute));
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+.staff-name {
+  font-size: 12.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staff-meta {
+  grid-column: 2;
+  font-size: 10.5px;
+  color: var(--ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staff-flag {
+  grid-row: span 2;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+}
+
+.staff-item.is-off .staff-name {
+  color: var(--ink-mute);
+}
+
+.staff-item.is-off .staff-dot {
+  opacity: 0.45;
+}
+
+.staff-empty {
+  padding: 18px 8px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+
+/* ── kolom 2: tab + formulir + aksi ────────────────────────────────── */
+.staff-tabs {
+  align-self: flex-start;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.staff-form-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.staff-form {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+/* `display: grid` di atas mengalahkan atribut `hidden` bawaan browser —
+   tanpa aturan ini ketiga panel form tampil sekaligus. */
+.staff-form[hidden] {
+  display: none;
+}
+
+.staff-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.staff-row--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ff {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ff > span:first-child {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.ff input[type="text"],
+.ff select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--hair);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.ff input::placeholder {
+  color: var(--ink-mute);
+}
+
+.ff input[type="text"]:focus,
+.ff select:focus {
+  outline: none;
+  border-color: var(--warm);
+  background: rgba(0, 0, 0, 0.44);
+}
+
+.ff input[readonly] {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: default;
+}
+
+/* select: panah kustom + daftar opsi gelap supaya tetap terbaca */
+.ff select,
+.staff-preview select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  color-scheme: dark;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%237e858f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+}
+
+.staff-form option,
+.staff-preview option {
+  background: #14171c;
+  color: var(--ink);
+}
+
+.ff select:disabled {
+  color: var(--ink-soft);
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+/* pemilih warna: swatch + hex agar presisi dan terbaca */
+.color-box {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px;
+  border: 1px solid var(--hair);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.32);
+  transition: border-color 0.16s;
+}
+
+.color-box:focus-within {
+  border-color: var(--warm);
+}
+
+input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 42px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  flex: none;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+}
+
+input[type="color"]::-moz-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+}
+
+.color-box output {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* slider radius keliling */
+.ff input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.ff input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ff input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  border: 2px solid #14171c;
+  background: var(--warm);
+  box-shadow: 0 0 0 3px var(--warm-dim);
+}
+
+.ff input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ff input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #14171c;
+  background: var(--warm);
+}
+
+.range-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.range-line input[type="range"] {
+  flex: 1;
+}
+
+.range-line output {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  min-width: 42px;
+  text-align: right;
+}
+
+.staff-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.staff-presets .preset-label {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-right: 2px;
+}
+
+/* peta penempatan */
+.staff-map {
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+#staff-map-canvas {
+  display: block;
+  width: 100%;
+  height: 190px;
+}
+
+.staff-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  margin: 7px 0 0;
+  font-size: 10px;
+  color: var(--ink-mute);
+}
+
+/* bar aksi bawah */
+.staff-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hair);
+}
+
+.staff-state {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.staff-state::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink-mute);
+  opacity: 0.5;
+}
+
+.staff-state.is-dirty {
+  color: var(--warm);
+}
+
+.staff-state.is-dirty::before {
+  background: var(--warm);
+  opacity: 1;
+  box-shadow: 0 0 0 3px var(--warm-dim);
+}
+
+/* ── kolom 3: preview 3D + kendali model ───────────────────────────── */
+.staff-preview-stage {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  display: block;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(115% 72% at 50% 10%, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 62%),
+    radial-gradient(120% 60% at 50% 100%, rgba(226, 176, 119, 0.1), rgba(0, 0, 0, 0) 70%),
+    rgba(0, 0, 0, 0.28);
+}
+
+#staff-preview-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+#staff-preview-canvas:active {
+  cursor: grabbing;
+}
+
+.staff-preview-meta {
+  text-align: center;
+  margin-top: 11px;
+}
+
+.staff-preview-name {
+  display: block;
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.staff-preview-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-mute);
+}
+
+.staff-preview-menus {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  margin-top: 11px;
+  padding-top: 11px;
+  border-top: 1px solid var(--hair);
+}
+
+.staff-preview-menus .ff {
+  gap: 4px;
+}
+
+.staff-preview-hint {
+  margin: 10px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-mute);
+  text-align: center;
+}
+
+/* ── responsif ─────────────────────────────────────────────────────── */
+@media (max-width: 1240px) {
+  .staff-modal-body {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .staff-preview {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr);
+    grid-auto-rows: min-content;
+    gap: 6px 14px;
+    align-items: center;
+  }
+
+  .staff-preview-stage {
+    grid-row: 1 / span 4;
+    height: 214px;
+    min-height: 0;
+  }
+
+  .staff-preview-meta,
+  .staff-preview-menus {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .modal-card.staff-modal-card {
+    width: 100%;
+    padding: 20px 18px 16px;
+  }
+
+  .staff-modal-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .staff-list {
+    flex: none;
+    max-height: 186px;
+  }
+
+  .staff-form-wrapper {
+    flex: none;
+    overflow: visible;
+  }
+
+  .staff-row,
+  .staff-row--3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .staff-preview-stage {
+    grid-row: auto;
+    height: 240px;
+  }
+}
 
 /* Modal input protection - prevent camera interaction when modal is open */
 .modal.is-open { pointer-events: auto; }
 .modal.is-open .modal-card { pointer-events: auto; }
 .modal.is-open .modal-card * { pointer-events: auto; }
-.roster-head { display: flex; align-items: center; gap: 6px; }
+.roster-head { display: flex; align-items: center; gap: 0; }
 .roster-head .card-close svg { width: 14px; height: 14px; }

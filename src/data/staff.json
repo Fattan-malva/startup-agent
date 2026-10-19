@@ -1,14 +1,22 @@
 [
   {
     "id": "staff-001",
-    "name": "Alya Pratama",
+    "name": "Malvaaa",
     "title": "Frontend Engineer",
     "department": "Engineering",
+    "status": "active",
     "roomId": "developer",
-    "deskId": "p67",
+    "deskId": "p68",
+    "wander": 1.6,
     "model": {
       "species": "developer",
-      "tieColor": 4685926
+      "skin": "#dca787",
+      "shirt": "#000000",
+      "pants": "#0c0d0e",
+      "hair": "#252321",
+      "eyes": "#49362b",
+      "tieColor": 4685926,
+      "accessory": "headphones"
     }
   },
   {
@@ -16,11 +24,19 @@
     "name": "Bagas Wicaksono",
     "title": "Backend Engineer",
     "department": "Engineering",
+    "status": "active",
     "roomId": "developer",
     "deskId": "p69",
+    "wander": 1.6,
     "model": {
       "species": "developer",
-      "tieColor": 4685926
+      "skin": "#c88d6a",
+      "shirt": "#506a85",
+      "pants": "#343b45",
+      "hair": "#17191d",
+      "eyes": "#30241d",
+      "tieColor": 4685926,
+      "accessory": "none"
     }
   },
   {
@@ -28,11 +44,19 @@
     "name": "Citra Maheswari",
     "title": "QA Engineer",
     "department": "Engineering",
+    "status": "active",
     "roomId": "developer",
     "deskId": "p71",
+    "wander": 1.6,
     "model": {
       "species": "analyst",
-      "tieColor": 4685926
+      "skin": "#e2b89b",
+      "shirt": "#9ca9b8",
+      "pants": "#2b2f35",
+      "hair": "#5a3d2c",
+      "eyes": "#49362b",
+      "tieColor": 4685926,
+      "accessory": "none"
     }
   },
   {
@@ -40,11 +64,19 @@
     "name": "Dimas Saputra",
     "title": "DevOps Engineer",
     "department": "Engineering",
+    "status": "active",
     "roomId": "developer",
     "deskId": "p73",
+    "wander": 1.6,
     "model": {
       "species": "operator",
-      "tieColor": 4685926
+      "skin": "#9f694a",
+      "shirt": "#333943",
+      "pants": "#484254",
+      "hair": "#17191d",
+      "eyes": "#30241d",
+      "tieColor": 4685926,
+      "accessory": "none"
     }
   },
   {
@@ -52,11 +84,19 @@
     "name": "Eka Rahmawati",
     "title": "UI/UX Designer",
     "department": "Design",
+    "status": "active",
     "roomId": "studio",
     "deskId": null,
+    "wander": 2.4,
     "model": {
       "species": "designer",
-      "tieColor": 12941908
+      "skin": "#f0c8ad",
+      "shirt": "#8980a8",
+      "pants": "#4a5360",
+      "hair": "#342721",
+      "eyes": "#49362b",
+      "tieColor": 12941908,
+      "accessory": "glasses"
     }
   },
   {
@@ -64,11 +104,19 @@
     "name": "Fajar Nugroho",
     "title": "Brand Designer",
     "department": "Design",
+    "status": "active",
     "roomId": "studio",
     "deskId": null,
+    "wander": 2.4,
     "model": {
       "species": "creator",
-      "tieColor": 12941908
+      "skin": "#c88d6a",
+      "shirt": "#94ad9b",
+      "pants": "#8c8175",
+      "hair": "#201c1b",
+      "eyes": "#30241d",
+      "tieColor": 12941908,
+      "accessory": "headphones"
     }
   },
   {
@@ -76,11 +124,19 @@
     "name": "Gita Permata",
     "title": "HR Generalist",
     "department": "People",
+    "status": "active",
     "roomId": "hr",
     "deskId": "p133",
+    "wander": 1.6,
     "model": {
       "species": "people",
-      "tieColor": 14048913
+      "skin": "#b97e5e",
+      "shirt": "#c0a06b",
+      "pants": "#8c8175",
+      "hair": "#7e5d3e",
+      "eyes": "#30241d",
+      "tieColor": 14048913,
+      "accessory": "none"
     }
   },
   {
@@ -88,11 +144,19 @@
     "name": "Hendra Kusuma",
     "title": "Recruiter",
     "department": "People",
+    "status": "active",
     "roomId": "hr",
     "deskId": null,
+    "wander": 1.6,
     "model": {
       "species": "people",
-      "tieColor": 14048913
+      "skin": "#c88d6a",
+      "shirt": "#c0a06b",
+      "pants": "#8c8175",
+      "hair": "#2a2429",
+      "eyes": "#30241d",
+      "tieColor": 14048913,
+      "accessory": "none"
     }
   },
   {
@@ -100,11 +164,19 @@
     "name": "Indra Wijaya",
     "title": "CEO",
     "department": "Executive",
+    "status": "active",
     "roomId": "ceo",
     "deskId": "p150",
+    "wander": 1.2,
     "model": {
       "species": "finance",
-      "tieColor": 7577040
+      "skin": "#e5c0a4",
+      "shirt": "#484254",
+      "pants": "#4a5360",
+      "hair": "#2a2429",
+      "eyes": "#49362b",
+      "tieColor": 7577040,
+      "accessory": "none"
     }
   },
   {
@@ -112,11 +184,19 @@
     "name": "Jasmine Aulia",
     "title": "Executive Assistant",
     "department": "Executive",
+    "status": "active",
     "roomId": "ceo",
     "deskId": null,
+    "wander": 1.6,
     "model": {
       "species": "product",
-      "tieColor": 7577040
+      "skin": "#c88d6a",
+      "shirt": "#d4c7b5",
+      "pants": "#343b45",
+      "hair": "#342721",
+      "eyes": "#49362b",
+      "tieColor": 7577040,
+      "accessory": "glasses"
     }
   },
   {
@@ -124,11 +204,19 @@
     "name": "Kurnia Adi",
     "title": "Operations Lead",
     "department": "Operations",
+    "status": "active",
     "roomId": "staff",
     "deskId": "p107",
+    "wander": 2,
     "model": {
       "species": "operator",
-      "tieColor": 9214393
+      "skin": "#b97e5e",
+      "shirt": "#333943",
+      "pants": "#484254",
+      "hair": "#2a2429",
+      "eyes": "#30241d",
+      "tieColor": 9214393,
+      "accessory": "none"
     }
   },
   {
@@ -136,11 +224,19 @@
     "name": "Laras Setyani",
     "title": "Admin Officer",
     "department": "Operations",
+    "status": "active",
     "roomId": "staff",
     "deskId": "p109",
+    "wander": 1.6,
     "model": {
       "species": "intern",
-      "tieColor": 9214393
+      "skin": "#f0c8ad",
+      "shirt": "#c2d5df",
+      "pants": "#4a5360",
+      "hair": "#201c1b",
+      "eyes": "#49362b",
+      "tieColor": 9214393,
+      "accessory": "none"
     }
   },
   {
@@ -148,11 +244,19 @@
     "name": "Miko Prasetyo",
     "title": "Data Analyst",
     "department": "Growth",
+    "status": "active",
     "roomId": "staff",
     "deskId": "p111",
+    "wander": 1.8,
     "model": {
       "species": "analyst",
-      "tieColor": 5217144
+      "skin": "#c88d6a",
+      "shirt": "#9ca9b8",
+      "pants": "#2b2f35",
+      "hair": "#17191d",
+      "eyes": "#30241d",
+      "tieColor": 5217144,
+      "accessory": "none"
     }
   },
   {
@@ -160,11 +264,19 @@
     "name": "Nadia Fitri",
     "title": "Marketing Specialist",
     "department": "Growth",
+    "status": "active",
     "roomId": "lobby",
     "deskId": null,
+    "wander": 2.6,
     "model": {
       "species": "growth",
-      "tieColor": 5217144
+      "skin": "#f0c8ad",
+      "shirt": "#b96850",
+      "pants": "#4d5b51",
+      "hair": "#332f2b",
+      "eyes": "#49362b",
+      "tieColor": 5217144,
+      "accessory": "none"
     }
   }
 ]
