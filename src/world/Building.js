@@ -716,10 +716,14 @@ export class Building {
     if (item) {
       // OFFSET LOKAL (bukan world) — supaya meja/kursi yang diputar
       // (ry ≠ 0, mis. meja HR/CEO/resepsionis) tetap utuh saat dipindah/
-      // diputar di Mode Edit. Sebelumnya pakai selisih world → di unit yang
-      // sudah diputar, kursi "kembali" ke posisi yang salah.
-      const cos = Math.cos(-item.ry);
-      const sin = Math.sin(-item.ry);
+      // diputar di Mode Edit.
+      // Offset =(world → local) jadi INVERSE dari rotasi Ry three.js:
+      //   world : x = lx·cos + lz·sin ,  z = −lx·sin + lz·cos
+      //   local : lx = wx·cos − wz·sin ,  lz = wx·sin + wz·cos
+      // Kalau dipakai rotasi maju (cos/sin di-negatifkan), kursi meleset ke
+      // sisi sebaliknya → karakter duduk DI DEPAN meja, bukan di kursinya.
+      const cos = Math.cos(item.ry);
+      const sin = Math.sin(item.ry);
       const wxl = x - item.x;
       const wzl = z - item.z;
       seat.lx = wxl * cos - wzl * sin;

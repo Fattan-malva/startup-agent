@@ -23,6 +23,25 @@ export const STAFF_STATUSES = [
 
 export const REST_ROOM = "cafe";                                  // ruang istirahat
 export const WORKSTATION_SEAT_TYPES = new Set(["desk", "ceo", "reception"]);
+
+/* Gaya rambut: avatarHead.js punya 5 model (indeks 0..4). Di modal
+ * ditampilkan sebagai nomor 1..5 supaya gampang dipilih. */
+export const HAIR_STYLES = [
+  { n: 1, name: "Belah pinggir" },
+  { n: 2, name: "Spiky" },
+  { n: 3, name: "Dua poni" },
+  { n: 4, name: "Buzz cut" },
+  { n: 5, name: "Sampir" },
+];
+export const HAIR_STYLE_COUNT = HAIR_STYLES.length;
+export const clampHairStyle = (v) => {
+  const n = Math.round(Number(v) || 0);
+  if (!n) return 1;
+  return ((n - 1) % HAIR_STYLE_COUNT + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT + 1;
+};
+export const hairStyleName = (v) =>
+  HAIR_STYLES.find((h) => h.n === clampHairStyle(v))?.name || HAIR_STYLES[0].name;
+
 export const isWorkstationSeat = (seat) =>
   seat?.kind === "workstation" && WORKSTATION_SEAT_TYPES.has(seat.type);
 export const staffByDesk = (deskId) => STAFF.find((s) => s.deskId === deskId) || null;
@@ -66,6 +85,7 @@ export function modelDefaults(speciesId) {
     // Some looks (e.g. "Staff Cafe") bring their own trousers color.
     pants: toHex(spec.pants ?? TROUSERS[Math.abs(spec.palette || 0) % TROUSERS.length]),
     hair: toHex(spec.hair),
+    hairStyle: 1,
     eyes: toHex(spec.eyes),
     tieColor: 0x477da6,
     accessory: spec.glasses ? "glasses" : spec.headphones ? "headphones" : spec.hat ? "hat" : "none",
@@ -107,6 +127,7 @@ export function appearanceFromModel(model = {}) {
     shirt: m.shirt,
     pants: m.pants,
     hair: m.hair,
+    hairStyle: clampHairStyle(m.hairStyle),
     eyes: m.eyes,
     tieColor: m.tieColor,
     accessory,

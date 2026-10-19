@@ -1,6 +1,30 @@
 [
   {
     "id": "staff-001",
+    "name": "FATTAN",
+    "title": "Founder & CEO",
+    "department": "Executive",
+    "status": "active",
+    "roomId": "ceo",
+    "rooms": [
+      "ceo"
+    ],
+    "deskId": "p117",
+    "wander": 1.2,
+    "model": {
+      "species": "finance",
+      "skin": "#e5c0a4",
+      "shirt": "#484254",
+      "pants": "#4a5360",
+      "hair": "#2a2429",
+      "eyes": "#49362b",
+      "tieColor": 7577040,
+      "accessory": "none",
+      "hairStyle": 1
+    }
+  },
+  {
+    "id": "staff-002",
     "name": "MALVA",
     "title": "Frontend Engineer",
     "department": "Engineering",
@@ -8,8 +32,7 @@
     "roomId": "developer",
     "rooms": [
       "developer",
-      "cafe",
-      "meeting"
+      "cafe"
     ],
     "deskId": "p51",
     "wander": 1,
@@ -17,17 +40,18 @@
       "species": "developer",
       "skin": "#dca787",
       "shirt": "#17191d",
-      "pants": "#101216",
+      "pants": "#343b45",
       "hair": "#252321",
       "eyes": "#49362b",
-      "tieColor": 4685926,
-      "accessory": "headphones"
+      "tieColor": 4685222,
+      "accessory": "headphones",
+      "hairStyle": 4
     }
   },
   {
-    "id": "staff-002",
+    "id": "staff-003",
     "name": "INDRA",
-    "title": "Jabatan baru",
+    "title": "Backend Engineer",
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
@@ -35,23 +59,24 @@
       "developer",
       "cafe"
     ],
-    "deskId": null,
+    "deskId": "p52",
     "wander": 1,
     "model": {
       "species": "developer",
       "skin": "#dca787",
       "shirt": "#17191d",
-      "pants": "#101216",
+      "pants": "#343b45",
       "hair": "#252321",
       "eyes": "#49362b",
       "tieColor": 4685222,
-      "accessory": "headphones"
+      "accessory": "headphones",
+      "hairStyle": 2
     }
   },
   {
-    "id": "staff-003",
+    "id": "staff-004",
     "name": "UMAR",
-    "title": "Jabatan baru",
+    "title": "DevOps Engineer",
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
@@ -60,22 +85,23 @@
       "cafe"
     ],
     "deskId": "p53",
-    "wander": 1,
+    "wander": 1.2,
     "model": {
-      "species": "developer",
-      "skin": "#dca787",
-      "shirt": "#17191d",
-      "pants": "#101216",
-      "hair": "#252321",
-      "eyes": "#49362b",
+      "species": "operator",
+      "skin": "#9f694a",
+      "shirt": "#333943",
+      "pants": "#484254",
+      "hair": "#17191d",
+      "eyes": "#30241d",
       "tieColor": 4685222,
-      "accessory": "headphones"
+      "accessory": "headphones",
+      "hairStyle": 5
     }
   },
   {
-    "id": "staff-004",
+    "id": "staff-005",
     "name": "AMIN",
-    "title": "Jabatan baru",
+    "title": "QA Engineer",
     "department": "Engineering",
     "status": "active",
     "roomId": "developer",
@@ -86,26 +112,227 @@
     "deskId": "p54",
     "wander": 1.6,
     "model": {
-      "species": "developer",
-      "skin": "#dca787",
-      "shirt": "#17191d",
-      "pants": "#101216",
-      "hair": "#252321",
+      "species": "analyst",
+      "skin": "#e2b89b",
+      "shirt": "#9ca9b8",
+      "pants": "#2b2f35",
+      "hair": "#5a3d2c",
       "eyes": "#49362b",
       "tieColor": 4685222,
-      "accessory": "headphones"
+      "accessory": "none",
+      "hairStyle": 3
     }
   },
   {
-    "id": "staff-005",
+    "id": "staff-006",
+    "name": "SARI",
+    "title": "People Ops Lead",
+    "department": "People",
+    "status": "active",
+    "roomId": "hr",
+    "rooms": [
+      "hr"
+    ],
+    "deskId": "p102",
+    "wander": 1.2,
+    "model": {
+      "species": "people",
+      "skin": "#b97e5e",
+      "shirt": "#c0a06b",
+      "pants": "#8c8175",
+      "hair": "#7e5d3e",
+      "eyes": "#30241d",
+      "tieColor": 14053009,
+      "accessory": "headphones",
+      "hairStyle": 1
+    }
+  },
+  {
+    "id": "staff-007",
+    "name": "BUDI",
+    "title": "Front Desk Officer",
+    "department": "Operations",
+    "status": "active",
+    "roomId": "lobby",
+    "rooms": [
+      "lobby",
+      "cafe"
+    ],
+    "deskId": "p67",
+    "wander": 1.4,
+    "model": {
+      "species": "staff",
+      "skin": "#dca787",
+      "shirt": "#15161a",
+      "pants": "#0a0c10",
+      "hair": "#17191d",
+      "eyes": "#30241d",
+      "tieColor": 9206201,
+      "accessory": "hat",
+      "hairStyle": 2
+    }
+  },
+  {
+    "id": "staff-008",
+    "name": "RINA",
+    "title": "Operations Analyst",
+    "department": "Operations",
+    "status": "active",
+    "roomId": "staff",
+    "rooms": [
+      "staff",
+      "cafe"
+    ],
+    "deskId": "p83",
+    "wander": 1,
+    "model": {
+      "species": "analyst",
+      "skin": "#e2b89b",
+      "shirt": "#9ca9b8",
+      "pants": "#2b2f35",
+      "hair": "#5a3d2c",
+      "eyes": "#49362b",
+      "tieColor": 9206201,
+      "accessory": "none",
+      "hairStyle": 4
+    }
+  },
+  {
+    "id": "staff-009",
+    "name": "DANU",
+    "title": "Operations Specialist",
+    "department": "Operations",
+    "status": "active",
+    "roomId": "staff",
+    "rooms": [
+      "staff",
+      "cafe"
+    ],
+    "deskId": "p84",
+    "wander": 1.2,
+    "model": {
+      "species": "operator",
+      "skin": "#9f694a",
+      "shirt": "#333943",
+      "pants": "#484254",
+      "hair": "#17191d",
+      "eyes": "#30241d",
+      "tieColor": 9206201,
+      "accessory": "headphones",
+      "hairStyle": 3
+    }
+  },
+  {
+    "id": "staff-010",
+    "name": "BAGUS",
+    "title": "Growth Marketer",
+    "department": "Growth",
+    "status": "active",
+    "roomId": "staff",
+    "rooms": [
+      "staff",
+      "cafe"
+    ],
+    "deskId": "p85",
+    "wander": 1.4,
+    "model": {
+      "species": "growth",
+      "skin": "#f0c8ad",
+      "shirt": "#b96850",
+      "pants": "#4d5b51",
+      "hair": "#332f2b",
+      "eyes": "#49362b",
+      "tieColor": 5217144,
+      "accessory": "none",
+      "hairStyle": 5
+    }
+  },
+  {
+    "id": "staff-011",
+    "name": "FIKRI",
+    "title": "Growth Analyst",
+    "department": "Growth",
+    "status": "active",
+    "roomId": "staff",
+    "rooms": [
+      "staff",
+      "cafe"
+    ],
+    "deskId": "p86",
+    "wander": 1,
+    "model": {
+      "species": "analyst",
+      "skin": "#e2b89b",
+      "shirt": "#9ca9b8",
+      "pants": "#2b2f35",
+      "hair": "#5a3d2c",
+      "eyes": "#49362b",
+      "tieColor": 5217144,
+      "accessory": "none",
+      "hairStyle": 2
+    }
+  },
+  {
+    "id": "staff-012",
+    "name": "DEWI",
+    "title": "Finance Analyst",
+    "department": "Finance",
+    "status": "active",
+    "roomId": "staff",
+    "rooms": [
+      "staff",
+      "cafe"
+    ],
+    "deskId": "p87",
+    "wander": 1.2,
+    "model": {
+      "species": "finance",
+      "skin": "#e5c0a4",
+      "shirt": "#484254",
+      "pants": "#4a5360",
+      "hair": "#2a2429",
+      "eyes": "#49362b",
+      "tieColor": 7569296,
+      "accessory": "none",
+      "hairStyle": 1
+    }
+  },
+  {
+    "id": "staff-013",
+    "name": "LINDA",
+    "title": "Accountant",
+    "department": "Finance",
+    "status": "active",
+    "roomId": "staff",
+    "rooms": [
+      "staff",
+      "cafe"
+    ],
+    "deskId": "p88",
+    "wander": 1,
+    "model": {
+      "species": "finance",
+      "skin": "#e5c0a4",
+      "shirt": "#484254",
+      "pants": "#4a5360",
+      "hair": "#2a2429",
+      "eyes": "#49362b",
+      "tieColor": 7569296,
+      "accessory": "none",
+      "hairStyle": 4
+    }
+  },
+  {
+    "id": "staff-014",
     "name": "RUDI",
-    "title": "Jabatan baru",
+    "title": "Art Director",
     "department": "Design",
     "status": "active",
     "roomId": "studio",
     "rooms": [
       "studio",
-      "cafe"
+      "cafe",
+      "meeting"
     ],
     "deskId": "p37#1",
     "wander": 1,
@@ -117,7 +344,83 @@
       "hair": "#201c1b",
       "eyes": "#30241d",
       "tieColor": 12937812,
-      "accessory": "headphones"
+      "accessory": "headphones",
+      "hairStyle": 3
+    }
+  },
+  {
+    "id": "staff-015",
+    "name": "MIRA",
+    "title": "Brand Designer",
+    "department": "Design",
+    "status": "active",
+    "roomId": "studio",
+    "rooms": [
+      "studio",
+      "cafe"
+    ],
+    "deskId": "p37#2",
+    "wander": 1.2,
+    "model": {
+      "species": "designer",
+      "skin": "#f0c8ad",
+      "shirt": "#8980a8",
+      "pants": "#4a5360",
+      "hair": "#342721",
+      "eyes": "#49362b",
+      "tieColor": 12937812,
+      "accessory": "glasses",
+      "hairStyle": 5
+    }
+  },
+  {
+    "id": "staff-016",
+    "name": "YOGI",
+    "title": "Motion Designer",
+    "department": "Design",
+    "status": "active",
+    "roomId": "studio",
+    "rooms": [
+      "studio",
+      "cafe"
+    ],
+    "deskId": "p38#1",
+    "wander": 1.4,
+    "model": {
+      "species": "creator",
+      "skin": "#c88d6a",
+      "shirt": "#94ad9b",
+      "pants": "#8c8175",
+      "hair": "#201c1b",
+      "eyes": "#30241d",
+      "tieColor": 12937812,
+      "accessory": "headphones",
+      "hairStyle": 2
+    }
+  },
+  {
+    "id": "staff-017",
+    "name": "CINTA",
+    "title": "Product Designer",
+    "department": "Design",
+    "status": "active",
+    "roomId": "studio",
+    "rooms": [
+      "studio",
+      "cafe"
+    ],
+    "deskId": "p38#2",
+    "wander": 1,
+    "model": {
+      "species": "product",
+      "skin": "#c88d6a",
+      "shirt": "#d4c7b5",
+      "pants": "#343b45",
+      "hair": "#342721",
+      "eyes": "#49362b",
+      "tieColor": 12937812,
+      "accessory": "glasses",
+      "hairStyle": 3
     }
   }
 ]

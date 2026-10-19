@@ -16,6 +16,8 @@ import {
   deptTie,
   staffByDesk,
   effectiveRooms,
+  clampHairStyle,
+  hairStyleName,
 } from "../data/staff.js";
 
 /* ===================================================================== *
@@ -141,6 +143,12 @@ export class StaffModal {
         this._refreshPreview();
       });
     }
+
+    $("staff-hair-style")?.addEventListener("input", (e) => {
+      this._setHairStyleOut(e.target.value);
+      this._setDirty(true);
+      this._refreshPreview();
+    });
 
     $("staff-rooms")?.addEventListener("change", (e) => {
       const box = e.target.closest?.(".staff-room-checkbox");
@@ -343,6 +351,8 @@ export class StaffModal {
       const out = $(`staff-${key}-out`);
       if (out) out.textContent = val;
     }
+    set("staff-hair-style", clampHairStyle(s.model?.hairStyle ?? def.hairStyle));
+    this._setHairStyleOut($("staff-hair-style")?.value);
 
     this._setRooms(s.rooms?.length ? s.rooms : [s.roomId]);
     this._refreshDesks();
@@ -370,7 +380,17 @@ export class StaffModal {
       const out = $(`staff-${key}-out`);
       if (out) out.textContent = val;
     }
+    set("staff-hair-style", clampHairStyle(def.hairStyle));
+    this._setHairStyleOut(def.hairStyle);
     this._updatePreviewMeta();
+  }
+
+  /** Tampilkan nama gaya rambut (1..5) di sebelah input angka. */
+  _setHairStyleOut(v) {
+    const out = $("staff-hair-style-out");
+    if (!out) return;
+    const n = clampHairStyle(v);
+    out.textContent = `${n} · ${hairStyleName(n)}`;
   }
 
   setTab(tab) {
@@ -544,6 +564,7 @@ export class StaffModal {
       shirt: $("staff-shirt")?.value || s.model?.shirt,
       pants: $("staff-pants")?.value || s.model?.pants,
       hair: $("staff-hair")?.value || s.model?.hair,
+      hairStyle: clampHairStyle($("staff-hair-style")?.value ?? s.model?.hairStyle),
       eyes: $("staff-eyes")?.value || s.model?.eyes,
       tieColor: toInt($("staff-tie")?.value || 0),
       accessory: $("staff-accessory")?.value || "none",
@@ -1055,6 +1076,7 @@ export class StaffModal {
       shirt: $("staff-shirt")?.value || base.shirt,
       pants: $("staff-pants")?.value || base.pants,
       hair: $("staff-hair")?.value || base.hair,
+      hairStyle: clampHairStyle($("staff-hair-style")?.value ?? base.hairStyle),
       eyes: $("staff-eyes")?.value || base.eyes,
       tieColor: toInt($("staff-tie")?.value || base.tieColor),
       accessory: $("staff-accessory")?.value || base.accessory || "none",

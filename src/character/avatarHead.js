@@ -39,7 +39,11 @@ export function buildHead(c) {
   add(head, SPH(), hair, 0, 0.110, -0.005, 0.086, 0.065, 0.082);
   add(head, SPH(), hair, 0, 0.075, -0.048, 0.076, 0.076, 0.048);
 
-  const style = (c.variant + (c.spec.palette || 0)) % 5;
+  // Gaya rambut: kalau appearance menyertakan hairStyle (1..5) pakai itu,
+  // kalau tidak → ikut variation bawaan (variant + palet spesies).
+  const style = a.hairStyle
+    ? ((Math.round(a.hairStyle) - 1) % 5 + 5) % 5
+    : (c.variant + (c.spec.palette || 0)) % 5;
 
   if (style === 0) {
     add(head, SPH(), hairLight, -0.032, 0.115, 0.068, 0.042, 0.022, 0.020, 0, 0, -0.25);

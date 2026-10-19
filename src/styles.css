@@ -1764,6 +1764,30 @@ input[type="color"]::-moz-color-swatch {
   text-align: right;
 }
 
+/* input nomor (mis. gaya rambut 1..5) */
+.ff input[type="number"] {
+  width: 64px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--hair);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ff input[type="number"]:focus {
+  outline: none;
+  border-color: rgba(226, 176, 119, 0.55);
+}
+
+.range-line input[type="number"] + output {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
 .staff-presets {
   display: flex;
   flex-wrap: wrap;
