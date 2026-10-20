@@ -65,12 +65,18 @@ export function rbox(w, h, d, r = 0.04, mat = MAT.plasticDark, bevel = 0.01) {
 }
 
 export function box(w, h, d, mat) {
-  return new THREE.Mesh(cached(`b:${w}:${h}:${d}`, () => new THREE.BoxGeometry(w, h, d)), mat);
+  return new THREE.Mesh(
+    cached(`b:${w}:${h}:${d}`, () => new THREE.BoxGeometry(w, h, d)),
+    mat,
+  );
 }
 
 export function cyl(rt, rb, h, mat, seg = 20, open = false) {
   return new THREE.Mesh(
-    cached(`c:${rt}:${rb}:${h}:${seg}:${open}`, () => new THREE.CylinderGeometry(rt, rb, h, seg, 1, open)),
+    cached(
+      `c:${rt}:${rb}:${h}:${seg}:${open}`,
+      () => new THREE.CylinderGeometry(rt, rb, h, seg, 1, open),
+    ),
     mat,
   );
 }
@@ -163,7 +169,12 @@ function screenFaceTexture(file) {
     ctx.globalAlpha = 0.5;
     for (let i = 0; i < 26; i++) {
       ctx.fillStyle = `rgba(255,255,255,${0.03 + Math.random() * 0.07})`;
-      ctx.fillRect(Math.random() * 256, Math.random() * 160, 40 + Math.random() * 90, 1.5);
+      ctx.fillRect(
+        Math.random() * 256,
+        Math.random() * 160,
+        40 + Math.random() * 90,
+        1.5,
+      );
     }
     ctx.globalAlpha = 1;
     // window chrome
@@ -237,7 +248,14 @@ export function createDesk({ width = 1.85, depth = 0.82, height = 0.74 } = {}) {
   put(shell, 0, ph / 2 + 0.02, 0);
   ped.add(shell);
   for (let i = 0; i < 2; i++) {
-    const face = rbox(pw - 0.05, ph / 2 - 0.05, 0.02, 0.008, MAT.deskTop, 0.004);
+    const face = rbox(
+      pw - 0.05,
+      ph / 2 - 0.05,
+      0.02,
+      0.008,
+      MAT.deskTop,
+      0.004,
+    );
     put(face, 0, ph * 0.75 - i * (ph / 2), pd / 2 + 0.005);
     ped.add(face);
     const handle = cyl(0.007, 0.007, pw - 0.16, MAT.chrome, 10);
@@ -254,7 +272,11 @@ export function createDesk({ width = 1.85, depth = 0.82, height = 0.74 } = {}) {
   return g;
 }
 
-export function createMonitor({ width = 0.6, height = 0.355, tilt = -0.05 } = {}) {
+export function createMonitor({
+  width = 0.6,
+  height = 0.355,
+  tilt = -0.05,
+} = {}) {
   const g = new THREE.Group();
   g.name = "Monitor";
   g.userData.interactionLabel = "Monitor";
@@ -273,7 +295,10 @@ export function createMonitor({ width = 0.6, height = 0.355, tilt = -0.05 } = {}
     toneMapped: false,
   });
   const screen = new THREE.Mesh(
-    cached(`scr:${width}:${height}`, () => new THREE.PlaneGeometry(width - 0.016, height - 0.016)),
+    cached(
+      `scr:${width}:${height}`,
+      () => new THREE.PlaneGeometry(width - 0.016, height - 0.016),
+    ),
     screenMat,
   );
   put(screen, 0, 0.22 + height / 2, 0.0145);
@@ -316,7 +341,8 @@ export function createMonitor({ width = 0.6, height = 0.355, tilt = -0.05 } = {}
       const opts = ["dashboard", "face0", "face1"];
       this._i = ((this._i ?? 0) + 1) % opts.length;
       const k = opts[this._i];
-      screenMat.map = k === "dashboard" ? TEX.dashboard : screenFaceTexture(this._i);
+      screenMat.map =
+        k === "dashboard" ? TEX.dashboard : screenFaceTexture(this._i);
       screenMat.emissiveMap = screenMat.map;
       screenMat.emissiveIntensity = 1.25;
       screenMat.needsUpdate = true;
@@ -346,7 +372,10 @@ export function createKeyboard({ width = 0.42, depth = 0.15 } = {}) {
     metalness: 0.1,
   });
   const top = new THREE.Mesh(
-    cached(`kbtop:${width}:${depth}`, () => new THREE.PlaneGeometry(width - 0.02, depth - 0.02)),
+    cached(
+      `kbtop:${width}:${depth}`,
+      () => new THREE.PlaneGeometry(width - 0.02, depth - 0.02),
+    ),
     mat,
   );
   top.rotation.x = -Math.PI / 2;
@@ -376,17 +405,31 @@ export function createMug({ color = 0xe8e3d8 } = {}) {
   const g = new THREE.Group();
   g.name = "Cangkir";
   g.userData.interactionLabel = "Cangkir";
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.03, envMapIntensity: 0.9 });
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.3,
+    metalness: 0.03,
+    envMapIntensity: 0.9,
+  });
   const body = cyl(0.042, 0.036, 0.095, mat, 24, true);
   put(body, 0, 0.0475, 0);
   g.add(body);
   const base = cyl(0.036, 0.036, 0.006, mat, 24);
   put(base, 0, 0.003, 0);
   g.add(base);
-  const coffee = cyl(0.036, 0.036, 0.002, new THREE.MeshStandardMaterial({ color: 0x3a2216, roughness: 0.25 }), 20);
+  const coffee = cyl(
+    0.036,
+    0.036,
+    0.002,
+    new THREE.MeshStandardMaterial({ color: 0x3a2216, roughness: 0.25 }),
+    20,
+  );
   put(coffee, 0, 0.088, 0);
   g.add(coffee);
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 8, 20, Math.PI * 1.35), mat);
+  const handle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.03, 0.008, 8, 20, Math.PI * 1.35),
+    mat,
+  );
   handle.rotation.y = Math.PI / 2;
   handle.rotation.z = -0.4;
   put(handle, 0.045, 0.056, 0);
@@ -439,7 +482,10 @@ export function createNotepad() {
   ctx.stroke();
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.205, 0.28), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
+  const sheet = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.205, 0.28),
+    new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }),
+  );
   sheet.rotation.x = -Math.PI / 2;
   put(sheet, 0, 0.0125, 0);
   g.add(sheet);
@@ -453,50 +499,60 @@ export function createDeskLamp({ color = 0xd8663c } = {}) {
   g.userData.interactionLabel = "Lampu meja";
 
   const shell = new THREE.MeshStandardMaterial({
-    color, roughness: 0.32, metalness: 0.35, envMapIntensity: 1,
+    color,
+    roughness: 0.32,
+    metalness: 0.35,
+    envMapIntensity: 1,
   });
 
   // Base
-  const base = cyl(0.085, 0.1, 0.016, shell, 28);
-  put(base, 0, 0.008, 0);
+  const base = cyl(0.085, 0.1, 0.02, shell, 28);
+  put(base, 0, 0.01, 0);
   g.add(base);
 
-  // Lower arm — vertical, dari base ke elbow. Menyentuh base tepat.
+  // Lower arm
   const lowerLen = 0.28;
   const lower = cyl(0.012, 0.012, lowerLen, shell, 12);
-  put(lower, 0, 0.016 + lowerLen / 2, 0);   // top di y = 0.296
+  const lowerStartY = 0.02;
+  put(lower, 0, lowerStartY + lowerLen / 2, 0);
   g.add(lower);
 
-  // Elbow joint (silinder horizontal) — menyentuh ujung lower arm.
+  // Elbow joint
   const joint = cylinderJoint();
-  put(joint, 0, 0.296, 0);
+  // Tumpuk sedikit ke dalam lower arm agar tidak ada celah
+  put(joint, 0, lowerStartY + lowerLen - 0.005, 0);
   g.add(joint);
 
-  // Upper arm — dimulai tepat di elbow, mengarah ke depan.
+  // Upper arm
   const upperLen = 0.24;
   const armAngle = -0.75;
   const upper = new THREE.Group();
-  upper.position.set(0, 0.296, 0);
+  // Tumpuk sedikit ke dalam joint
+  upper.position.set(0, lowerStartY + lowerLen - 0.005, 0);
   upper.rotation.z = armAngle;
   g.add(upper);
 
   const upperArm = cyl(0.011, 0.011, upperLen, shell, 12);
-  put(upperArm, 0, upperLen / 2, 0);
+  // Tarik tangkai masuk sedikit ke dalam joint
+  put(upperArm, 0, upperLen / 2 - 0.005, 0);
   upper.add(upperArm);
 
-  // Shade — dipasang di ujung upper arm, tetap tegak di world.
+  // Shade & Bulb
   const shadeGroup = new THREE.Group();
-  shadeGroup.position.set(0, upperLen, 0);
-  shadeGroup.rotation.z = -armAngle;   // membatalkan rotasi parent
+  // Tarik shade turun menelan ujung tangkai atas agar tidak ada celah
+  shadeGroup.position.set(0, upperLen - 0.02, 0);
+  shadeGroup.rotation.z = -armAngle;
   upper.add(shadeGroup);
 
-  const shadeMesh = cyl(0.055, 0.095, 0.13, shell, 24, true);
-  put(shadeMesh, 0, -0.065, 0);
+  // Perbesar sedikit radius atas shade agar menutupi sambungan
+  const shadeMesh = cyl(0.06, 0.095, 0.13, shell, 24, true);
+  // Geser shade sedikit ke atas agar pangkalnya menelan tangkai
+  put(shadeMesh, 0, -0.045, 0);
   shadeGroup.add(shadeMesh);
 
   const bulb = sphere(0.042, MAT.bulb, 16, 12);
   bulb.scale.set(1, 0.7, 1);
-  put(bulb, 0, -0.09, 0);
+  put(bulb, 0, -0.07, 0);
   shadeGroup.add(bulb);
 
   const light = new THREE.PointLight(0xffc98a, 0, 4.2, 2);
@@ -514,9 +570,18 @@ export function createDeskLamp({ color = 0xd8663c } = {}) {
 
   g.userData.parts = { light, bulb, shade: shadeMesh };
   g.userData.api = {
-    get isOn() { return on; },
-    toggle() { on = !on; pupil(); return on; },
-    set(v) { on = v; pupil(); },
+    get isOn() {
+      return on;
+    },
+    toggle() {
+      on = !on;
+      pupil();
+      return on;
+    },
+    set(v) {
+      on = v;
+      pupil();
+    },
   };
 
   g.userData.update = (dt, t) => {
@@ -604,7 +669,7 @@ export function createOfficeChair({ color = "charcoal" } = {}) {
   shade(g);
   g.userData.footprint = { w: 0.72, d: 0.72 };
   g.userData.anchor = new THREE.Vector3(0, 0.9, 0);
-  g.userData.seatTop = SEAT_TOP;   // puncak kursi = patokan semua dudukan
+  g.userData.seatTop = SEAT_TOP; // puncak kursi = patokan semua dudukan
   return g;
 }
 
@@ -653,7 +718,15 @@ export function createWorkstation(opts = {}) {
   put(lamp, -0.82, 0.74, -0.26);
   g.add(lamp);
 
-  g.userData.parts = { monitor, lamp, mug, desk, keyboard: kb, mouse, notepad: pad };
+  g.userData.parts = {
+    monitor,
+    lamp,
+    mug,
+    desk,
+    keyboard: kb,
+    mouse,
+    notepad: pad,
+  };
   g.userData.update = (dt, t) => {
     monitor.userData.update?.(dt, t);
     lamp.userData.update?.(dt, t);
@@ -667,7 +740,12 @@ export function createWorkstation(opts = {}) {
  *  Storage / lounge
  * ===================================================================== */
 
-export function createBookshelf({ width = 1.5, height = 2.0, depth = 0.36, shelves = 4 } = {}) {
+export function createBookshelf({
+  width = 1.5,
+  height = 2.0,
+  depth = 0.36,
+  shelves = 4,
+} = {}) {
   const g = new THREE.Group();
   g.name = "Rak buku";
   g.userData.interactionLabel = "Rak buku";
@@ -696,7 +774,14 @@ export function createBookshelf({ width = 1.5, height = 2.0, depth = 0.36, shelv
 
   for (let i = 0; i < shelves; i++) {
     const y = 0.24 + i * ((height - 0.4) / (shelves - 1));
-    const board = rbox(width - t * 2, t, depth - 0.02, 0.006, MAT.darkWood, 0.004);
+    const board = rbox(
+      width - t * 2,
+      t,
+      depth - 0.02,
+      0.006,
+      MAT.darkWood,
+      0.004,
+    );
     put(board, 0, y, 0.005);
     g.add(board);
 
@@ -707,7 +792,12 @@ export function createBookshelf({ width = 1.5, height = 2.0, depth = 0.36, shelv
         // stacked pile
         const pile = 2 + Math.floor(rnd() * 3);
         for (let k = 0; k < pile; k++) {
-          const b = box(0.2, 0.028, 0.15, bookMats[(rnd() * bookMats.length) | 0]);
+          const b = box(
+            0.2,
+            0.028,
+            0.15,
+            bookMats[(rnd() * bookMats.length) | 0],
+          );
           put(b, x + 0.05, y + t / 2 + 0.014 + k * 0.028, 0);
           b.rotation.y = (rnd() - 0.5) * 0.12;
           g.add(b);
@@ -759,10 +849,10 @@ export function createSofa({ width = 2.1, depth = 0.9 } = {}) {
   g.userData.interactionLabel = "Sofa";
   // Semua dudukan memakai tinggi permukaan yang sama (SEAT_TOP), dan
   // bantalannya dibuat tipis supaya sejajar dengan kursi ergonomis.
-  const top = SEAT_TOP;            // 0.505 → puncak cushion
-  const cushion = 0.14;            // tebal cushion duduk
+  const top = SEAT_TOP; // 0.505 → puncak cushion
+  const cushion = 0.14; // tebal cushion duduk
   const cushionY = top - cushion / 2;
-  const base = 0.14;               // rangka kayu di bawah cushion
+  const base = 0.14; // rangka kayu di bawah cushion
   const baseY = top - cushion - base / 2;
 
   const frame = rbox(width, base, depth, 0.05, MAT.fabricNavy, 0.03);
@@ -835,7 +925,14 @@ export function createCoffeeTable({ r = 0.45 } = {}) {
   }
   // stack of magazines
   for (let i = 0; i < 3; i++) {
-    const m = rbox(0.24, 0.014, 0.32, 0.004, i % 2 ? MAT.fabricRust : MAT.paper, 0.002);
+    const m = rbox(
+      0.24,
+      0.014,
+      0.32,
+      0.004,
+      i % 2 ? MAT.fabricRust : MAT.paper,
+      0.002,
+    );
     m.rotation.y = 0.3 + i * 0.08;
     put(m, 0.06, 0.428 + i * 0.015, -0.02);
     g.add(m);
@@ -895,7 +992,10 @@ export function createCeilingPanel({ w = 1.2, d = 0.3 } = {}) {
   const frame = rbox(w + 0.08, 0.09, d + 0.08, 0.01, MAT.plasticWhite, 0.005);
   put(frame, 0, 0.045, 0);
   g.add(frame);
-  const panel = new THREE.Mesh(cached(`cp:${w}:${d}`, () => new THREE.PlaneGeometry(w, d)), MAT.lightPanel);
+  const panel = new THREE.Mesh(
+    cached(`cp:${w}:${d}`, () => new THREE.PlaneGeometry(w, d)),
+    MAT.lightPanel,
+  );
   panel.rotation.x = Math.PI / 2;
   put(panel, 0, -0.002, 0);
   g.add(panel);
@@ -914,7 +1014,12 @@ export function createPendantLamp({ color = 0x2b3238 } = {}) {
   const g = new THREE.Group();
   g.name = "Lampu gantung";
   g.userData.interactionLabel = "Lampu gantung";
-  const shell = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.5, envMapIntensity: 1 });
+  const shell = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.5,
+    envMapIntensity: 1,
+  });
   const cord = cyl(0.004, 0.004, 0.7, MAT.plasticDark, 6);
   put(cord, 0, 0.35, 0);
   g.add(cord);
@@ -1013,7 +1118,10 @@ export function createClock() {
   const caseMesh = cyl(0.22, 0.22, 0.05, MAT.blackMetal, 40);
   caseMesh.rotation.x = Math.PI / 2;
   g.add(caseMesh);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.215, 0.012, 10, 48), MAT.brass);
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.215, 0.012, 10, 48),
+    MAT.brass,
+  );
   put(rim, 0, 0, 0.028);
   g.add(rim);
 
@@ -1031,7 +1139,10 @@ export function createClock() {
     const major = i % 5 === 0;
     ctx.lineWidth = major ? 9 : 3;
     ctx.beginPath();
-    ctx.moveTo(256 + Math.sin(a) * (major ? 200 : 214), 256 - Math.cos(a) * (major ? 200 : 214));
+    ctx.moveTo(
+      256 + Math.sin(a) * (major ? 200 : 214),
+      256 - Math.cos(a) * (major ? 200 : 214),
+    );
     ctx.lineTo(256 + Math.sin(a) * 232, 256 - Math.cos(a) * 232);
     ctx.stroke();
   }
@@ -1041,7 +1152,10 @@ export function createClock() {
   ctx.fillText("ATELIER", 256, 300);
   const faceTex = new THREE.CanvasTexture(c);
   faceTex.colorSpace = THREE.SRGBColorSpace;
-  const face = new THREE.Mesh(new THREE.CircleGeometry(0.212, 48), new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.35 }));
+  const face = new THREE.Mesh(
+    new THREE.CircleGeometry(0.212, 48),
+    new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.35 }),
+  );
   put(face, 0, 0, 0.027);
   g.add(face);
 
@@ -1081,7 +1195,12 @@ export function createCoffeeMachine() {
   const g = new THREE.Group();
   g.name = "Mesin kopi";
   g.userData.interactionLabel = "Mesin kopi";
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x30363d, roughness: 0.28, metalness: 0.72, envMapIntensity: 1.1 });
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0x30363d,
+    roughness: 0.28,
+    metalness: 0.72,
+    envMapIntensity: 1.1,
+  });
   const body = rbox(0.34, 0.44, 0.34, 0.05, bodyMat, 0.03);
   put(body, 0, 0.22, 0);
   g.add(body);
@@ -1111,7 +1230,14 @@ export function createCoffeeMachine() {
   };
   const dispTex = new THREE.CanvasTexture(dc);
   dispTex.colorSpace = THREE.SRGBColorSpace;
-  const dispMat = new THREE.MeshStandardMaterial({ map: dispTex, emissive: 0xffffff, emissiveMap: dispTex, emissiveIntensity: 1.1, toneMapped: false, roughness: 0.3 });
+  const dispMat = new THREE.MeshStandardMaterial({
+    map: dispTex,
+    emissive: 0xffffff,
+    emissiveMap: dispTex,
+    emissiveIntensity: 1.1,
+    toneMapped: false,
+    roughness: 0.3,
+  });
   const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.064), dispMat);
   put(disp, 0, 0.36, 0.186);
   g.add(disp);
@@ -1155,7 +1281,18 @@ export function createCoffeeMachine() {
   // buttons
   const btnMats = [0x3ddc97, 0xe0a020, 0xc0503c];
   btnMats.forEach((c, i) => {
-    const b = cyl(0.014, 0.014, 0.012, new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.35, roughness: 0.4 }), 14);
+    const b = cyl(
+      0.014,
+      0.014,
+      0.012,
+      new THREE.MeshStandardMaterial({
+        color: c,
+        emissive: c,
+        emissiveIntensity: 0.35,
+        roughness: 0.4,
+      }),
+      14,
+    );
     b.rotation.x = Math.PI / 2;
     put(b, -0.1 + i * 0.04, 0.305, 0.18);
     g.add(b);
@@ -1210,7 +1347,11 @@ export function createCoffeeMachine() {
         d.life -= dt * 0.55;
         if (d.life <= 0) {
           d.life = 0.7 + Math.random() * 0.6;
-          d.vel.set((Math.random() - 0.5) * 0.05, 0.16 + Math.random() * 0.1, (Math.random() - 0.5) * 0.05);
+          d.vel.set(
+            (Math.random() - 0.5) * 0.05,
+            0.16 + Math.random() * 0.1,
+            (Math.random() - 0.5) * 0.05,
+          );
           pos[i * 3] = origin.x + (Math.random() - 0.5) * 0.03;
           pos[i * 3 + 1] = origin.y;
           pos[i * 3 + 2] = origin.z + (Math.random() - 0.5) * 0.03;
@@ -1260,7 +1401,19 @@ export function createWaterCooler() {
   );
   put(bottle, 0, 1.1, 0);
   g.add(bottle);
-  const water = cyl(0.11, 0.13, 0.22, new THREE.MeshStandardMaterial({ color: 0x6fb9d8, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.75 }), 24);
+  const water = cyl(
+    0.11,
+    0.13,
+    0.22,
+    new THREE.MeshStandardMaterial({
+      color: 0x6fb9d8,
+      roughness: 0.05,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.75,
+    }),
+    24,
+  );
   put(water, 0, 1.05, 0);
   g.add(water);
   [-1, 1].forEach((s) => {
@@ -1287,7 +1440,10 @@ export function createBin() {
   const shell = cyl(0.16, 0.13, 0.42, MAT.blackMetal, 24, true);
   put(shell, 0, 0.21, 0);
   g.add(shell);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.012, 8, 28), MAT.steel);
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.16, 0.012, 8, 28),
+    MAT.steel,
+  );
   rim.rotation.x = Math.PI / 2;
   put(rim, 0, 0.42, 0);
   g.add(rim);
@@ -1308,7 +1464,11 @@ export function createBin() {
     }
     pos.needsUpdate = true;
     ball.geometry.computeVertexNormals();
-    ball.position.set((rnd() - 0.5) * 0.16, 0.3 + rnd() * 0.1, (rnd() - 0.5) * 0.16);
+    ball.position.set(
+      (rnd() - 0.5) * 0.16,
+      0.3 + rnd() * 0.1,
+      (rnd() - 0.5) * 0.16,
+    );
     g.add(ball);
   }
   shade(g);
@@ -1325,7 +1485,11 @@ export function createWallArt({ w = 0.7, h = 0.95, variant = 0 } = {}) {
   const tex = [TEX.posterA, TEX.posterB, TEX.posterC, TEX.posterD][variant % 4];
   const face = new THREE.Mesh(
     cached(`art:${w}:${h}`, () => new THREE.PlaneGeometry(w, h)),
-    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.72, metalness: 0.02 }),
+    new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.72,
+      metalness: 0.02,
+    }),
   );
   put(face, 0, 0, 0.021);
   g.add(face);
@@ -1396,7 +1560,10 @@ export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
     new THREE.Vector2(0.13, 0.06),
     new THREE.Vector2(0.0, 0.05),
   ];
-  const potGeo = cached(`pot:${potH}`, () => new THREE.LatheGeometry(profile, 28));
+  const potGeo = cached(
+    `pot:${potH}`,
+    () => new THREE.LatheGeometry(profile, 28),
+  );
   const potMat = variant === 2 ? MAT.ceramicWhite : MAT.terracotta;
   const pot = new THREE.Mesh(potGeo, potMat);
   g.add(pot);
@@ -1416,13 +1583,20 @@ export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
       const a = rnd() * Math.PI * 2;
       const len = 0.28 + rnd() * 0.2;
       const stem = cyl(0.006, 0.009, len, MAT.leaf, 6);
-      stem.position.set(Math.cos(a) * len * 0.4, potH + h + len * 0.25, Math.sin(a) * len * 0.4);
+      stem.position.set(
+        Math.cos(a) * len * 0.4,
+        potH + h + len * 0.25,
+        Math.sin(a) * len * 0.4,
+      );
       stem.rotation.z = Math.cos(a) * 0.9;
       stem.rotation.x = -Math.sin(a) * 0.9;
       g.add(stem);
       const leafCount = 3 + ((rnd() * 3) | 0);
       for (let l = 0; l < leafCount; l++) {
-        const leaf = new THREE.Mesh(leafGeometry(0.2 + rnd() * 0.1, 0.09 + rnd() * 0.04), rnd() > 0.5 ? MAT.leaf : MAT.leafLight);
+        const leaf = new THREE.Mesh(
+          leafGeometry(0.2 + rnd() * 0.1, 0.09 + rnd() * 0.04),
+          rnd() > 0.5 ? MAT.leaf : MAT.leafLight,
+        );
         const la = a + (rnd() - 0.5) * 1.4;
         const lr = 0.13 + rnd() * 0.14;
         leaf.position.set(
@@ -1430,7 +1604,12 @@ export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
           potH + h + len * 0.45 + (rnd() - 0.5) * 0.1,
           Math.sin(a) * len * 0.7 + Math.sin(la) * lr,
         );
-        leaf.rotation.set(-Math.PI / 2 + 0.5 + rnd() * 0.4, Math.atan2(Math.cos(la), Math.sin(la)) - Math.PI / 2, 0, "YXZ");
+        leaf.rotation.set(
+          -Math.PI / 2 + 0.5 + rnd() * 0.4,
+          Math.atan2(Math.cos(la), Math.sin(la)) - Math.PI / 2,
+          0,
+          "YXZ",
+        );
         leaf.rotation.z = (rnd() - 0.5) * 0.9;
         leaf.castShadow = true;
         g.add(leaf);
@@ -1441,7 +1620,10 @@ export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
     const blades = 11;
     for (let i = 0; i < blades; i++) {
       const h = 0.55 + rnd() * 0.55;
-      const blade = new THREE.Mesh(bladeGeometry(h, 0.06 + rnd() * 0.04), rnd() > 0.4 ? MAT.leaf : MAT.leafLight);
+      const blade = new THREE.Mesh(
+        bladeGeometry(h, 0.06 + rnd() * 0.04),
+        rnd() > 0.4 ? MAT.leaf : MAT.leafLight,
+      );
       const a = (i / blades) * Math.PI * 2 + rnd() * 0.3;
       const r = 0.02 + rnd() * 0.07;
       blade.position.set(Math.cos(a) * r, potH - 0.01, Math.sin(a) * r);
@@ -1455,9 +1637,17 @@ export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
     for (let i = 0; i < 9; i++) {
       const a = rnd() * Math.PI * 2;
       const r = rnd() * 0.09;
-      const leaf = new THREE.Mesh(leafGeometry(0.11 + rnd() * 0.06, 0.045), rnd() > 0.5 ? MAT.leaf : MAT.leafLight);
+      const leaf = new THREE.Mesh(
+        leafGeometry(0.11 + rnd() * 0.06, 0.045),
+        rnd() > 0.5 ? MAT.leaf : MAT.leafLight,
+      );
       leaf.position.set(Math.cos(a) * r, potH + 0.01, Math.sin(a) * r);
-      leaf.rotation.set(-Math.PI / 2 + 0.9 + rnd() * 0.5, a, (rnd() - 0.5) * 0.6, "YXZ");
+      leaf.rotation.set(
+        -Math.PI / 2 + 0.9 + rnd() * 0.5,
+        a,
+        (rnd() - 0.5) * 0.6,
+        "YXZ",
+      );
       leaf.castShadow = true;
       g.add(leaf);
     }
@@ -1492,8 +1682,15 @@ export function createDivider({ w = 1.6, h = 1.1 } = {}) {
   const count = 9;
   for (let i = 0; i < count; i++) {
     const bh = 0.4 + rnd() * 0.6;
-    const blade = new THREE.Mesh(bladeGeometry(bh, 0.07 + rnd() * 0.05), rnd() > 0.5 ? MAT.leaf : MAT.leafLight);
-    blade.position.set(-w / 2 + 0.14 + (i / (count - 1)) * (w - 0.28), 0.33, (rnd() - 0.5) * 0.14);
+    const blade = new THREE.Mesh(
+      bladeGeometry(bh, 0.07 + rnd() * 0.05),
+      rnd() > 0.5 ? MAT.leaf : MAT.leafLight,
+    );
+    blade.position.set(
+      -w / 2 + 0.14 + (i / (count - 1)) * (w - 0.28),
+      0.33,
+      (rnd() - 0.5) * 0.14,
+    );
     blade.rotation.y = rnd() * Math.PI;
     blade.rotation.z = (rnd() - 0.5) * 0.35;
     blade.castShadow = true;
@@ -1511,7 +1708,12 @@ export function createDivider({ w = 1.6, h = 1.1 } = {}) {
  *  Architectural and office fit-out pieces
  * ===================================================================== */
 
-export function createStorageCabinet({ w = 0.92, h = 1.18, d = 0.42, color = "wood" } = {}) {
+export function createStorageCabinet({
+  w = 0.92,
+  h = 1.18,
+  d = 0.42,
+  color = "wood",
+} = {}) {
   const g = new THREE.Group();
   g.name = "Lemari arsip";
   g.userData.interactionLabel = "Lemari arsip";
@@ -1530,7 +1732,14 @@ export function createStorageCabinet({ w = 0.92, h = 1.18, d = 0.42, color = "wo
   for (let i = 0; i < 3; i++) {
     const drawer = new THREE.Group();
     const dh = (h - 0.22) / 3;
-    const front = rbox(w - 0.11, dh - 0.025, 0.025, 0.012, color === "light" ? MAT.deskTop : MAT.wallAccent, 0.005);
+    const front = rbox(
+      w - 0.11,
+      dh - 0.025,
+      0.025,
+      0.012,
+      color === "light" ? MAT.deskTop : MAT.wallAccent,
+      0.005,
+    );
     put(front, 0, 0, d / 2 + 0.014);
     drawer.add(front);
     const handle = rbox(0.18, 0.025, 0.025, 0.01, MAT.brass, 0.004);
@@ -1540,19 +1749,25 @@ export function createStorageCabinet({ w = 0.92, h = 1.18, d = 0.42, color = "wo
     g.add(drawer);
     drawers.push(drawer);
   }
-  const feet = [-1, 1].flatMap((sx) => [-1, 1].map((sz) => {
-    const foot = cyl(0.025, 0.025, 0.08, MAT.blackMetal, 10);
-    put(foot, sx * (w / 2 - 0.09), 0.04, sz * (d / 2 - 0.07));
-    g.add(foot);
-    return foot;
-  }));
+  const feet = [-1, 1].flatMap((sx) =>
+    [-1, 1].map((sz) => {
+      const foot = cyl(0.025, 0.025, 0.08, MAT.blackMetal, 10);
+      put(foot, sx * (w / 2 - 0.09), 0.04, sz * (d / 2 - 0.07));
+      g.add(foot);
+      return foot;
+    }),
+  );
   let opened = false;
   g.userData.parts = { drawers, feet };
   g.userData.api = {
-    get opened() { return opened; },
+    get opened() {
+      return opened;
+    },
     toggle() {
       opened = !opened;
-      drawers.forEach((drawer, i) => { drawer.position.z = opened ? 0.18 + i * 0.02 : 0; });
+      drawers.forEach((drawer, i) => {
+        drawer.position.z = opened ? 0.18 + i * 0.02 : 0;
+      });
       return opened;
     },
   };
@@ -1561,7 +1776,12 @@ export function createStorageCabinet({ w = 0.92, h = 1.18, d = 0.42, color = "wo
   return g;
 }
 
-export function createSideTable({ w = 0.62, d = 0.48, h = 0.52, finish = "wood" } = {}) {
+export function createSideTable({
+  w = 0.62,
+  d = 0.48,
+  h = 0.52,
+  finish = "wood",
+} = {}) {
   const g = new THREE.Group();
   g.name = "Meja samping";
   g.userData.interactionLabel = "Meja samping";
@@ -1572,14 +1792,15 @@ export function createSideTable({ w = 0.62, d = 0.48, h = 0.52, finish = "wood" 
   const apron = rbox(w - 0.08, 0.1, d - 0.08, 0.015, MAT.darkWood, 0.005);
   put(apron, 0, h - 0.105, 0);
   g.add(apron);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const leg = rbox(0.035, h - 0.12, 0.035, 0.012, MAT.blackMetal, 0.004);
-    put(leg, sx * (w / 2 - 0.075), (h - 0.12) / 2, sz * (d / 2 - 0.075));
-    g.add(leg);
-    const ferrule = cyl(0.025, 0.025, 0.025, MAT.brass, 10);
-    put(ferrule, sx * (w / 2 - 0.075), 0.025, sz * (d / 2 - 0.075));
-    g.add(ferrule);
-  }
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      const leg = rbox(0.035, h - 0.12, 0.035, 0.012, MAT.blackMetal, 0.004);
+      put(leg, sx * (w / 2 - 0.075), (h - 0.12) / 2, sz * (d / 2 - 0.075));
+      g.add(leg);
+      const ferrule = cyl(0.025, 0.025, 0.025, MAT.brass, 10);
+      put(ferrule, sx * (w / 2 - 0.075), 0.025, sz * (d / 2 - 0.075));
+      g.add(ferrule);
+    }
   g.userData.footprint = { w: w + 0.04, d: d + 0.04 };
   shade(g);
   return g;
@@ -1595,7 +1816,14 @@ export function createPrinterStation({ w = 0.9, h = 0.72, d = 0.58 } = {}) {
   const foot = rbox(w - 0.1, 0.055, d - 0.08, 0.01, MAT.blackMetal, 0.004);
   put(foot, 0, 0.028, 0);
   g.add(foot);
-  const printerBody = rbox(w * 0.82, h * 0.34, d * 0.78, 0.045, MAT.plasticDark, 0.012);
+  const printerBody = rbox(
+    w * 0.82,
+    h * 0.34,
+    d * 0.78,
+    0.045,
+    MAT.plasticDark,
+    0.012,
+  );
   put(printerBody, 0, h * 0.76, -0.015);
   g.add(printerBody);
   const scanner = rbox(w * 0.78, 0.045, d * 0.75, 0.02, MAT.steel, 0.006);
@@ -1632,7 +1860,14 @@ export function createFridge({ w = 0.78, h = 1.72, d = 0.68 } = {}) {
   const body = rbox(w, h, d, 0.055, MAT.plasticWhite, 0.015);
   put(body, 0, h / 2, 0);
   g.add(body);
-  const innerShadow = rbox(w - 0.09, h - 0.1, 0.025, 0.025, MAT.plasticDark, 0.008);
+  const innerShadow = rbox(
+    w - 0.09,
+    h - 0.1,
+    0.025,
+    0.025,
+    MAT.plasticDark,
+    0.008,
+  );
   put(innerShadow, 0, h / 2, d / 2 + 0.009);
   g.add(innerShadow);
   const doorPivot = new THREE.Group();
@@ -1650,7 +1885,9 @@ export function createFridge({ w = 0.78, h = 1.72, d = 0.68 } = {}) {
   let open = false;
   g.userData.parts = { door, doorPivot, handle };
   g.userData.api = {
-    get open() { return open; },
+    get open() {
+      return open;
+    },
     toggle() {
       open = !open;
       doorPivot.rotation.y = open ? -0.95 : 0;
@@ -1666,7 +1903,14 @@ export function createArmchair({ color = "navy" } = {}) {
   const g = new THREE.Group();
   g.name = "Armchair lounge";
   g.userData.interactionLabel = "Armchair lounge";
-  const fabric = color === "sand" ? MAT.fabricSand : color === "rust" ? MAT.fabricRust : color === "olive" ? MAT.fabricOlive : MAT.fabricNavy;
+  const fabric =
+    color === "sand"
+      ? MAT.fabricSand
+      : color === "rust"
+        ? MAT.fabricRust
+        : color === "olive"
+          ? MAT.fabricOlive
+          : MAT.fabricNavy;
   // Sama seperti sofa/bangku: permukaan duduk tepat di SEAT_TOP (setinggi
   // kursi ergonomis), dengan rangka & cushion yang lebih ramping.
   const top = SEAT_TOP;
@@ -1676,14 +1920,15 @@ export function createArmchair({ color = "navy" } = {}) {
   const baseY = top - cushion - base / 2;
   const legH = Math.max(0.1, baseY - base / 2);
 
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const leg = rbox(0.055, legH, 0.055, 0.014, MAT.blackMetal, 0.005);
-    put(leg, sx * 0.32, legH / 2, sz * 0.27);
-    g.add(leg);
-    const foot = cyl(0.034, 0.034, 0.018, MAT.brass, 10);
-    put(foot, sx * 0.32, 0.009, sz * 0.27);
-    g.add(foot);
-  }
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      const leg = rbox(0.055, legH, 0.055, 0.014, MAT.blackMetal, 0.005);
+      put(leg, sx * 0.32, legH / 2, sz * 0.27);
+      g.add(leg);
+      const foot = cyl(0.034, 0.034, 0.018, MAT.brass, 10);
+      put(foot, sx * 0.32, 0.009, sz * 0.27);
+      g.add(foot);
+    }
   const frame = rbox(0.82, base, 0.72, 0.055, MAT.darkWood, 0.012);
   put(frame, 0, baseY, 0);
   g.add(frame);
@@ -1698,7 +1943,14 @@ export function createArmchair({ color = "navy" } = {}) {
     const arm = rbox(0.15, 0.32, 0.68, 0.055, fabric, 0.018);
     put(arm, sx * 0.42, top + 0.08, 0.01);
     g.add(arm);
-    const armCap = rbox(0.15, 0.03, 0.54, 0.025, color === "sand" ? MAT.deskTop : fabric, 0.008);
+    const armCap = rbox(
+      0.15,
+      0.03,
+      0.54,
+      0.025,
+      color === "sand" ? MAT.deskTop : fabric,
+      0.008,
+    );
     put(armCap, sx * 0.42, top + 0.255, 0.015);
     g.add(armCap);
   }
@@ -1709,11 +1961,23 @@ export function createArmchair({ color = "navy" } = {}) {
   return g;
 }
 
-export function createOttoman({ w = 0.62, d = 0.58, h = null, color = "olive" } = {}) {
+export function createOttoman({
+  w = 0.62,
+  d = 0.58,
+  h = null,
+  color = "olive",
+} = {}) {
   const g = new THREE.Group();
   g.name = "Ottoman";
   g.userData.interactionLabel = "Ottoman";
-  const fabric = color === "rust" ? MAT.fabricRust : color === "sand" ? MAT.fabricSand : color === "navy" ? MAT.fabricNavy : MAT.fabricOlive;
+  const fabric =
+    color === "rust"
+      ? MAT.fabricRust
+      : color === "sand"
+        ? MAT.fabricSand
+        : color === "navy"
+          ? MAT.fabricNavy
+          : MAT.fabricOlive;
   // Bangku bar: puncak cushion disejajarkan dengan kursi ergonomis
   // (SEAT_TOP). Param `h` masih diterima demi kompatibilitas, tapi
   // permukaan duduk selalu SEAT_TOP supaya semua dudukan sama tinggi.
@@ -1723,7 +1987,14 @@ export function createOttoman({ w = 0.62, d = 0.58, h = null, color = "olive" } 
   const frameTop = top - cushion;
   const footH = 0.1;
 
-  const frame = rbox(w - 0.06, Math.max(0.12, frameTop - footH), d - 0.06, 0.025, MAT.darkWood, 0.008);
+  const frame = rbox(
+    w - 0.06,
+    Math.max(0.12, frameTop - footH),
+    d - 0.06,
+    0.025,
+    MAT.darkWood,
+    0.008,
+  );
   put(frame, 0, footH + (frameTop - footH) / 2, 0);
   g.add(frame);
   const cushionMesh = rbox(w, cushion, d, 0.075, fabric, 0.018);
@@ -1732,11 +2003,12 @@ export function createOttoman({ w = 0.62, d = 0.58, h = null, color = "olive" } 
   const seam = rbox(w * 0.78, 0.012, 0.012, 0.004, MAT.fabricCharcoal, 0.002);
   put(seam, 0, top - 0.008, d / 2 - 0.09);
   g.add(seam);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const foot = rbox(0.045, footH, 0.045, 0.012, MAT.blackMetal, 0.004);
-    put(foot, sx * (w / 2 - 0.1), footH / 2, sz * (d / 2 - 0.1));
-    g.add(foot);
-  }
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      const foot = rbox(0.045, footH, 0.045, 0.012, MAT.blackMetal, 0.004);
+      put(foot, sx * (w / 2 - 0.1), footH / 2, sz * (d / 2 - 0.1));
+      g.add(foot);
+    }
   g.userData.footprint = { w: w + 0.04, d: d + 0.04 };
   g.userData.seatTop = top;
   shade(g);
@@ -1750,7 +2022,10 @@ export function createMagazineRack({ w = 0.72, h = 0.9, d = 0.3 } = {}) {
   const base = rbox(w, 0.07, d, 0.025, MAT.darkWood, 0.008);
   put(base, 0, 0.035, 0);
   g.add(base);
-  const sideGeo = cached(`magSide:${h}:${d}`, () => new THREE.BoxGeometry(0.035, h, d));
+  const sideGeo = cached(
+    `magSide:${h}:${d}`,
+    () => new THREE.BoxGeometry(0.035, h, d),
+  );
   for (const sx of [-1, 1]) {
     const side = new THREE.Mesh(sideGeo, MAT.blackMetal);
     put(side, sx * (w / 2 - 0.02), h / 2, 0);
@@ -1761,7 +2036,14 @@ export function createMagazineRack({ w = 0.72, h = 0.9, d = 0.3 } = {}) {
     put(shelf, 0, 0.22 + i * 0.24, 0);
     g.add(shelf);
     for (let j = 0; j < 3; j++) {
-      const cover = rbox(0.15, 0.19, 0.018, 0.006, [MAT.wallAccent, MAT.terracotta, MAT.fabricNavy][(i + j) % 3], 0.003);
+      const cover = rbox(
+        0.15,
+        0.19,
+        0.018,
+        0.006,
+        [MAT.wallAccent, MAT.terracotta, MAT.fabricNavy][(i + j) % 3],
+        0.003,
+      );
       put(cover, -0.22 + j * 0.19, 0.32 + i * 0.24, d / 2 - 0.015);
       cover.rotation.z = (j - 1) * 0.06;
       g.add(cover);
@@ -1787,8 +2069,20 @@ export function createWallShelf({ w = 1.0, d = 0.24, shelves = 2 } = {}) {
     }
     // Individually modeled books add a little asymmetry to the clean profile.
     for (let b = 0; b < 5; b++) {
-      const book = rbox(0.07 + (b % 2) * 0.015, 0.15 + (b % 3) * 0.018, 0.11, 0.004,
-        [MAT.fabricNavy, MAT.terracotta, MAT.wallAccent, MAT.fabricSand, MAT.leaf][(b + i) % 5], 0.002);
+      const book = rbox(
+        0.07 + (b % 2) * 0.015,
+        0.15 + (b % 3) * 0.018,
+        0.11,
+        0.004,
+        [
+          MAT.fabricNavy,
+          MAT.terracotta,
+          MAT.wallAccent,
+          MAT.fabricSand,
+          MAT.leaf,
+        ][(b + i) % 5],
+        0.002,
+      );
       put(book, -w * 0.29 + b * 0.105, i * 0.36 + 0.09, 0);
       book.rotation.z = (b % 2 ? 1 : -1) * 0.035;
       g.add(book);
@@ -1803,10 +2097,24 @@ export function createBench({ w = 1.35, d = 0.44, h = 0.48 } = {}) {
   const g = new THREE.Group();
   g.name = "Bangku koridor";
   g.userData.interactionLabel = "Bangku koridor";
-  const seat = rbox(w, 0.075, d, 0.055, MAT.fabricOlive || MAT.fabricNavy, 0.012);
+  const seat = rbox(
+    w,
+    0.075,
+    d,
+    0.055,
+    MAT.fabricOlive || MAT.fabricNavy,
+    0.012,
+  );
   put(seat, 0, h - 0.012, 0);
   g.add(seat);
-  const seatInset = rbox(w - 0.14, 0.006, d - 0.12, 0.04, MAT.fabricSand, 0.002);
+  const seatInset = rbox(
+    w - 0.14,
+    0.006,
+    d - 0.12,
+    0.04,
+    MAT.fabricSand,
+    0.002,
+  );
   put(seatInset, 0, h + 0.022, 0.005);
   g.add(seatInset);
   const backRail = rbox(w - 0.12, 0.26, 0.065, 0.025, MAT.darkWood, 0.008);
@@ -1834,11 +2142,24 @@ export function createBench({ w = 1.35, d = 0.44, h = 0.48 } = {}) {
   return g;
 }
 
-export function createAcousticPanel({ w = 0.58, h = 0.92, color = "navy" } = {}) {
+export function createAcousticPanel({
+  w = 0.58,
+  h = 0.92,
+  color = "navy",
+} = {}) {
   const g = new THREE.Group();
   g.name = "Panel akustik";
   g.userData.interactionLabel = "Panel akustik";
-  const panelMat = color === "rust" ? MAT.fabricRust : color === "sand" ? MAT.fabricSand : color === "sage" ? MAT.wallSage : color === "olive" ? MAT.fabricOlive : MAT.fabricNavy;
+  const panelMat =
+    color === "rust"
+      ? MAT.fabricRust
+      : color === "sand"
+        ? MAT.fabricSand
+        : color === "sage"
+          ? MAT.wallSage
+          : color === "olive"
+            ? MAT.fabricOlive
+            : MAT.fabricNavy;
   const backing = rbox(w, h, 0.075, 0.04, MAT.blackMetal, 0.012);
   g.add(backing);
   const fabric = rbox(w - 0.05, h - 0.05, 0.04, 0.035, panelMat, 0.008);
@@ -1885,7 +2206,14 @@ export function createMeetingTable({ w = 2.6, d = 1.2, h = 0.74 } = {}) {
   put(hub, -w * 0.24, h + 0.018, -d / 2 + 0.19);
   g.add(hub);
   for (let port = 0; port < 3; port++) {
-    const socket = rbox(0.032, 0.003, 0.022, 0.004, port === 2 ? MAT.ledStrip : MAT.chrome, 0.0015);
+    const socket = rbox(
+      0.032,
+      0.003,
+      0.022,
+      0.004,
+      port === 2 ? MAT.ledStrip : MAT.chrome,
+      0.0015,
+    );
     put(socket, -w * 0.24 - 0.06 + port * 0.06, h + 0.034, -d / 2 + 0.19);
     g.add(socket);
   }

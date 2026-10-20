@@ -31,55 +31,135 @@ import {
 /* ------------------------------------------------------------------ *
  *  Meja resepsionis — panel brand menghadap tamu (+z).               *
  * ------------------------------------------------------------------ */
+
 function receptionDesk() {
   const g = new THREE.Group();
   g.name = "Meja resepsionis";
   g.userData.interactionLabel = "Meja resepsionis";
-  const w = 2.6, h = 1.1, d = 0.9;
+
+  const w = 2.2;
+  const h = 0.85;
+  const d = 0.8;
+
+  // Badan meja
   const body = rbox(w, h - 0.06, d, 0.05, MAT.darkWood, 0.02);
   body.position.y = (h - 0.06) / 2;
   g.add(body);
+
+  // Permukaan meja
   const top = rbox(w + 0.08, 0.06, d + 0.08, 0.02, MAT.deskTop, 0.01);
   top.position.y = h - 0.03;
   g.add(top);
-  const front = rbox(w - 0.1, 0.4, 0.04, 0.02, MAT.wallAccent, 0.01);
-  front.position.set(0, 0.55, d / 2 + 0.01);
+
+  // Panel dekorasi depan meja (lokal +Z)
+  const front = rbox(w - 0.12, 0.3, 0.04, 0.02, MAT.wallAccent, 0.01);
+  front.position.set(0, 0.43, d / 2 + 0.01);
   g.add(front);
-  const label = rbox(1.0, 0.18, 0.02, 0.01, MAT.brass, 0.005);
-  label.position.set(0, 0.55, d / 2 + 0.03);
-  g.add(label);
+
+  // Plat nama silver
+  const silver = new THREE.MeshStandardMaterial({
+    color: 0xc0c0c0,
+    metalness: 0.85,
+    roughness: 0.25,
+  });
+
+  const plate = rbox(1.15, 0.16, 0.025, 0.015, silver, 0.005);
+  plate.position.set(0, 0.43, d / 2 + 0.04);
+  g.add(plate);
+
+  // Tulisan hitam di atas plat
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 256;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold 100px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#000000";
+  ctx.fillText("RECEPTIONIST", 512, 128);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const textMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.FrontSide,
+    depthWrite: false,
+    toneMapped: false,
+  });
+
+  const text = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.08, 0.135),
+    textMaterial,
+  );
+
+  // PlaneGeometry secara default menghadap +Z.
+  // Tidak perlu rotasi tambahan pada teks.
+  text.position.set(0, 0.43, d / 2 + 0.054);
+  g.add(text);
+
   shade(g);
-  g.userData.footprint = { w: 2.6, d: 0.9 };
+
+  g.userData.footprint = { w: 2.2, d: 0.8 };
+
   return g;
 }
 
 export function build(b) {
   /* ── Resepsionis: meja + kursi = SATU perabot ─────────────────────── */
   b._workBundle(receptionDesk(), {
-    x: 0, z: -7.5, ry: Math.PI,
+    x: 0,
+    // Mundur 0,5 m ke arah dinding brand (semula -7.5) supaya meja &
+    // kursi tidak terlalu menjorok ke arah pintu lobby.
+    z: -8.0,
+    // Panel brand + plat "RECEPTIONIST" dibuat di sisi LOKAL +z.
+    // Dengan ry = 0 sisi itu menghadap dunia +z = pintu lobby, jadi plat
+    // berada di DEPAN meja (menghadap tamu), bukan di belakangnya.
+    ry: 0,
     label: "Meja resepsionis",
     type: "reception",
-    // Kursi resepsionis di sisi utara meja, menghadap tamu.
+    // Kursi resepsionis di sisi utara meja (belakang meja), menghadap tamu.
+    // `face` = arah PANDANG kursi → "+z" (menghadap pintu); kursi otomatis
+    // diletakkan di sisi berlawanan, yaitu antara meja & dinding brand.
+    // `gap` 0,40 m (default gedung 0,20) → roda & bantalan kursi bersih
+    // dari badan meja, jadi terlihat celah kecil antara meja dan kursi.
+    // BATAS ATAS ≈ 0,44: jarak titik duduk ↔ meja harus tetap < 0,34 m
+    // (radius `overlaps` di Building._seat) supaya badan karakter tidak
+    // menabrak meja saat duduk.
+    gap: 0.4,
     chairs: [
-      { face: "-z", color: "navy", type: "reception", label: "Kursi resepsionis" },
+      {
+        face: "+z",
+        color: "navy",
+        type: "reception",
+        label: "Kursi resepsionis",
+      },
     ],
   });
 
   const recMon = createMonitor({ width: 0.5 });
-  b._place(recMon, -0.67, -7.5, Math.PI, 0.78);
+  // y = 0,852 → alas monitor tepat DI ATAS permukaan meja (0.85), jadi
+  // gagang/tiangnya tidak lagi tembus ke dalam badan meja.
+  b._place(recMon, -0.67, -8.0, Math.PI, 0.852);
   b._interactive(recMon, {
     id: "monitor-reception",
     label: "Sistem registrasi tamu",
     hint: "Klik untuk mengganti tampilan",
     radius: 0.85,
-    onClick: () => { recMon.userData.api.cycle(); return "Daftar tamu diperbarui"; },
+    onClick: () => {
+      recMon.userData.api.cycle();
+      return "Daftar tamu diperbarui";
+    },
   });
 
   /* Dinding brand di belakang resepsionis. */
-  b._static(
-    createWallArt({ w: 2.4, h: 1.0, variant: 0 }),
-    0, -9.86, 0, 1.24, { w: 2.5, d: 0.1 },
-  );
+  b._static(createWallArt({ w: 2.4, h: 1.0, variant: 0 }), 0, -9.86, 0, 1.24, {
+    w: 2.5,
+    d: 0.1,
+  });
   b._static(createClock(), 3.5, -9.86, 0, 2.0);
 
   /* ── Waiting lounge (karpet navy + 2 sofa saling pandang) ────────── */
@@ -94,7 +174,10 @@ export function build(b) {
   b._softSeats(sofaAObj, { width: 2.0, depth: 0.85, count: 3 });
 
   const sofaB = createSofa({ width: 2.0, depth: 0.85 });
-  const sofaBObj = b._static(sofaB, -3.9, -4.35, Math.PI, 0, { w: 2.1, d: 0.95 });
+  const sofaBObj = b._static(sofaB, -3.9, -4.35, Math.PI, 0, {
+    w: 2.1,
+    d: 0.95,
+  });
   b._softSeats(sofaBObj, { width: 2.0, depth: 0.85, count: 3 });
 
   b._static(createCoffeeTable({ r: 0.42 }), -3.9, -6.4, 0);
@@ -105,14 +188,26 @@ export function build(b) {
   b._static(createSideTable({ w: 0.42, d: 0.38, h: 0.46 }), -1.8, -5.05, 0);
 
   /* Bangku tunggu + rak majalah di dinding timur. */
-  const bench = b._static(createBench({ w: 1.35, d: 0.44, h: 0.48 }), 5.02, -6.0, -Math.PI / 2);
+  const bench = b._static(
+    createBench({ w: 1.35, d: 0.44, h: 0.48 }),
+    5.02,
+    -6.0,
+    -Math.PI / 2,
+  );
   b._softSeats(bench, { width: 1.35, depth: 0.44, count: 2 });
-  b._static(createMagazineRack({ w: 0.72, h: 0.9, d: 0.3 }), 5.0, -4.2, -Math.PI / 2);
+  b._static(
+    createMagazineRack({ w: 0.72, h: 0.9, d: 0.3 }),
+    5.0,
+    -4.2,
+    -Math.PI / 2,
+  );
 
   /* Rak buku di dinding utara (punggung menempel dinding). */
   b._static(
     createBookshelf({ width: 0.84, height: 1.45, depth: 0.28, shelves: 4 }),
-    -3.9, -9.79, 0,
+    -3.9,
+    -9.79,
+    0,
   );
 
   b._plant(5.05, -9.2, 0, { variant: 0, scale: 0.72, seed: 55 });

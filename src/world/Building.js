@@ -715,7 +715,7 @@ export class Building {
     const item = obstacle ? this._editItems.get(obstacle.owner) : null;
     if (item) {
       // OFFSET LOKAL (bukan world) — supaya meja/kursi yang diputar
-      // (ry ≠ 0, mis. meja HR/CEO/resepsionis) tetap utuh saat dipindah/
+      // (ry ≠ 0, mis. meja HR/CEO) tetap utuh saat dipindah/
       // diputar di Mode Edit.
       // Offset =(world → local) jadi INVERSE dari rotasi Ry three.js:
       //   world : x = lx·cos + lz·sin ,  z = −lx·sin + lz·cos
@@ -831,7 +831,9 @@ export class Building {
    *    karakter tidak akan pernah bisa berjalan ke belakang kursi untuk
    *    duduk — lalu berdiri — lalu jalan lagi (penyebab utama "stuck").
    *  • Jarak kursi ke TEPI meja SERAGAM untuk semua unit (CHAIR_EDGE_GAP),
-   *    jadi tidak ada lagi jarak yang beda-beda antar ruangan.
+   *    jadi tidak ada lagi jarak yang beda-beda antar ruangan. Satu unit
+   *    boleh menimpanya sementara lewat opsi `gap` (mis. meja resepsionis
+   *    yang butuh celah lebih lega dari kursinya).
    *  • Badan meja+kursi sengaja TIDAK ditandai "live", jadi tetap ikut
    *    di-merge (hemat draw call). Yang dilepas hanya hotspot interaktif:
    *    satu hotspot duduk per kursi, plus lampu/layar dari `_deskParts`.
@@ -844,6 +846,7 @@ export class Building {
    *             `face` = arah PANDANG kursi; kursi otomatis diletakkan di
    *             sisi seberangnya, tepat di tepi meja.
    *   fp        petak unit; default dihitung dari meja + semua kursi
+   *   gap       jarak tepi meja ↔ pusat kursi (default CHAIR_EDGE_GAP)
    *   label     nama perabot di Mode Edit
    *   type      tipe kursi default (dipakai AI: "desk" / "meeting" / …)
    *   partsKey  kalau diisi → jalankan `_deskParts` (lampu & layar hidup)
@@ -852,6 +855,7 @@ export class Building {
   _workBundle(desk, {
     x, z, ry = 0,
     chairs = [],
+    gap = CHAIR_EDGE_GAP,
     fp = null,
     label = null,
     type = "desk",
@@ -871,7 +875,7 @@ export class Building {
     for (const spec of chairs) {
       const face = SEAT_FACES[spec.face] || SEAT_FACES["-z"];
       const lateral = spec.lateral || 0;
-      const d = (face.swap ? halfW : halfD) + CHAIR_EDGE_GAP;
+      const d = (face.swap ? halfW : halfD) + gap;
       const ox = face.ox * d + (face.swap ? 0 : lateral);
       const oz = face.oz * d + (face.swap ? -lateral : 0);
       plan.push({ spec, face, ox, oz });

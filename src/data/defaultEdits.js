@@ -7,7 +7,7 @@
  * yang pull repo langsung memakai tata ruang terbaru.
  *
  * Hybrid: pakai file JSON kalau ada isinya (mendukung save ke reset), dan
- * jatuh ke salinan baked di bawah kalau file kosong/terhapus — supaya
+ * jatuh ke salinan baked di bawah kalau file kosong/terhapus ï¿½ supaya
  * tata ruang final pengguna tidak hilang karena wipe/kesalahan.
  */
 import layout from "./layout.default.json" with { type: "json" };
@@ -16,7 +16,7 @@ const BAKED = {
   "v": 1,
   "full": true,
   "items": {
-    "p68": { "x": -0.67, "z": -7.5, "ry": 3.1416 },
+    "p68": { "x": -0.67, "z": -8.0, "ry": 3.1416 },
     "c1": { "x": -7.3698, "z": -2.1198, "ry": 6.2832 },
     "c2": { "x": -1.124, "z": -3.374, "ry": 0 },
     "c3": { "x": 15.225, "z": -7.45, "ry": 4.7124 },
@@ -78,7 +78,7 @@ const BAKED = {
     "p64": { "x": 15.5, "z": 5.6, "ry": 0 },
     "p65": { "x": 7.7, "z": 8.6, "ry": 0 },
     "p66": { "x": 7.6, "z": 5.5, "ry": 0 },
-    "p67": { "x": 0, "z": -7.5, "ry": 3.1416 },
+    "p67": { "x": 0, "z": -8.0, "ry": 0 },
     "p69": { "x": 0, "z": -9.86, "ry": 0 },
     "p70": { "x": 3.5, "z": -9.86, "ry": 0 },
     "p71": { "x": -3.9, "z": -8.45, "ry": 0 },
