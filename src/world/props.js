@@ -1542,6 +1542,25 @@ function bladeGeometry(h = 0.9, w = 0.07) {
   });
 }
 
+/* Orientasi daun yang seragam: sumbu panjang daun (+Y) searah `dir`,
+ * sedangkan muka daun (normal lokal +Z) selalu dibalik ke ATAS. Dengan
+ * begini tidak ada daun yang telentang/tengkurap atau menyudut acak —
+ * semua daun terbaca rapi dari segala arah pandang. */
+const _lf = {
+  y: new THREE.Vector3(),
+  z: new THREE.Vector3(),
+  x: new THREE.Vector3(),
+  m: new THREE.Matrix4(),
+};
+function orientLeaf(obj, dir) {
+  const y = _lf.y.copy(dir).normalize();
+  const z = _lf.z.set(0, 1, 0).addScaledVector(y, -y.y);
+  if (z.lengthSq() < 1e-6) z.set(1, 0, 0).addScaledVector(y, -y.x);
+  z.normalize();
+  const x = _lf.x.crossVectors(y, z);
+  obj.quaternion.setFromRotationMatrix(_lf.m.makeBasis(x, y, z));
+}
+
 export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
   const g = new THREE.Group();
   g.name = "Tanaman indoor";
@@ -1573,80 +1592,140 @@ export function createPlant({ variant = 0, scale = 1, seed = 3 } = {}) {
   g.add(soil);
 
   if (variant === 0) {
-    // tall ficus
+    /* Pohon / tanaman tinggi — siluet rapi:
+     *  • pangkal dahan MENEMPEL pada permukaan batang (bukan mengambang)
+     *    dan menyudut keluar-atas, bukan jatuh ke bawah;
+     *  • azimut dahan memakai golden angle (137,5°) → sebaran merata ke
+     *    semua arah, tidak menumpuk di satu sisi;
+     *  • ketinggian berjenjang naik merata dan semuanya di BAWAH puncak
+     *    batang, jadi tidak ada dahan yang mengambang di udara;
+     *  • daun tersusun merata sepanjang tiap dahan (kiri-kanan berselang)
+     *    dengan arah tumbuh & muka daun yang seragam. */
     const trunk = cyl(0.022, 0.03, 0.85, MAT.darkWood, 12);
     put(trunk, 0, 0.42 + potH, 0);
     g.add(trunk);
+
     const branches = 12;
+    const UP = new THREE.Vector3(0, 1, 0);
     for (let i = 0; i < branches; i++) {
-      const h = 0.3 + rnd() * 0.75;
-      const a = rnd() * Math.PI * 2;
-      const len = 0.28 + rnd() * 0.2;
+      const tier = i / (branches - 1);                 // 0 = bawah … 1 = atas
+      const a = i * 2.39996 + (rnd() - 0.5) * 0.24;    // golden angle + jitter
+      const h = 0.3 + tier * 0.48 + (rnd() - 0.5) * 0.04;
+      // dahan bawah lebih panjang & rebah, dahan atas lebih pendek & tegak
+      const tilt = 1.12 - tier * 0.42 + (rnd() - 0.5) * 0.1;
+      const len = 0.26 + (1 - tier) * 0.1 + rnd() * 0.05;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const st = Math.sin(tilt);
+      const ct = Math.cos(tilt);
+
+      const axis = new THREE.Vector3(st * ca, ct, st * sa);
+      const base = new THREE.Vector3(0.02 * ca, potH + h, 0.02 * sa);
+
       const stem = cyl(0.006, 0.009, len, MAT.leaf, 6);
-      stem.position.set(
-        Math.cos(a) * len * 0.4,
-        potH + h + len * 0.25,
-        Math.sin(a) * len * 0.4,
-      );
-      stem.rotation.z = Math.cos(a) * 0.9;
-      stem.rotation.x = -Math.sin(a) * 0.9;
+      stem.position.copy(base).addScaledVector(axis, len / 2);
+      stem.quaternion.setFromUnitVectors(UP, axis); // pangkal tebal di batang
       g.add(stem);
-      const leafCount = 3 + ((rnd() * 3) | 0);
+
+      // rangka melingkar di sekeliling dahan untuk azimut daun
+      const R = new THREE.Vector3(sa, 0, -ca);       // tegak lurus axis
+      const S = new THREE.Vector3().crossVectors(axis, R);
+
+      const leafCount = 4 + (i % 2);                 // 4/5 bergantian rapi
       for (let l = 0; l < leafCount; l++) {
+        // posisi merata sepanjang dahan (35% … 98% dari pangkal)
+        const t = 0.35 + (l / (leafCount - 1)) * 0.63;
+        // azimut daun golden angle → berselang-seling kiri/kanan
+        const phi = i * 1.1 + l * 2.39996;
+        const radial = new THREE.Vector3()
+          .addScaledVector(R, Math.cos(phi))
+          .addScaledVector(S, Math.sin(phi));
+        const dir = new THREE.Vector3()
+          .addScaledVector(axis, 0.3)
+          .addScaledVector(radial, 0.75)
+          .addScaledVector(UP, 0.26)
+          .normalize();
+
+        const ll = 0.2 + ((rnd() * 3) | 0) * 0.02;   // 3 ukuran daun saja
         const leaf = new THREE.Mesh(
-          leafGeometry(0.2 + rnd() * 0.1, 0.09 + rnd() * 0.04),
-          rnd() > 0.5 ? MAT.leaf : MAT.leafLight,
+          leafGeometry(ll, ll * 0.46),
+          (i + l) % 3 === 0 ? MAT.leafLight : MAT.leaf,   // pola, bukan acak
         );
-        const la = a + (rnd() - 0.5) * 1.4;
-        const lr = 0.13 + rnd() * 0.14;
-        leaf.position.set(
-          Math.cos(a) * len * 0.7 + Math.cos(la) * lr,
-          potH + h + len * 0.45 + (rnd() - 0.5) * 0.1,
-          Math.sin(a) * len * 0.7 + Math.sin(la) * lr,
-        );
-        leaf.rotation.set(
-          -Math.PI / 2 + 0.5 + rnd() * 0.4,
-          Math.atan2(Math.cos(la), Math.sin(la)) - Math.PI / 2,
-          0,
-          "YXZ",
-        );
-        leaf.rotation.z = (rnd() - 0.5) * 0.9;
+        leaf.position
+          .copy(base)
+          .addScaledVector(axis, len * t)
+          .addScaledVector(radial, 0.007);
+        orientLeaf(leaf, dir);
         leaf.castShadow = true;
         g.add(leaf);
       }
     }
+
+    /* Mahkota puncak — 4 daun pendek mengelilingi ujung batang. */
+    for (let k = 0; k < 4; k++) {
+      const a = k * 2.39996;
+      const tuft = new THREE.Mesh(
+        leafGeometry(0.16, 0.075),
+        k % 2 ? MAT.leafLight : MAT.leaf,
+      );
+      tuft.position.set(0.012 * Math.cos(a), potH + 0.83, 0.012 * Math.sin(a));
+      orientLeaf(
+        tuft,
+        new THREE.Vector3(
+          Math.sin(0.45) * Math.cos(a),
+          Math.cos(0.45),
+          Math.sin(0.45) * Math.sin(a),
+        ),
+      );
+      tuft.castShadow = true;
+      g.add(tuft);
+    }
   } else if (variant === 1) {
-    // snake plant — fan of blades
+    /* Snake plant — kipas berjenjang: azimut dibagi rata, dua cincin
+     * (dalam = tinggi, luar = pendek), tinggi & warna tidak lagi acak. */
     const blades = 11;
     for (let i = 0; i < blades; i++) {
-      const h = 0.55 + rnd() * 0.55;
+      const ring = i % 2;
+      const a = (i / blades) * Math.PI * 2 + (rnd() - 0.5) * 0.14;
+      const r = 0.025 + ring * 0.05 + rnd() * 0.01;
+      const h = (ring ? 0.62 : 1.0) + ((rnd() * 3) | 0) * 0.04;
       const blade = new THREE.Mesh(
-        bladeGeometry(h, 0.06 + rnd() * 0.04),
-        rnd() > 0.4 ? MAT.leaf : MAT.leafLight,
+        bladeGeometry(h, 0.065 + ((rnd() * 3) | 0) * 0.01),
+        i % 3 === 0 ? MAT.leafLight : MAT.leaf,
       );
-      const a = (i / blades) * Math.PI * 2 + rnd() * 0.3;
-      const r = 0.02 + rnd() * 0.07;
       blade.position.set(Math.cos(a) * r, potH - 0.01, Math.sin(a) * r);
-      blade.rotation.y = -a + Math.PI / 2;
-      blade.rotation.z = (rnd() - 0.5) * 0.3;
+      blade.rotation.y = -a + Math.PI / 2;             // menghadap keluar
+      blade.rotation.z = (rnd() - 0.5) * 0.22;
       blade.castShadow = true;
       g.add(blade);
     }
   } else {
-    // low succulent cluster
-    for (let i = 0; i < 9; i++) {
-      const a = rnd() * Math.PI * 2;
-      const r = rnd() * 0.09;
+    /* Sukulen — rosette rapi: cincin dalam (3, tegak) + cincin luar
+     * (6, menyebar), azimut dibagi rata dan diselang di antara cincin. */
+    const inner = 3;
+    const outer = 6;
+    for (let i = 0; i < inner + outer; i++) {
+      const isIn = i < inner;
+      const n = isIn ? inner : outer;
+      const idx = isIn ? i : i - inner;
+      const a =
+        (idx / n) * Math.PI * 2 +
+        (isIn ? 0 : Math.PI / outer) +
+        (rnd() - 0.5) * 0.08;
+      const r = isIn ? 0.025 : 0.072;
+      const ll = isIn ? 0.11 : 0.14;
       const leaf = new THREE.Mesh(
-        leafGeometry(0.11 + rnd() * 0.06, 0.045),
-        rnd() > 0.5 ? MAT.leaf : MAT.leafLight,
+        leafGeometry(ll, 0.05),
+        i % 2 === 0 ? MAT.leaf : MAT.leafLight,
       );
-      leaf.position.set(Math.cos(a) * r, potH + 0.01, Math.sin(a) * r);
-      leaf.rotation.set(
-        -Math.PI / 2 + 0.9 + rnd() * 0.5,
-        a,
-        (rnd() - 0.5) * 0.6,
-        "YXZ",
+      leaf.position.set(
+        Math.cos(a) * r,
+        potH + (isIn ? 0.022 : 0.012),
+        Math.sin(a) * r,
+      );
+      orientLeaf(
+        leaf,
+        new THREE.Vector3(Math.cos(a), isIn ? 1.15 : 0.5, Math.sin(a)),
       );
       leaf.castShadow = true;
       g.add(leaf);
@@ -1681,18 +1760,22 @@ export function createDivider({ w = 1.6, h = 1.1 } = {}) {
   const rnd = mulberry32(41);
   const count = 9;
   for (let i = 0; i < count; i++) {
-    const bh = 0.4 + rnd() * 0.6;
+    // Tinggi berjenjang berulang (0.45 / 0.67 / 0.89) — rentang yang sama
+    // seperti semula, tapi tidak lagi acak. Azimut daun juga diseragamkan:
+    // semuanya menghadap ±depan dan berselang sedikit, bukan 0–180° acak
+    // yang membuat sebagian daun terlihat menyamping tipis (menyudut).
+    const bh = 0.45 + (i % 3) * 0.22 + ((rnd() * 3) | 0) * 0.02;
     const blade = new THREE.Mesh(
-      bladeGeometry(bh, 0.07 + rnd() * 0.05),
-      rnd() > 0.5 ? MAT.leaf : MAT.leafLight,
+      bladeGeometry(bh, 0.075 + ((rnd() * 3) | 0) * 0.01),
+      i % 3 === 0 ? MAT.leafLight : MAT.leaf,
     );
     blade.position.set(
       -w / 2 + 0.14 + (i / (count - 1)) * (w - 0.28),
       0.33,
-      (rnd() - 0.5) * 0.14,
+      (i % 2 ? 0.03 : -0.03) + (rnd() - 0.5) * 0.04,
     );
-    blade.rotation.y = rnd() * Math.PI;
-    blade.rotation.z = (rnd() - 0.5) * 0.35;
+    blade.rotation.y = (i % 2 ? 0.26 : -0.26) + (rnd() - 0.5) * 0.16;
+    blade.rotation.z = (i % 2 ? -0.1 : 0.1) + (rnd() - 0.5) * 0.1;
     blade.castShadow = true;
     g.add(blade);
   }
