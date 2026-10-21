@@ -1415,8 +1415,9 @@ kbd {
   display: none !important;
 }
 
-html.is-touch .hud.is-editing .fps-left,
-html.is-touch .hud.is-editing .fps-actions {
+/* Joystick kiri tertutup panel edit → sembunyikan; tombol kanan
+   (zoom/jump/use) tetap tersedia karena tidak bertumpuk. */
+html.is-touch .hud.is-editing .fps-left {
   display: none !important;
 }
 
