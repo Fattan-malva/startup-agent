@@ -242,35 +242,235 @@ kbd {
 }
 
 /* -------------------------------------------------------------------- dock */
+/* Satu baris panjang di bawah layar: ikon saja (kamera · suasana · edit)
+   + satu tombol teks "Buat karakter". Menu mengambang terpisah di kanan
+   dock. Daftar opsi muncul sebagai panel mengambang DI ATAS dock. */
+
+.dock-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
 
 .dock {
   position: relative;
   /* .panel is absolute — the dock must stay in flow */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 8px 16px;
-  padding: 11px 16px;
-  border-radius: 18px;
-  max-width: min(980px, calc(100vw - 36px));
+  gap: 0;
+  padding: 6px;
+  border-radius: 22px;
+  max-width: min(980px, calc(100vw - 24px));
 }
 
 .dock-group {
+  position: relative;
   display: flex;
   align-items: center;
+  gap: 4px;
+  padding: 0 clamp(4px, 1.8vw, 7px);
+}
+
+/* garis pemisah = border kiri grup berikutnya; padding kiri-kanan grup
+   simetris supaya ikon benar-benar di tengah antar garis */
+.dock-group + .dock-group {
+  padding-left: clamp(4px, 1.8vw, 7px);
+  border-left: 1px solid var(--hair);
+}
+
+.dock-group--char {
   gap: 8px;
-  padding-right: 18px;
-  border-right: 1px solid var(--hair);
+  padding: 0 1px 0 clamp(6px, 2.4vw, 10px);
 }
 
-.dock-group--end {
-  padding-right: 0;
-  border-right: 0;
+.dock-group--char .btn {
+  padding: 7px clamp(8px, 2.4vw, 12px);
+  font-size: clamp(10.5px, 2.9vw, 12px);
+  white-space: nowrap;
 }
 
-.dock-group--end:last-child {
-  gap: 6px;
+/* menu mengambang — di luar dock, hanya ikon tanpa panel */
+.dock-more {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.dock-more .icon-btn--ghost {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #241704;
+  background: linear-gradient(180deg, rgba(226, 176, 119, 0.92), rgba(206, 150, 92, 0.94));
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 8px 22px -10px rgba(226, 176, 119, 0.8);
+}
+
+.dock-more .icon-btn--ghost svg {
+  stroke-width: 2.1;
+}
+
+.dock-more .icon-btn--ghost:hover {
+  color: #241704;
+  background: linear-gradient(180deg, rgba(238, 192, 138, 0.98), rgba(216, 161, 101, 0.98));
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dock-more .icon-btn--ghost.is-active {
+  color: #1b1206;
+  background: linear-gradient(180deg, #f6d3a2, var(--warm));
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 0 3px rgba(226, 176, 119, 0.18), 0 8px 22px -10px rgba(226, 176, 119, 0.9);
+}
+
+/* tombol ikon */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.16s, background 0.16s, border-color 0.16s, transform 0.16s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--hair);
+}
+
+.icon-btn:active {
+  transform: translateY(1px);
+}
+
+.icon-btn.is-active {
+  color: var(--warm);
+  background: var(--warm-dim);
+  border-color: rgba(226, 176, 119, 0.42);
+}
+
+.icon-btn svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.9;
+}
+
+/* daftar mengambang di atas dock */
+.dock-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  min-width: 172px;
+  max-width: min(74vw, 250px);
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 15px;
+  background: var(--panel-solid);
+  border: 1px solid var(--hair-strong);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px) saturate(1.15);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1), visibility 0.18s;
+  z-index: 14;
+}
+
+.dock-pop.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%);
+}
+
+.dock-pop--left {
+  left: 0;
+  transform: translateY(8px);
+}
+
+.dock-pop--left.is-open {
+  transform: none;
+}
+
+.dock-pop--right {
+  left: auto;
+  right: 0;
+  transform: translateY(8px);
+}
+
+.dock-pop--right.is-open {
+  transform: none;
+}
+
+.pop-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pop-btn:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--hair);
+}
+
+.pop-btn.is-active {
+  color: #14100a;
+  background: linear-gradient(180deg, #f0c68d, var(--warm));
+  border-color: rgba(0, 0, 0, 0.16);
+  font-weight: 600;
+}
+
+.pop-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  flex: none;
+}
+
+.pop-btn--sq {
+  justify-content: center;
+  padding: 8px 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.pop-views {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.pop-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--hair);
 }
 
 .dock-label {
@@ -475,7 +675,11 @@ kbd {
   transform: translateY(6px);
   pointer-events: none;
   transition: opacity 0.25s, transform 0.25s;
+  /* selalu satu baris — teks kepanjangan dipotong elipsis */
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toast.is-show,
@@ -489,7 +693,9 @@ kbd {
 .modal {
   position: fixed;
   inset: 0;
-  z-index: 8;
+  /* di atas touch-layer (z-index 8) supaya tombol sentuh tidak
+     menindih modal yang sedang terbuka */
+  z-index: 30;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -799,6 +1005,44 @@ kbd {
   font-weight: 600;
 }
 
+/* Nama karakter yang dikendalikan (mode POV) — pill satu baris di atas */
+.control-pill {
+  position: absolute;
+  top: calc(var(--safe-t) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(72vw, 420px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-strong);
+  background: rgba(11, 13, 17, 0.82);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 9;
+}
+
+.control-pill[hidden],
+.control-info[hidden] {
+  display: none;
+}
+
+.control-pill.is-live {
+  color: var(--warm);
+  border-color: rgba(226, 176, 119, 0.42);
+  box-shadow: 0 6px 22px -10px rgba(226, 176, 119, 0.6);
+}
+
 /* ------------------------------------------------------------- roster */
 .roster {
   top: 180px;
@@ -992,10 +1236,6 @@ kbd {
 }
 
 @media (max-width: 820px) {
-  .roster {
-    display: none;
-  }
-
   .species-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1104,12 +1344,12 @@ kbd {
   background: var(--warm);
 }
 
-.hud.is-fps .dock-group--cam,
+.hud.is-fps .dock-group[data-dock-menu="camera"],
 .hud.is-fps .stats {
   opacity: 0.4;
 }
 
-.hud.is-fps .dock-group--cam {
+.hud.is-fps .dock-group[data-dock-menu="camera"] {
   pointer-events: none;
 }
 
@@ -1128,17 +1368,19 @@ kbd {
  * ===================================================================== */
 
 .editbar {
-  left: 18px;
-  bottom: 18px;
-  width: min(300px, calc(100vw - 36px));
-  max-height: calc(100vh - 240px);
+  position: absolute;
+  left: calc(var(--safe-l) + 12px);
+  top: auto;
+  bottom: calc(var(--dock-space) + 8px);
+  transform: none;
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(48dvh, 420px);
   padding: 11px 13px 13px;
   display: none;
   flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
-  scrollbar-width: none;
-  z-index: 7;
+  gap: 9px;
+  overflow: hidden;
+  z-index: 16;
 }
 
 .editbar::-webkit-scrollbar {
@@ -1147,6 +1389,35 @@ kbd {
 
 .editbar.is-open {
   display: flex;
+}
+
+/* Header (judul + tombol tutup) tetap terlihat; hanya isi yang scroll. */
+.editbar-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 9px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.editbar-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Saat edit, layar harus lega: panel detail/roster & kontrol jalan
+   disembunyikan supaya panel edit di kiri bawah tidak bertumpuk. */
+.hud.is-editing .panel.detail-panel,
+.hud.is-editing .roster {
+  display: none !important;
+}
+
+html.is-touch .hud.is-editing .fps-left,
+html.is-touch .hud.is-editing .fps-actions {
+  display: none !important;
 }
 
 .editbar-head {
@@ -2136,4 +2407,1158 @@ input[type="color"]::-moz-color-swatch {
 .roster-head .card-close svg {
   width: 14px;
   height: 14px;
+}
+
+/* ===================================================================== *
+ *  Mobile / iOS
+ *
+ *  1. safe-area + dock pindah ke atas (bawah layar bebas untuk kontrol)
+ *  2. panel & modal jadi "sheet" yang muat di layar sempit
+ *  3. kontrol sentuh: joystick + lari di kiri, zoom/jump/use di kanan
+ * ===================================================================== */
+
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  /* tinggi dock — diukur dari JS (ResizeObserver) */
+  --dock-h: 56px;
+  /* ruang yang dipakai dock di sisi bawah layar */
+  --dock-space: calc(var(--safe-b) + 8px + var(--dock-h));
+}
+
+/* --------------------------------------------------------- dock di atas */
+
+@media (max-width: 860px) {
+  .stack {
+    top: auto;
+    bottom: calc(var(--safe-b) + 8px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    max-width: calc(100vw - 16px);
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dock {
+    width: auto;
+    max-width: calc(100vw - 16px);
+    border-radius: 20px;
+    padding: 5px;
+    gap: 0;
+  }
+
+  .dock-group {
+    padding: 0 6px;
+  }
+
+  .dock-group + .dock-group {
+    padding-left: 6px;
+  }
+
+  .dock-group--char {
+    padding: 0 2px 0 8px;
+  }
+
+  .dock-group--char .btn {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .icon-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .dock-more .icon-btn--ghost {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* toast: satu baris penuh, tepat di atas dock */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--dock-space) + 8px);
+    transform: translateX(-50%) translateY(6px);
+    max-width: min(88vw, 560px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .toast.is-show,
+  .toast.is-open {
+    transform: translateX(-50%);
+  }
+
+  /* di POV joystick (kiri) & tombol aksi (kanan) mengapit toast */
+  html.is-touch .hud.is-fps .toast {
+    max-width: min(54vw, 470px);
+  }
+
+  /* hint bar persistent disembunyikan — di mobile infonya lewat toast
+     dan panel Bantuan. */
+  .hint-bar {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------- panel jadi sheet */
+
+@media (max-width: 860px) {
+  .panel.detail-panel,
+  .roster {
+    top: calc(var(--safe-t) + 10px);
+    left: calc(var(--safe-l) + 8px);
+    right: calc(var(--safe-r) + 8px);
+    width: auto;
+    max-height: 46vh;
+    max-height: 46dvh;
+    border-radius: 16px;
+  }
+
+  /* Roster: sheet yang muncul dari atas. Selector dibuat spesifik karena
+     aturan desktop (.hud.is-fps .roster) meneerupi opacity-nya. */
+  .hud .roster,
+  .hud.is-fps .roster,
+  .hud.is-fps .roster:hover {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+  }
+
+  .hud .roster.is-open,
+  .hud.is-fps .roster.is-open,
+  .hud.is-fps .roster.is-open:hover {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .detail-preview-stage {
+    height: 170px;
+  }
+
+  /* mode edit: panel kecil menempel kiri bawah, tidak menutupi layar */
+  .editbar {
+    left: calc(var(--safe-l) + 8px);
+    right: auto;
+    top: auto;
+    bottom: calc(var(--dock-space) + 6px);
+    transform: none;
+    width: min(300px, calc(100vw - 16px));
+    max-width: none;
+    max-height: min(46dvh, 400px);
+    padding: 10px 12px 12px;
+  }
+}
+
+/* ------------------------------------------------------------ modal mobile */
+
+@media (max-width: 860px) {
+  .modal {
+    padding: calc(var(--safe-t) + 8px) 10px calc(var(--safe-b) + 8px);
+    place-items: stretch;
+  }
+
+  .modal-card {
+    width: 100%;
+    max-height: 100%;
+    padding: 20px 16px 16px;
+    border-radius: 18px;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-title {
+    font-size: 22px;
+  }
+
+  .modal-lead {
+    font-size: 12.5px;
+    margin-bottom: 16px;
+  }
+
+  .modal-cols {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .species-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .species-emoji {
+    font-size: 19px;
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+    padding: 9px 12px;
+  }
+
+  /* tombol lebih besar & ramah jari di layar kecil */
+  .seg-item,
+  .btn,
+  .chip {
+    padding: 7px 12px;
+    font-size: 11.5px;
+  }
+
+  .staff-modal-foot {
+    top: 8px;
+  }
+
+  .staff-close-btn {
+    padding: 7px 16px;
+  }
+
+  /* tiga kolom HR jadi satu kolom bertumpuk (flex, bukan grid) supaya
+     tiap bagian tidak saling tumpang tindih di layar sempit */
+  .staff-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  .staff-col {
+    flex: none;
+  }
+
+  .staff-list {
+    max-height: 220px;
+  }
+
+  .staff-form-wrapper {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* layar pendek (HP landscape) — rapatkan semuanya */
+@media (max-height: 520px) {
+  .joystick {
+    width: 104px;
+    height: 104px;
+  }
+
+  .joystick-knob {
+    width: 42px;
+    height: 42px;
+  }
+
+  .mbtn--use {
+    width: 68px;
+    height: 68px;
+    min-width: 68px;
+    min-height: 68px;
+  }
+
+  .panel.detail-panel,
+  .roster {
+    max-height: 40vh;
+    max-height: 40dvh;
+  }
+}
+
+/* ===================================================================== *
+ *  Kontrol sentuh (joystick + tombol)
+ * ===================================================================== */
+
+.touch-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  display: none;
+}
+
+html.is-touch .touch-layer {
+  display: block;
+}
+
+.mbtn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 50px;
+  min-height: 50px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--hair-strong);
+  background: var(--panel-solid);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.12s ease, background 0.16s, border-color 0.16s, color 0.16s;
+}
+
+.mbtn svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2;
+}
+
+.mbtn-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mbtn:active,
+.mbtn.is-press {
+  transform: scale(0.93);
+}
+
+/* ------------------------------------------------------------- kiri bawah */
+
+.fps-left {
+  position: absolute;
+  left: calc(var(--safe-l) + 14px);
+  bottom: calc(var(--dock-space) + 12px);
+  display: none;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+html.is-touch .hud.is-fps .fps-left {
+  display: flex;
+}
+
+.mbtn--run {
+  flex-direction: column;
+  gap: 3px;
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+  min-height: 54px;
+  border-radius: 50%;
+  padding: 4px;
+}
+
+.mbtn--run .mbtn-label {
+  font-size: 9px;
+}
+
+.mbtn--run.is-active {
+  color: #241704;
+  background: linear-gradient(180deg, #f3cd97, #e2b077);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 8px 22px -8px rgba(226, 176, 119, 0.75);
+}
+
+/* joystick */
+.joystick {
+  pointer-events: auto;
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.06), rgba(11, 13, 17, 0.52));
+  border: 1px solid var(--hair);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.joystick.is-active {
+  border-color: rgba(226, 176, 119, 0.55);
+  box-shadow: 0 0 0 4px rgba(226, 176, 119, 0.1);
+}
+
+.joystick-ring {
+  position: absolute;
+  inset: 15px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.joystick-cross {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background:
+    linear-gradient(to right, transparent calc(50% - 0.5px), rgba(255, 255, 255, 0.14) calc(50% - 0.5px), rgba(255, 255, 255, 0.14) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(50% - 0.5px), rgba(255, 255, 255, 0.14) calc(50% - 0.5px), rgba(255, 255, 255, 0.14) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+}
+
+.joystick-knob {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 38% 28%, #f7d5aa, #cf9558);
+  box-shadow:
+    0 8px 20px -8px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.06s linear;
+}
+
+/* ------------------------------------------------------------ kanan bawah */
+
+.fps-actions {
+  position: absolute;
+  right: calc(var(--safe-r) + 14px);
+  bottom: calc(var(--dock-space) + 12px);
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+html.is-touch .hud.is-fps .fps-actions {
+  display: flex;
+}
+
+.mbtn--jump {
+  flex-direction: column;
+  gap: 3px;
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  min-height: 58px;
+  padding: 4px;
+  border-radius: 50%;
+}
+
+.mbtn--jump .mbtn-label {
+  font-size: 9px;
+}
+
+.mbtn--zoom {
+  flex-direction: column;
+  gap: 3px;
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  min-height: 58px;
+  padding: 4px;
+  border-radius: 50%;
+}
+
+.mbtn--zoom .mbtn-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.mbtn--use {
+  flex-direction: column;
+  gap: 3px;
+  width: 86px;
+  height: 86px;
+  min-width: 86px;
+  min-height: 86px;
+  border-radius: 50%;
+  color: #241704;
+  background: linear-gradient(180deg, rgba(243, 205, 151, 0.96), rgba(198, 138, 70, 0.96));
+  border-color: rgba(255, 255, 255, 0.26);
+  box-shadow: 0 12px 30px -12px rgba(226, 176, 119, 0.8);
+}
+
+.mbtn--use .mbtn-label {
+  font-size: 9.5px;
+}
+
+.mbtn--use svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* tombol keluar dari tubuh — menempel di tepi kanan tengah layar supaya
+   tidak bertabrakan dengan dock (atas) atau tombol aksi (bawah) */
+.mbtn--exit {
+  position: absolute;
+  top: calc(var(--safe-t) + 10px);
+  right: calc(var(--safe-r) + 10px);
+  display: none;
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+html.is-touch .hud.is-fps .mbtn--exit {
+  display: inline-flex;
+}
+
+/* tombol zoom kamera (mode kamera atas) */
+.cam-actions {
+  position: absolute;
+  right: calc(var(--safe-r) + 14px);
+  bottom: calc(var(--dock-space) + 12px);
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html.is-touch .hud:not(.is-fps) .cam-actions {
+  display: flex;
+}
+
+.cam-actions .mbtn {
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+/* ===================================================================== *
+ *  HP LANDSCAPE — prioritas utama
+ *  Layar miring: vertikal sempit, horizontal lega. Kontrol & tipografi
+ *  mengecil, TAPI tata letak tetap seperti desktop — panel detail di
+ *  kiri, roster di kanan, modal multi-kolom (tidak ditumpuk).
+ * ===================================================================== */
+
+@media (orientation: landscape) and (max-height: 600px) {
+  :root {
+    --dock-h: 44px;
+  }
+
+  /* ---------------------------------------------------------- dock */
+  .dock {
+    padding: 4px;
+    border-radius: 16px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .dock-group {
+    padding: 0 6px;
+  }
+
+  .dock-group + .dock-group {
+    padding-left: 6px;
+  }
+
+  .dock-group--char {
+    padding: 0 2px 0 8px;
+  }
+
+  .dock-group--char .btn {
+    padding: 5px 9px;
+    font-size: 10.5px;
+  }
+
+  .dock-more .icon-btn--ghost {
+    width: 36px;
+    height: 36px;
+  }
+
+  .dock-pop {
+    bottom: calc(100% + 8px);
+    min-width: 156px;
+    padding: 5px;
+  }
+
+  .pop-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .pop-btn--sq {
+    padding: 6px 0;
+  }
+
+  /* ------------------------------------------------- kontrol sentuh */
+  .fps-left,
+  .fps-actions,
+  .cam-actions {
+    bottom: calc(var(--dock-space) + 8px);
+    gap: 6px;
+  }
+
+  .joystick {
+    width: 100px;
+    height: 100px;
+  }
+
+  .joystick-knob {
+    width: 42px;
+    height: 42px;
+  }
+
+  .joystick-ring {
+    inset: 12px;
+  }
+
+  .mbtn--run {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .mbtn--zoom,
+  .mbtn--jump {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  .mbtn--zoom svg,
+  .mbtn--jump svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .mbtn--use {
+    width: 70px;
+    height: 70px;
+    min-width: 70px;
+    min-height: 70px;
+  }
+
+  .mbtn--use svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mbtn-label {
+    font-size: 8.5px;
+  }
+
+  .mbtn--exit {
+    top: calc(var(--safe-t) + 8px);
+    right: calc(var(--safe-r) + 8px);
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* ------------------------------------- panel samping (kiri / kanan) */
+  .panel.detail-panel {
+    top: calc(var(--safe-t) + 8px);
+    left: calc(var(--safe-l) + 8px);
+    right: auto;
+    width: min(262px, 33vw);
+    max-height: calc(100dvh - var(--dock-space) - 18px);
+    padding: 12px 13px 11px;
+    border-radius: 14px;
+  }
+
+  .roster {
+    top: calc(var(--safe-t) + 8px);
+    left: auto;
+    right: calc(var(--safe-r) + 8px);
+    width: min(220px, 28vw);
+    max-height: calc(100dvh - var(--dock-space) - 18px);
+    border-radius: 14px;
+  }
+
+  .hud .roster.is-open,
+  .hud.is-fps .roster.is-open,
+  .hud.is-fps .roster:hover {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .detail-panel .card-title {
+    font-size: 15px;
+  }
+
+  .detail-panel .card-hint,
+  .detail-panel p {
+    font-size: 11px;
+  }
+
+  /* ------------------------------------------------------------ modal */
+  .modal {
+    padding: calc(var(--safe-t) + 6px) 12px calc(var(--safe-b) + 6px);
+    place-items: center;
+  }
+
+  .modal-card {
+    width: min(920px, 100%);
+    max-height: calc(100dvh - 12px);
+    padding: 14px 16px 12px;
+    border-radius: 16px;
+  }
+
+  .modal-title {
+    margin-bottom: 6px;
+    font-size: 18px;
+  }
+
+  .modal-lead {
+    margin-bottom: 10px;
+    max-width: none;
+    font-size: 11.5px;
+  }
+
+  .modal-cols {
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .modal-cols h3 {
+    margin-bottom: 4px;
+    font-size: 9px;
+  }
+
+  .modal-cols ul {
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .modal-foot {
+    margin-top: 12px;
+    padding-top: 8px;
+    font-size: 11px;
+  }
+
+  .modal-actions {
+    margin-top: 12px;
+    gap: 6px;
+  }
+
+  .card-kicker {
+    font-size: 9px;
+  }
+
+  .species-grid {
+    gap: 5px;
+  }
+
+  .species-card {
+    padding: 5px 4px;
+  }
+
+  .species-emoji {
+    font-size: 17px;
+  }
+
+  .species-name {
+    font-size: 9px;
+  }
+
+  .field input,
+  .field select {
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .card-close {
+    top: 8px;
+    right: 8px;
+  }
+
+  /* Panel edit: kecil di kiri bawah, isi bisa di-scroll */
+  .editbar {
+    left: calc(var(--safe-l) + 8px);
+    top: auto;
+    bottom: calc(var(--dock-space) + 6px);
+    transform: none;
+    width: min(272px, 38vw);
+    /* benar-benar kecil: sisa layar tetap lega, isi panel di-scroll */
+    max-height: min(58dvh, 210px);
+    padding: 8px 10px 10px;
+    gap: 6px;
+  }
+
+  .editbar-body {
+    gap: 6px;
+  }
+
+  .editbar .edit-target {
+    padding: 5px 8px;
+    min-height: 24px;
+    font-size: 10px;
+  }
+
+  .editbar .edit-save-state {
+    margin-top: 2px;
+    font-size: 9px;
+  }
+
+  .editbar .edit-row {
+    gap: 5px;
+  }
+
+  .editbar .edit-row > .dock-label {
+    min-width: 42px;
+    font-size: 8.5px;
+  }
+
+  .editbar .chip,
+  .editbar .btn {
+    padding: 4px 7px;
+    font-size: 9.5px;
+  }
+
+  .editbar .edit-mats {
+    gap: 4px;
+  }
+
+  .editbar .edit-actions {
+    gap: 4px;
+    padding-top: 6px;
+  }
+
+  .editbar .edit-actions .btn {
+    padding: 4px 6px;
+    font-size: 9px;
+  }
+
+  /* ------------------------------------- modal HR: tetap 3 kolom */
+  .modal-card.staff-modal-card {
+    width: min(1000px, 100%);
+    max-height: calc(100dvh - 12px);
+    padding: 10px 12px 8px;
+  }
+
+  .staff-modal-card .modal-title {
+    margin: 0 0 2px;
+    font-size: 15px;
+  }
+
+  .staff-modal-card .modal-lead {
+    margin: 0 0 6px;
+    font-size: 10px;
+  }
+
+  .staff-modal-body {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr) 184px;
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+    margin-top: 6px;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .staff-col {
+    min-height: 0;
+    padding: 8px;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .staff-sidebar,
+  .staff-content {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* daftar staf (kiri) & formulir (tengah) bisa di-scroll sendiri */
+  .staff-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    margin-top: 6px;
+  }
+
+  .staff-form-wrapper {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .staff-row,
+  .staff-row--3 {
+    gap: 5px 7px;
+  }
+
+  .staff-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-row--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .staff-preview {
+    display: flex;
+    flex-direction: column;
+    grid-column: auto;
+    grid-template-columns: none;
+    grid-auto-rows: auto;
+    gap: 5px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .staff-preview-stage {
+    grid-row: auto;
+    height: 112px;
+    min-height: 112px;
+    flex: none;
+  }
+
+  .staff-preview-meta {
+    margin-top: 0;
+  }
+
+  .staff-map {
+    display: none;
+  }
+
+  /* tipografi & kontrol ikut mengecil seperti versi mobile */
+  .staff-search input {
+    padding: 5px 8px 5px 25px;
+    font-size: 10.5px;
+    border-radius: 7px;
+  }
+
+  .staff-search svg {
+    left: 8px;
+    width: 12px;
+    height: 12px;
+  }
+
+  .staff-stats {
+    margin: 5px 0;
+    gap: 2px 8px;
+    font-size: 8.5px;
+  }
+
+  .staff-stats b {
+    font-size: 9.5px;
+  }
+
+  .staff-new-btn {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .staff-item {
+    grid-template-columns: 19px minmax(0, 1fr) auto;
+    gap: 0 6px;
+    padding: 5px 6px;
+    border-radius: 7px;
+    margin-bottom: 0;
+  }
+
+  .staff-avatar {
+    width: 19px;
+    height: 19px;
+    font-size: 8px;
+  }
+
+  .staff-name {
+    font-size: 10.5px;
+  }
+
+  .staff-meta,
+  .staff-flag {
+    font-size: 8.5px;
+  }
+
+  .staff-tabs {
+    margin-bottom: 7px;
+  }
+
+  .staff-tabs .seg-item {
+    padding: 3px 6px;
+    font-size: 8.5px;
+  }
+
+  .staff-form {
+    gap: 6px;
+  }
+
+  .ff {
+    gap: 3px;
+  }
+
+  .ff > span:first-child {
+    font-size: 8px;
+    letter-spacing: 0.1em;
+  }
+
+  .ff input[type="text"],
+  .ff input[type="number"],
+  .ff select {
+    padding: 4px 7px;
+    font-size: 10.5px;
+    border-radius: 7px;
+  }
+
+  .staff-rooms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px 5px;
+  }
+
+  .staff-room-chip {
+    gap: 4px;
+    padding: 3px 5px;
+    font-size: 8.5px;
+    border-radius: 6px;
+  }
+
+  .staff-rooms-hint {
+    font-size: 8px;
+  }
+
+  .staff-presets {
+    gap: 4px;
+  }
+
+  .staff-presets .preset-label {
+    font-size: 8px;
+  }
+
+  .staff-actions {
+    margin-top: 5px;
+    gap: 5px;
+  }
+
+  .staff-actions .btn {
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .staff-state {
+    gap: 5px;
+    font-size: 8.5px;
+  }
+
+  .staff-preview-name {
+    font-size: 12px;
+  }
+
+  .staff-preview-sub {
+    font-size: 8px;
+  }
+
+  .staff-preview-hint {
+    display: none;
+  }
+
+  .staff-modal-foot {
+    top: 5px;
+  }
+
+  .staff-close-btn {
+    padding: 5px 12px;
+    font-size: 9.5px;
+  }
+}
+
+/* --------------------------------------------------------------------- *
+ *  Layar potret sempit — dock wajib selalu muat di dalam layar
+ * --------------------------------------------------------------------- */
+
+@media (max-width: 430px) and (orientation: portrait) {
+  .dock-row {
+    gap: 6px;
+  }
+
+  .dock {
+    padding: 4px;
+  }
+
+  .dock-group {
+    padding: 0 5px;
+  }
+
+  .dock-group + .dock-group {
+    padding-left: 5px;
+  }
+
+  .dock-group--char {
+    padding: 0 2px 0 7px;
+  }
+
+  .dock-group--char .btn {
+    padding: 6px 8px;
+    font-size: 10.5px;
+  }
+
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .dock-more .icon-btn--ghost {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 365px) and (orientation: portrait) {
+  .dock-group {
+    padding: 0 4px;
+  }
+
+  .dock-group + .dock-group {
+    padding-left: 4px;
+  }
+
+  .dock-group--char {
+    padding: 0 1px 0 6px;
+  }
+
+  .dock-group--char .btn {
+    padding: 5px 7px;
+    font-size: 10px;
+  }
+
+  .icon-btn {
+    width: 31px;
+    height: 31px;
+  }
+
+  .icon-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .dock-more .icon-btn--ghost {
+    width: 31px;
+    height: 31px;
+  }
 }

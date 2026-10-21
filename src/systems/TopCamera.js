@@ -32,6 +32,10 @@ const FPS_FOV = 64;
 const FPS_SENS = 0.0028; // radians per pixel of pointer movement
 const FPS_PITCH_MIN = -1.05;
 const FPS_PITCH_MAX = 0.8;
+/* Tingkat zoom tampilan orang pertama (1 = normal, makin besar = makin dekat). */
+const FPS_ZOOM_STEPS = [1, 1.6, 2.3, 3.1];
+const FPS_ZOOM_MIN = 0.8;
+const FPS_ZOOM_MAX = 4;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -61,6 +65,7 @@ export class TopCamera {
     this.suppressDragPan = false; // dipakai Mode Edit saat men-drag perabot
     this.fpsYaw = 0;
     this.fpsPitch = -0.07;
+    this.fpsZoom = 1; // 1 = normal, >1 = tampil lebih dekat
     this.fpsCamera = new THREE.PerspectiveCamera(FPS_FOV, 16 / 9, 0.05, 160);
     this.fpsCamera.rotation.order = "YXZ";
     this._t = 0;
@@ -102,6 +107,8 @@ export class TopCamera {
     this.body = critter;
     this.fpsYaw = critter.yaw;
     this.fpsPitch = -0.07;
+    this.fpsZoom = 1;
+    this._applyFpsFov();
     critter.root.visible = false;
     this.viewmodel?.show(critter.spec);
     this._syncFpsCamera();
@@ -111,7 +118,85 @@ export class TopCamera {
     if (this.body) this.body.root.visible = true;
     this.mode = "iso";
     this.body = null;
+    this.fpsZoom = 1;
+    this._applyFpsFov();
     this.viewmodel?.hide();
+  }
+
+  /* --------------------------------------------------------------- zoom */
+
+  /** Terapkan zoom tampilan orang pertama (FOV makin sempit). */
+  _applyFpsFov() {
+    const cam = this.fpsCamera;
+    cam.fov = FPS_FOV / this.fpsZoom;
+    cam.updateProjectionMatrix();
+  }
+
+  /** Set level zoom POV (1 = normal). */
+  setFpsZoom(z) {
+    this.fpsZoom = THREE.MathUtils.clamp(z, FPS_ZOOM_MIN, FPS_ZOOM_MAX);
+    this._applyFpsFov();
+    return this.fpsZoom;
+  }
+
+  /** Geser level zoom sedikit (dipakai cubit pinch di layar sentuh). */
+  nudgeFpsZoom(factor) {
+    return this.setFpsZoom(this.fpsZoom * factor);
+  }
+
+  /** Putar level zoom ke langkah berikutnya (tombol zoom di layar). */
+  cycleFpsZoom() {
+    const z = this.fpsZoom;
+    let next = FPS_ZOOM_STEPS[FPS_ZOOM_STEPS.length - 1];
+    for (const s of FPS_ZOOM_STEPS) {
+      if (s > z + 0.01) {
+        next = s;
+        break;
+      }
+    }
+    if (next <= z + 0.01) next = 1; // sudah di level terakhir → kembali normal
+    this.setFpsZoom(next);
+    return this.fpsZoom;
+  }
+
+  /** Label ringkas level zoom untuk tombol HUD. */
+  get fpsZoomLabel() {
+    return `${this.fpsZoom.toFixed(1)}×`;
+  }
+
+  /* -------------------------------------------------------------- pan */
+
+  /**
+   * Geser kamera isometrik memakai delta piksel (untuk layar sentuh).
+   * Arahnya sama seperti drag tetikus: lantai ikut jari.
+   */
+  panByPixels(dx, dy) {
+    if (this.mode === "fps") return;
+    if (this.suppressDragPan) return;
+    const perPixel = this.height / Math.max(this.canvas.clientHeight || 1, 1);
+    const R = this._R.set(Math.cos(this.yaw), -Math.sin(this.yaw));
+    const F = this._F.set(-Math.sin(this.yaw), -Math.cos(this.yaw));
+    const mx = (R.x * dx - F.x * dy) * perPixel;
+    const mz = (R.y * dx - F.y * dy) * perPixel;
+    if (this.followTarget) {
+      this._panOffset.x = THREE.MathUtils.clamp(this._panOffset.x - mx, -12, 12);
+      this._panOffset.y = THREE.MathUtils.clamp(this._panOffset.y - mz, -12, 12);
+    } else {
+      this._target.x -= mx;
+      this._target.z -= mz;
+    }
+  }
+
+  /** Putar pandangan orang pertama memakai delta piksel (sentuhan layar). */
+  lookByPixels(dx, dy) {
+    if (this.mode !== "fps") return;
+    if (this.suppressDragPan) return;
+    this.fpsYaw -= dx * FPS_SENS;
+    this.fpsPitch = THREE.MathUtils.clamp(
+      this.fpsPitch - dy * FPS_SENS,
+      FPS_PITCH_MIN,
+      FPS_PITCH_MAX,
+    );
   }
 
   _syncFpsCamera() {

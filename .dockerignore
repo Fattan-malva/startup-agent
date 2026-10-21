@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+out
+.vite
+.git
+.github
+.playwright-mcp
+*.log
+.DS_Store
+.restart.sh
+restart.sh

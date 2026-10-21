@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isTouchDevice } from "./Device.js";
 
 /* ===================================================================== *
  *  Player — "you".
@@ -66,7 +67,12 @@ export class Player {
     this.fx?.setWalkTarget(null);
     this.hud?.setControlling({ name: critter.name, species: critter.speciesId, emoji: critter.spec.emoji });
     this.hud?.setFirstPerson(true);
-    this.hud?.toast("Klik layar untuk mouse-look · WASD jalan · Esc keluar", 4200);
+    this.hud?.toast(
+      isTouchDevice
+        ? "Joystick kiri jalan · tombol Lari buat ngebut · kanan: zoom & gunakan 👋"
+        : "Klik layar untuk mouse-look · WASD jalan · Esc keluar",
+      4200,
+    );
   }
 
   release() {
@@ -132,12 +138,17 @@ export class Player {
       const cos = Math.cos(yaw);
       if (ax.x !== 0 || ax.y !== 0) {
         this._standFromSeat();
+        this._clearWalk(); // gerak manual membatalkan jalan otomatis
         c.moveDir(sin * ax.y - cos * ax.x, cos * ax.y + sin * ax.x, this.input.running);
         c.status = this.input.running ? "Buru-buru! 🏃" : "Berkeliling";
+        c.targetYaw = yaw; // the body always faces where you look
+      } else if (this.walkTarget && this._walkPath) {
+        // jalan otomatis (mis. menuju kursi setelah tombol "Gunakan")
+        this._followWalkTarget(c);
       } else {
         c.moveDir(0, 0);
+        c.targetYaw = yaw;
       }
-      c.targetYaw = yaw; // the body always faces where you look
       return;
     }
 
@@ -156,49 +167,57 @@ export class Player {
       c.moveDir(dx, dz, this.input.running);
       c.status = this.input.running ? "Buru-buru! 🏃" : "Berkeliling";
     } else if (this.walkTarget && this._walkPath) {
-      if (c.pathDone && c.pathFailed) {
-        this.walkTarget = null;
-        this._walkPath = null;
-        this.fx?.setWalkTarget(null);
+      this._followWalkTarget(c);
+    } else {
+      c.moveDir(0, 0);
+    }
+  }
+
+  /** Batalkan jalan otomatis (dipakai saat pemain bergerak manual). */
+  _clearWalk() {
+    this.walkTarget = null;
+    this._walkPath = null;
+    this.fx?.setWalkTarget(null);
+  }
+
+  /** Ikuti jalur A* yang sudah dihitung; duduk kalau tujuannya kursi. */
+  _followWalkTarget(c) {
+    if (c.pathDone && c.pathFailed) {
+      this._clearWalk();
+      c.moveDir(0, 0);
+      c.status = "Jalur terhalang";
+      return;
+    }
+    const path = this._walkPath;
+    const last = path[path.length - 1];
+    const arrived = Math.hypot(last.x - c.position.x, last.z - c.position.z) < 0.3
+      || (c.pathDone && !c.path);
+    if (arrived) {
+      const seat = this._sitSeat;
+      this._clearWalk();
+      if (seat) {
+        // sampai di titik pendekatan kursi → melangkah masuk & duduk
+        this._sitSeat = null;
+        const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
+        c.seatInto(spot.x, spot.z, seat.yaw ?? 0, seat);
+        c.status = "Duduk santai 🪑";
+        return;
+      }
+      c.moveDir(0, 0);
+      c.status = "Sampai tujuan";
+      return;
+    }
+    if (c.pathDone && !c.path) {
+      // jalur habis tapi belum di titik akhir → hitung ulang sekali
+      this._walkPath = this.building.route(c.position, this.walkTarget, c);
+      if (!this._walkPath.length) {
+        this._clearWalk();
         c.moveDir(0, 0);
         c.status = "Jalur terhalang";
         return;
       }
-      const path = this._walkPath;
-      const last = path[path.length - 1];
-      const arrived = Math.hypot(last.x - c.position.x, last.z - c.position.z) < 0.3
-        || (c.pathDone && !c.path);
-      if (arrived) {
-        const seat = this._sitSeat;
-        this.walkTarget = null;
-        this._walkPath = null;
-        this.fx?.setWalkTarget(null);
-        if (seat) {
-          // sampai di titik pendekatan kursi → melangkah masuk & duduk
-          this._sitSeat = null;
-          const spot = { x: seat.sit?.x ?? seat.x, z: seat.sit?.z ?? seat.z };
-          c.seatInto(spot.x, spot.z, seat.yaw ?? 0, seat);
-          c.status = "Duduk santai 🪑";
-          return;
-        }
-        c.moveDir(0, 0);
-        c.status = "Sampai tujuan";
-      } else if (c.pathDone && !c.path) {
-        // jalur habis tapi belum di titik akhir → hitung ulang sekali
-        this._walkPath = this.building.route(c.position, this.walkTarget, c);
-        if (!this._walkPath.length) {
-          this.walkTarget = null;
-          this._walkPath = null;
-          this.fx?.setWalkTarget(null);
-          c.moveDir(0, 0);
-          c.status = "Jalur terhalang";
-          return;
-        }
-        c.followPath(this._walkPath, false);
-        c.status = "Jalan ke tujuan";
-      }
-    } else {
-      c.moveDir(0, 0);
+      c.followPath(this._walkPath, false);
+      c.status = "Jalan ke tujuan";
     }
   }
 
@@ -240,33 +259,32 @@ export class Player {
     if (dist <= 1.0 && clear) {
       c.seatInto(spot.x, spot.z, seat.yaw ?? 0, seat);
       c.status = "Duduk santai 🪑";
-      this.walkTarget = null;
-      this._walkPath = null;
-      this.fx?.setWalkTarget(null);
+      this._clearWalk();
       this._sitSeat = null;
       return true;
     }
 
     const approach = this.building.approachTo(seat);
-    if (this.rig.firstPerson) {
-      this.building.releaseSeat(seat, c);
-      this._sitSeat = null;
-      this.hud?.toast("Terlalu jauh — dekatkan diri ke kursi dulu", 2000);
-      return false;
-    }
     if (!approach) {
       this.building.releaseSeat(seat, c);
       this._sitSeat = null;
       this.hud?.toast("Tidak ada jalan menuju kursi itu", 2200);
       return false;
     }
+    // sudah berdiri di titik pendekatan (mis. di mode POV) → langsung duduk
+    if (Math.hypot(approach.x - c.position.x, approach.z - c.position.z) < 0.45) {
+      c.seatInto(spot.x, spot.z, seat.yaw ?? 0, seat);
+      c.status = "Duduk santai 🪑";
+      this._clearWalk();
+      this._sitSeat = null;
+      return true;
+    }
     this.walkTarget = { x: approach.x, z: approach.z };
     this._walkPath = this.building.route(c.position, approach, c);
     if (!this._walkPath.length) {
       this.building.releaseSeat(seat, c);
       this._sitSeat = null;
-      this.walkTarget = null;
-      this._walkPath = null;
+      this._clearWalk();
       this.hud?.toast("Tidak ada jalan menuju kursi itu", 2200);
       return false;
     }
@@ -276,6 +294,25 @@ export class Player {
     this.fx?.setWalkTarget(approach);
     this.hud?.toast("Menuju kursi…", 1600);
     return true;
+  }
+
+  /** Kursi terdekat dari posisi tubuh (untuk tombol "Gunakan" di POV). */
+  _nearestSeat(maxDist = 2.4) {
+    const c = this.controlled;
+    if (!c) return null;
+    let best = null;
+    let bestD = maxDist * maxDist;
+    for (const seat of this.building.seats) {
+      if (seat.taken && seat.taken !== c) continue;
+      const x = seat.sit?.x ?? seat.x;
+      const z = seat.sit?.z ?? seat.z;
+      const d2 = (x - c.position.x) ** 2 + (z - c.position.z) ** 2;
+      if (d2 < bestD) {
+        bestD = d2;
+        best = seat;
+      }
+    }
+    return best;
   }
 
   /** E — greet the nearest colleague, or use the nearest interactive prop. */
@@ -301,12 +338,22 @@ export class Player {
     const obj = this._nearestInteractive(c.position.x, c.position.z);
     if (obj) {
       const meta = obj.userData.interactive;
+      // kursi di dekat sini → langsung duduk (tombol "Gunakan" di POV)
+      if (meta.seat && this.rig.firstPerson) {
+        if (this.sitOn(meta.seat)) return;
+      }
       const msg = typeof meta.onClick === "function" ? meta.onClick(obj) : meta.hint || "";
       c.face(obj.getWorldPosition(this._tmp).x, obj.getWorldPosition(this._tmp).z);
       c.gesture("wave", 0.8);
       this.hud?.toast(msg || meta.label, 2400);
       this.onInteract?.({ kind: "prop", target: obj, message: msg });
       return;
+    }
+
+    // tidak ada apa-apa di dekat sini → di POV coba duduk di kursi terdekat
+    if (this.rig.firstPerson) {
+      const seat = this._nearestSeat(2.6);
+      if (seat && this.sitOn(seat)) return;
     }
 
     this.hud?.toast("Nggak ada apa-apa di dekat sini", 1600);

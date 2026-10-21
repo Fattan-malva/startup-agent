@@ -1,0 +1,19 @@
+services:
+  startup-agent:
+    build: .
+    container_name: startup-agent          # WAJIB: nginx proxy pakai nama ini
+    restart: unless-stopped
+    expose:
+      - "5173"                             # bukan ports — semua traffic lewat nginx
+    env_file:
+      - .env
+    volumes:
+      # Data tata ruang + pegawai persist di host. Endpoint /__layout dan
+      # /__staff menulis ke folder ini, jadi hasil simpan user tidak hilang
+      # saat container di-recreate.
+      - ./src/data:/app/src/data
+
+networks:
+  default:
+    name: app-network
+    external: true                         # KUNCI agar container nempel ke app-network

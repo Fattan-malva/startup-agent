@@ -1,0 +1,42 @@
+{
+  "name": "Atelier Corp — Startup Miniatur",
+  "short_name": "Atelier",
+  "description": "Kantor startup 3D miniatur dengan pegawai yang bekerja mandiri. Buat karaktermu atau ambil alih pegawai mana pun.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b0d10",
+  "theme_color": "#12161c",
+  "lang": "id",
+  "dir": "ltr",
+  "categories": ["games", "entertainment", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

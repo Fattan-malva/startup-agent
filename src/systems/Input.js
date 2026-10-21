@@ -23,6 +23,11 @@ export class Input {
     this.wheel = 0;
     this.keyHandlers = new Map();
 
+    /* ---- kontrol virtual (joystick layar sentuh) ---- */
+    this._virtual = new THREE.Vector2(0, 0);
+    this._virtualMag = 0;
+    this._runToggle = false;
+
     this._bind();
   }
 
@@ -40,9 +45,15 @@ export class Input {
       if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(code)) e.preventDefault();
     };
     this._onKeyUp = (e) => this.keys.delete(e.code);
-    this._onBlur = () => this.keys.clear();
+    this._onBlur = () => {
+      this.keys.clear();
+      this._virtual.set(0, 0);
+      this._virtualMag = 0;
+    };
 
     this._onPointerMove = (e) => {
+      // events sentuh ditangani TouchControls (multi-jari: pan + pinch zoom)
+      if (this._isTouch(e)) return;
       // pointer locked → raw movement is first-person look input
       if (this.locked) {
         this.delta.x += e.movementX || 0;
@@ -66,6 +77,7 @@ export class Input {
     };
 
     this._onPointerDown = (e) => {
+      if (this._isTouch(e)) return;
       this._updateNdc(e);
       this.down = true;
       this.dragging = false;
@@ -80,6 +92,7 @@ export class Input {
     };
 
     this._onPointerUp = (e) => {
+      if (this._isTouch(e)) return;
       const wasDown = this.down;
       const wasDrag = this.dragging;
       this.down = false;
@@ -97,11 +110,13 @@ export class Input {
     };
 
     this._onDblClick = (e) => {
+      if (this._isTouch(e)) return;
       this._updateNdc(e);
       this._dbl = { x: e.clientX, y: e.clientY, ndc: this.ndc.clone() };
     };
 
     this._onWheel = (e) => {
+      if (this._isTouch(e)) return;
       this.wheel += e.deltaY;
     };
 
@@ -146,6 +161,52 @@ export class Input {
     this.ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
+  /* ------------------------------------------------------------- helpers */
+
+  /** Event pointer yang berasal dari sentuhan layar. */
+  _isTouch(e) {
+    return e?.pointerType === "touch" || e?.pointerType === "hand";
+  }
+
+  /** Dorong klik sintetis (dipakai TouchControls saat user tap layar). */
+  pushClick(click) {
+    if (!click) return;
+    this._click = click;
+  }
+
+  /**
+   * Sumbu gerak virtual dari joystick layar sentuh.
+   * x = kanan, y = maju (arah atas), masing-masing -1..1.
+   */
+  setVirtualAxis(x, y) {
+    const mag = Math.hypot(x, y);
+    if (mag > 1) {
+      this._virtual.set(x / mag, y / mag);
+      this._virtualMag = 1;
+    } else {
+      this._virtual.set(x, y);
+      this._virtualMag = mag;
+    }
+  }
+
+  /** Besaran dorongan joystick terakhir (0..1). */
+  get virtualMagnitude() {
+    return this._virtualMag;
+  }
+
+  /**
+   * Tombol "Lari" di layar sentuh.
+   * Aktif  → joystick otomatis lari.
+   * Mati  → joystick jalan biasa (kecepatan normal).
+   */
+  setRunToggle(on) {
+    this._runToggle = !!on;
+  }
+
+  get runToggle() {
+    return this._runToggle;
+  }
+
   onKey(code, fn) {
     this.keyHandlers.set(code, fn);
   }
@@ -154,19 +215,27 @@ export class Input {
     return this.keys.has(code);
   }
 
-  /** Horizontal movement axes from WASD / arrows. */
+  /**
+   * Sumbu gerak: keyboard (WASD / panah) digabung dengan joystick virtual.
+   * Kalau keduanya aktif, Resultenya dijumlah lalu dinormalisasi.
+   */
   moveAxis(out = new THREE.Vector2()) {
     const f = (this.isDown("KeyW") || this.isDown("ArrowUp") ? 1 : 0)
       - (this.isDown("KeyS") || this.isDown("ArrowDown") ? 1 : 0);
     const s = (this.isDown("KeyD") || this.isDown("ArrowRight") ? 1 : 0)
       - (this.isDown("KeyA") || this.isDown("ArrowLeft") ? 1 : 0);
-    out.set(s, f);
+    out.set(s + this._virtual.x, f + this._virtual.y);
     if (out.lengthSq() > 1) out.normalize();
     return out;
   }
 
   get running() {
-    return this.isDown("ShiftLeft") || this.isDown("ShiftRight");
+    // Shift = lari di keyboard.
+    // Tombol "Lari" di layar sentuh: kalau aktif, joystick otomatis lari;
+    // kalau mati, joystick cuma jalan biasa.
+    if (this.isDown("ShiftLeft") || this.isDown("ShiftRight")) return true;
+    if (this._virtualMag > 0.15) return this._runToggle;
+    return false;
   }
 
   /** Returns the pending click and clears it. */

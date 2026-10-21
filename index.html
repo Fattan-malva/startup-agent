@@ -10,6 +10,23 @@
   <title>Atelier Corp — Startup Miniatur</title>
   <meta name="description"
     content="Kantor startup 3D miniatur dengan pegawai yang bekerja mandiri. Buat karaktermu atau ambil alih pegawai mana pun." />
+
+  <!-- ================================================================
+       iOS / iPadOS — Add to Home Screen (PWA)
+       - apple-mobile-web-app-capable  → aplikasi jalan fullscreen
+       - black-translucent             → konten menempel di bawah notch
+       - apple-touch-icon              → ikon di layar utama
+       ================================================================ -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Atelier" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <!-- Critical inline CSS: mencegah kedipan HTML polos sebelum styles.css termuat.
        Hanya menata loader + menyembunyikan HUD sampai aplikasi siap. -->
   <style>
@@ -55,6 +72,61 @@
     .loader-inner {
       width: min(360px, 82vw);
       text-align: center;
+    }
+
+    /* ---- logo A (juga dipakai sebagai ikon Home Screen) ---- */
+    .loader-mark {
+      display: block;
+      width: 96px;
+      height: 96px;
+      margin: 0 auto 16px;
+      filter: drop-shadow(0 8px 22px rgba(226, 176, 119, 0.28));
+    }
+
+    .loader-mark .lm-leg,
+    .loader-mark .lm-bar {
+      fill: none;
+      stroke: url(#lgA);
+      stroke-width: 7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 150;
+      stroke-dashoffset: 150;
+      animation: lmDraw 1.05s cubic-bezier(.25, .9, .3, 1) forwards;
+    }
+
+    .loader-mark .lm-leg:nth-of-type(2) {
+      animation-delay: .12s;
+    }
+
+    .loader-mark .lm-bar {
+      animation-delay: .34s;
+    }
+
+    .loader-mark .lm-floor {
+      fill: rgba(226, 176, 119, .22);
+      stroke: rgba(226, 176, 119, .55);
+      stroke-width: 1.5;
+      transform-origin: 60px 104px;
+      animation: lmPop .7s cubic-bezier(.2, 1.1, .3, 1) .5s both;
+    }
+
+    @keyframes lmDraw {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    @keyframes lmPop {
+      from {
+        opacity: 0;
+        transform: scale(.4);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
 
     .loader-dot {
@@ -109,6 +181,58 @@
       font-family: ui-monospace, Consolas, monospace;
       font-variant-numeric: tabular-nums;
     }
+
+    /* ---- build log ---- */
+    .loader-log {
+      list-style: none;
+      margin: 16px 0 0;
+      padding: 10px 12px;
+      min-height: 92px;
+      max-height: 118px;
+      overflow: hidden;
+      text-align: left;
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, .022);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 10.5px;
+      line-height: 1.65;
+      color: #7e858f;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      animation: logIn .28s ease both;
+    }
+
+    .log-mark {
+      color: #e2b077;
+      flex: none;
+    }
+
+    .log-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-line--warn .log-mark {
+      color: #f0b429;
+    }
+
+    .log-line--err .log-mark {
+      color: #ff6b5e;
+    }
+
+    @keyframes logIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+    }
   </style>
   <script src="https://unpkg.com/lucide@latest" defer></script>
 </head>
@@ -152,6 +276,9 @@
         title="Ganti arah kamera (4 sudut)"><i data-lucide="compass"></i> <span id="view-cycle-label">Arah: Tg</span></button>
     </aside>
 
+    <!-- nama karakter yang sedang dikendalikan (mode POV) -->
+    <div id="control-info" class="control-pill" hidden>Penonton</div>
+
     <!-- roster / team panel -->
     <aside id="roster" class="panel roster" aria-label="Daftar pegawai">
       <div class="roster-head">
@@ -174,43 +301,45 @@
           &times;
         </button>
       </div>
-      <p id="edit-target" class="edit-target">Klik perabot untuk memilih</p>
-      <p id="edit-save-state" class="edit-save-state">Menyimpan otomatis ke src/data/layout.default.json</p>
+      <div class="editbar-body">
+        <p id="edit-target" class="edit-target">Klik perabot untuk memilih</p>
+        <p id="edit-save-state" class="edit-save-state">Menyimpan otomatis ke src/data/layout.default.json</p>
 
-      <div class="edit-row">
-        <span class="dock-label">Putar</span>
-        <div class="chips">
-          <button class="chip" type="button" data-action="edit-rotate" data-value="-15" title="Putar kiri 15°">⟲ 15°</button>
-          <button class="chip" type="button" data-action="edit-rotate" data-value="15" title="Putar kanan 15°">⟳ 15°</button>
-          <button class="chip" type="button" data-action="edit-rotate" data-value="-90" title="Putar kiri 90°">⟲ 90°</button>
-          <button class="chip" type="button" data-action="edit-rotate" data-value="90" title="Putar kanan 90°">⟳ 90°</button>
+        <div class="edit-row">
+          <span class="dock-label">Putar</span>
+          <div class="chips">
+            <button class="chip" type="button" data-action="edit-rotate" data-value="-15" title="Putar kiri 15°">⟲ 15°</button>
+            <button class="chip" type="button" data-action="edit-rotate" data-value="15" title="Putar kanan 15°">⟳ 15°</button>
+            <button class="chip" type="button" data-action="edit-rotate" data-value="-90" title="Putar kiri 90°">⟲ 90°</button>
+            <button class="chip" type="button" data-action="edit-rotate" data-value="90" title="Putar kanan 90°">⟳ 90°</button>
+          </div>
         </div>
-      </div>
 
-      <div class="edit-row">
-        <span class="dock-label">Pindah</span>
-        <button class="chip" type="button" data-action="edit-snap" id="btn-snap" title="Magnet grid per perabot">Snap petak</button>
-      </div>
-
-      <div class="edit-row">
-        <span class="dock-label">Salin</span>
-        <div class="chips">
-          <button class="chip" type="button" data-action="edit-copy" title="Duplikat perabot terpilih (Ctrl+D)">Duplikat</button>
-          <button class="chip chip--danger" type="button" data-action="edit-delete" title="Hapus perabot terpilih (Del)">Hapus</button>
+        <div class="edit-row">
+          <span class="dock-label">Pindah</span>
+          <button class="chip" type="button" data-action="edit-snap" id="btn-snap" title="Magnet grid per perabot">Snap petak</button>
         </div>
-      </div>
 
-      <div class="edit-row edit-row--stack">
-        <span class="dock-label">Material</span>
-        <div id="edit-mats" class="edit-mats"></div>
-      </div>
+        <div class="edit-row">
+          <span class="dock-label">Salin</span>
+          <div class="chips">
+            <button class="chip" type="button" data-action="edit-copy" title="Duplikat perabot terpilih (Ctrl+D)">Duplikat</button>
+            <button class="chip chip--danger" type="button" data-action="edit-delete" title="Hapus perabot terpilih (Del)">Hapus</button>
+          </div>
+        </div>
 
-      <div class="edit-actions">
-        <button class="btn" type="button" data-action="edit-undo" id="edit-undo" disabled>↩ Undo</button>
-        <button class="btn" type="button" data-action="edit-redo" id="edit-redo" disabled>↪ Redo</button>
-        <button class="btn" type="button" data-action="edit-reset">Reset pilihan</button>
-        <button class="btn" type="button" data-action="edit-reset-all">Reset semua</button>
-        <button class="btn is-accent" type="button" data-action="edit-save">Simpan</button>
+        <div class="edit-row edit-row--stack">
+          <span class="dock-label">Material</span>
+          <div id="edit-mats" class="edit-mats"></div>
+        </div>
+
+        <div class="edit-actions">
+          <button class="btn" type="button" data-action="edit-undo" id="edit-undo" disabled>↩ Undo</button>
+          <button class="btn" type="button" data-action="edit-redo" id="edit-redo" disabled>↪ Redo</button>
+          <button class="btn" type="button" data-action="edit-reset">Reset pilihan</button>
+          <button class="btn" type="button" data-action="edit-reset-all">Reset semua</button>
+          <button class="btn is-accent" type="button" data-action="edit-save">Simpan</button>
+        </div>
       </div>
     </aside>
 
@@ -437,6 +566,47 @@
       <i class="crosshair-dot"></i>
     </div>
 
+    <!-- ============ kontrol sentuh (hanya aktif di perangkat sentuh) ===== -->
+    <div id="touch-layer" class="touch-layer" aria-hidden="true">
+      <!-- keluar dari tubuh (POV) -->
+      <button id="btn-fps-exit" class="mbtn mbtn--exit" type="button" aria-label="Keluar dari tubuh">
+        <i data-lucide="log-out"></i>
+      </button>
+
+      <!-- kiri: tombol Lari + joystick -->
+      <div id="fps-left" class="fps-left">
+        <button id="btn-run" class="mbtn mbtn--run" type="button" aria-pressed="false" aria-label="Lari kencang">
+          <i data-lucide="footprints"></i><span class="mbtn-label">Lari</span>
+        </button>
+
+        <!-- joystick kiri: jalan / lari -->
+        <div id="joystick" class="joystick" role="application" aria-label="Joystick gerak">
+          <span class="joystick-ring"></span>
+          <span class="joystick-cross"></span>
+          <span id="joystick-knob" class="joystick-knob"></span>
+        </div>
+      </div>
+
+      <!-- tombol kanan: zoom, lompat, gunakan (interaksi) — vertikal -->
+      <div id="fps-actions" class="fps-actions">
+        <button id="btn-fps-zoom" class="mbtn mbtn--zoom" type="button" aria-label="Zoom tampilan">
+          <i data-lucide="scan"></i><span class="mbtn-label">1.0&times;</span>
+        </button>
+        <button id="btn-fps-jump" class="mbtn mbtn--jump" type="button" aria-label="Lompat">
+          <i data-lucide="chevrons-up"></i><span class="mbtn-label">Lompat</span>
+        </button>
+        <button id="btn-fps-use" class="mbtn mbtn--use" type="button" aria-label="Gunakan atau sapa">
+          <i data-lucide="hand"></i><span class="mbtn-label">Gunakan</span>
+        </button>
+      </div>
+
+      <!-- tombol kamera (mode kamera atas): zoom in / out -->
+      <div id="cam-actions" class="cam-actions">
+        <button class="mbtn mbtn--zoom" type="button" data-action="zoom" data-value="in" aria-label="Perbesar">+</button>
+        <button class="mbtn mbtn--zoom" type="button" data-action="zoom" data-value="out" aria-label="Perkecil">&minus;</button>
+      </div>
+    </div>
+
     <!-- tooltip -->
     <div id="tooltip" class="tooltip" role="tooltip">
       <span id="tooltip-title" class="tooltip-title">Pegawai</span>
@@ -449,48 +619,93 @@
       <div id="hint" class="hint-bar"><span id="hint-text">Drag untuk geser · scroll untuk zoom · klik pegawai untuk
           detail</span></div>
 
-      <nav id="dock" class="panel dock" aria-label="Kontrol">
-        <div class="dock-group">
-          <span class="dock-label">Kamu</span>
-          <span id="control-info" class="control-info">Penonton</span>
-          <button class="btn is-accent" type="button" data-action="spawn-open">Buat karakter</button>
-          <button class="btn" type="button" data-action="release" hidden id="btn-release">Lepas</button>
-        </div>
+      <div class="dock-row">
+        <nav id="dock" class="panel dock" aria-label="Kontrol">
+          <!-- 1. kamera: zoom in/out + 4 arah pandang -->
+          <div class="dock-group" data-dock-menu="camera">
+            <button class="icon-btn" type="button" data-dock-toggle="camera" aria-label="Kamera" aria-expanded="false"
+              aria-haspopup="true" title="Kamera">
+              <i data-lucide="camera"></i>
+            </button>
+            <div class="dock-pop dock-pop--left" id="pop-camera" role="menu" aria-label="Kontrol kamera">
+              <button class="pop-btn" type="button" data-action="zoom" data-value="in" role="menuitem">
+                <i data-lucide="zoom-in"></i><span class="pop-label">Perbesar</span>
+              </button>
+              <button class="pop-btn" type="button" data-action="zoom" data-value="out" role="menuitem">
+                <i data-lucide="zoom-out"></i><span class="pop-label">Perkecil</span>
+              </button>
+              <button class="pop-btn" type="button" data-action="zoom" data-value="overview" role="menuitem">
+                <i data-lucide="maximize"></i><span class="pop-label">Tampilkan semua</span>
+              </button>
+              <div class="pop-sep" role="separator"></div>
+              <div class="pop-views" role="group" aria-label="Arah kamera">
+                <button class="pop-btn pop-btn--sq" type="button" data-action="view" data-value="45" role="menuitem"
+                  title="Tengah">Tg</button>
+                <button class="pop-btn pop-btn--sq" type="button" data-action="view" data-value="135" role="menuitem"
+                  title="Timur kiri">Tl</button>
+                <button class="pop-btn pop-btn--sq" type="button" data-action="view" data-value="225" role="menuitem"
+                  title="Barat kiri">Bl</button>
+                <button class="pop-btn pop-btn--sq" type="button" data-action="view" data-value="315" role="menuitem"
+                  title="Barat depan">Bd</button>
+              </div>
+            </div>
+          </div>
 
-        <div class="dock-group dock-group--cam">
-          <span class="dock-label">Kamera</span>
-          <div class="chips">
-            <button class="chip" type="button" data-action="zoom" data-value="in" title="Perbesar"><i data-lucide="zoom-in"></i></button>
-            <button class="chip" type="button" data-action="zoom" data-value="out" title="Perkecil"><i data-lucide="zoom-out"></i></button>
-            <button class="chip" type="button" data-action="rotate" data-value="left" title="Putar kiri"><i data-lucide="rotate-ccw"></i></button>
-            <button class="chip" type="button" data-action="rotate" data-value="right" title="Putar kanan"><i data-lucide="rotate-cw"></i></button>
-            <button class="chip" type="button" data-action="zoom" data-value="overview" title="Lantai"><i data-lucide="layout-grid"></i></button>
+          <!-- 2. suasana: pagi / sore / malam -->
+          <div class="dock-group" data-dock-menu="time">
+            <button class="icon-btn" type="button" data-dock-toggle="time" aria-label="Suasana" aria-expanded="false"
+              aria-haspopup="true" title="Suasana">
+              <i data-lucide="sun-moon"></i>
+            </button>
+            <div class="dock-pop" id="pop-time" role="menu" aria-label="Suasana">
+              <button class="pop-btn" type="button" data-action="time" data-value="0" role="menuitem">
+                <i data-lucide="sunrise"></i><span class="pop-label">Pagi</span>
+              </button>
+              <button class="pop-btn" type="button" data-action="time" data-value="0.5" role="menuitem">
+                <i data-lucide="sunset"></i><span class="pop-label">Sore</span>
+              </button>
+              <button class="pop-btn" type="button" data-action="time" data-value="1" role="menuitem">
+                <i data-lucide="moon"></i><span class="pop-label">Malam</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 3. mode edit -->
+          <div class="dock-group">
+            <button class="icon-btn" type="button" data-action="edit-mode" id="btn-edit" aria-label="Mode Edit"
+              title="Mode Edit">
+              <i data-lucide="wrench"></i>
+            </button>
+          </div>
+
+          <!-- 4. karakter (satu-satunya tombol berteks) -->
+          <div class="dock-group dock-group--char">
+            <button class="btn is-accent" type="button" data-action="spawn-open">Buat karakter</button>
+          </div>
+        </nav>
+
+        <!-- menu mengambang — di luar dock, hanya ikon tanpa panel -->
+        <div class="dock-more" data-dock-menu="more">
+          <button class="icon-btn icon-btn--ghost" type="button" data-dock-toggle="more" aria-label="Menu"
+            aria-expanded="false" aria-haspopup="true" title="Menu">
+            <i data-lucide="layout-grid"></i>
+          </button>
+          <div class="dock-pop dock-pop--right" id="pop-more" role="menu" aria-label="Menu">
+            <button class="pop-btn" type="button" data-action="meeting" id="btn-meeting" role="menuitem">
+              <i data-lucide="users"></i><span class="pop-label">Rapat</span>
+            </button>
+            <button class="pop-btn" type="button" data-action="roster" role="menuitem">
+              <i data-lucide="user-round"></i><span class="pop-label">Tim</span>
+            </button>
+            <button class="pop-btn" type="button" data-action="help" role="menuitem">
+              <i data-lucide="circle-help"></i><span class="pop-label">Bantuan</span>
+            </button>
+            <button class="pop-btn" type="button" data-action="release" id="btn-release" role="menuitem" hidden>
+              <i data-lucide="log-out"></i><span class="pop-label">Lepas</span>
+            </button>
           </div>
         </div>
-
-
-        <div class="dock-group">
-          <span class="dock-label">Suasana</span>
-          <div class="seg" role="group" aria-label="Cahaya">
-            <button class="seg-item is-active" type="button" data-action="time" data-value="0">Pagi</button>
-            <button class="seg-item" type="button" data-action="time" data-value="0.5">Sore</button>
-            <button class="seg-item" type="button" data-action="time" data-value="1">Malam</button>
-          </div>
-        </div>
-
-        <div class="dock-group">
-          <span class="dock-label">Dunia</span>
-          <button class="btn" type="button" data-action="edit-mode" id="btn-edit">Mode Edit</button>
-        </div>
-
-        <div class="dock-group dock-group--end">
-          <button class="btn" type="button" data-action="meeting" id="btn-meeting">Rapat</button>
-          <button class="btn" type="button" data-action="roster">Tim</button>
-          <button class="btn" type="button" data-action="reset">Reset</button>
-          <button class="btn" type="button" data-action="photo">Foto</button>
-          <button class="btn" type="button" data-action="help">Bantuan</button>
-        </div>
-      </nav>
+      </div>
     </div>
   </div>
 
@@ -582,9 +797,23 @@
   <!-- Initial full-screen loading -->
   <div id="loader" class="loader" role="status" aria-live="polite">
     <div class="loader-inner">
-      <span class="loader-dot"></span>
+      <!-- logo A -->
+      <svg class="loader-mark" viewBox="0 0 120 120" role="img" aria-label="Atelier Corp">
+        <defs>
+          <linearGradient id="lgA" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f9d9ae" />
+            <stop offset=".55" stop-color="#e2b077" />
+            <stop offset="1" stop-color="#b9803f" />
+          </linearGradient>
+        </defs>
+        <path class="lm-leg" d="M60 16 L20 92 L42 92" />
+        <path class="lm-leg" d="M60 16 L100 92 L78 92" />
+        <path class="lm-bar" d="M39 70 L81 70" />
+        <path class="lm-floor" d="M60 92 L102 104 L60 116 L18 104 Z" />
+      </svg>
+
       <h1 class="loader-name">Atelier Corp</h1>
-      <p class="loader-tag">Membangun kantor…</p>
+      <p class="loader-tag">Startup Miniatur</p>
 
       <div class="loader-track">
         <div id="loader-bar" class="loader-bar"></div>
@@ -594,6 +823,9 @@
         <span id="loader-label">Boot</span>
         <span id="loader-pct" class="loader-pct">0%</span>
       </p>
+
+      <!-- build log -->
+      <ul id="loader-log" class="loader-log" aria-label="Build log"></ul>
 
       <p id="loader-error" class="loader-error" hidden></p>
     </div>

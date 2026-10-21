@@ -143,6 +143,53 @@ export class Interaction {
 
   /* -------------------------------------------------------------- clicks */
 
+  /* -------------------------------------------------------------- klik */
+  /**
+   * Aksi "Gunakan" — pakai apa pun yang sedang dibidik.
+   * Di mode POV, kursi yang ditunjuk crosshair langsung diduduki.
+   */
+  use() {
+    const fp = this.rig.firstPerson;
+    const aim = this._aimNdc();
+    const hit = fp || this.hovered ? this._pick(aim.x, aim.y) : null;
+    const prop = hit ? this._interactiveOf(hit) : null;
+    const meta = prop?.userData.interactive;
+
+    if (meta?.openStaffModal) {
+      this.onStaffModal?.();
+      this.hud.hideTooltip();
+      return true;
+    }
+
+    // Kursi: yang sedang dibidik crosshair, atau yang menempel di badan.
+    // Ini yang membuat tombol "Gunakan" bisa langsung duduk di mode POV.
+    if (this.player?.active) {
+      const seat = meta?.seat || (fp ? this.player._nearestSeat(1.0) : null);
+      if (seat) {
+        if (prop) {
+          prop.getWorldPosition(this._tmp);
+          this.fx.ripple(this._tmp, { radius: 0.42, duration: 0.7 });
+        }
+        this.player.sitOn(seat);
+        return true;
+      }
+    }
+
+    if (fp && prop) {
+      const msg = typeof meta.onClick === "function" ? meta.onClick(prop) : meta.hint || "";
+      prop.getWorldPosition(this._tmp);
+      this.fx.ripple(this._tmp, { radius: 0.42, duration: 0.7 });
+      this.player?.controlled?.face(this._tmp.x, this._tmp.z);
+      this.player?.controlled?.gesture("wave", 0.7);
+      this.hud.toast(msg || meta.label, 2400);
+      return true;
+    }
+
+    // tidak sedang membidik apa pun → sapa orang / pakai benda terdekat
+    this.player?.interact();
+    return true;
+  }
+
   handleClick(click) {
     const fp = this.rig.firstPerson;
     const aim = fp ? this._aim.set(0, 0) : click.ndc;

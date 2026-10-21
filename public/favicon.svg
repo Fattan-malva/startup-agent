@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e2530"/>
+      <stop offset="1" stop-color="#0c0f14"/>
+    </linearGradient>
+    <linearGradient id="a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7d2a0"/>
+      <stop offset="1" stop-color="#c98f4e"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g opacity=".55" filter="url(#glow)" fill="#e2b077">
+    <path d="M256 87 L69 417 L161 417 Z"/>
+    <path d="M256 87 L351 417 L443 417 Z"/>
+  </g>
+  <g fill="url(#a)">
+    <path d="M256 87 L69 417 L161 417 Z"/>
+    <path d="M256 87 L351 417 L443 417 Z"/>
+    <rect x="143" y="299" width="226" height="46"/>
+  </g>
+  <path d="M256 400 L397 461 L256 522 L115 461 Z" fill="#e2b077" opacity=".24"/>
+</svg>

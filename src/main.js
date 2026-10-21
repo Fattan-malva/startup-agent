@@ -29,6 +29,8 @@ import { CharDetail } from "./systems/CharDetail.js";
 import { EditMode } from "./systems/EditMode.js";
 import { HUD } from "./ui/HUD.js";
 import { Meeting } from "./systems/AI.js";
+import { markDevice, isTouchDevice } from "./systems/Device.js";
+import { TouchControls } from "./systems/TouchControls.js";
 
 const POPULATION = 14;
 const BG = 0x141922;
@@ -42,6 +44,10 @@ const sleepFrame = () =>
 async function boot() {
   let dispatch = () => {};
   const hud = new HUD({ onAction: (name, value, node) => dispatch(name, value, node) });
+
+  // Tandai <html> (is-touch / is-ios / is-standalone) SEBELUM apa pun
+  // digambar supaya CSS mobile langsung berlaku dari frame pertama.
+  markDevice();
 
   try {
     hud.setProgress(0.06, "Menyiapkan GPU");
@@ -144,7 +150,28 @@ async function boot() {
       player,
       onPossess: (critter) => player.possess(critter),
       onStaffModal: () => staffModal?.open(),
-      onDetail: (critter) => detail.open(critter),
+      onDetail: (critter) => {
+        // Di layar sempit panel detail & roster jadi sheet di tempat yang
+        // sama — tutup roster supaya tidak saling menutupi.
+        if (hud.isMobile) hud.toggleRoster(false);
+        detail.open(critter);
+      },
+    });
+
+    /* ------------------------------------------- kontrol layar sentuh */
+
+    const touch = new TouchControls({
+      canvas,
+      rig,
+      input,
+      hud,
+      player,
+      onUse: () => interaction.use(),
+      onJump: () => player.jump(),
+      onExit: () => {
+        player.release();
+        touch?.reset();
+      },
     });
 
     /* ------------------------------------------------------------- state */
@@ -176,11 +203,20 @@ async function boot() {
       }
     }
 
+    /** Label tombol rapat di dalam daftar menu dock. */
+    function setMeetingLabel(text, accent = false) {
+      const btn = document.getElementById("btn-meeting");
+      if (!btn) return;
+      const label = btn.querySelector(".pop-label") || btn;
+      if (label.textContent !== text) label.textContent = text;
+      btn.classList.toggle("is-accent", accent);
+    }
+
     function reset() {
       meeting.end();
-      const btn = document.getElementById("btn-meeting");
-      if (btn) { btn.textContent = "Rapat"; btn.classList.remove("is-accent"); }
+      setMeetingLabel("Rapat");
       player.release();
+      touch?.reset();
       interaction.clearSelection();
       rig.follow(null);
       rig.overview(true);
@@ -236,6 +272,7 @@ async function boot() {
         }
         case "release":
           player.release();
+          touch?.reset();
           hud.toast("Karakter dilepas — dia kembali bekerja");
           break;
         case "roster":
@@ -285,13 +322,12 @@ async function boot() {
           hud.toggleHelp(false);
           break;
         case "meeting": {
-          const btn = document.getElementById("btn-meeting");
           if (meeting.active) {
             meeting.end();
-            if (btn) { btn.textContent = "Rapat"; btn.classList.remove("is-accent"); }
+            setMeetingLabel("Rapat");
             hud.toast("Rapat selesai — semua karyawan kembali bekerja ✅", 3000);
           } else if (meeting.start()) {
-            if (btn) { btn.textContent = "Akhiri Rapat"; btn.classList.add("is-accent"); }
+            setMeetingLabel("Akhiri Rapat", true);
             // hanya staf yang ruangan meeting-nya diizinkan ikut
             const joiners = meeting.parts?.length ?? 0;
             hud.toast(
@@ -404,6 +440,11 @@ async function boot() {
       edit.copySelected();
     });
     input.onKey("Escape", () => {
+      if (hud.dockMenuOpen) {
+        // daftar mengambang di dock ditutup lebih dulu
+        hud.closeDockMenu();
+        return;
+      }
       if (edit.enabled) {
         // Kursor terkunci (Mode Edit dari POV): Esc pertama melepas kursor
         // supaya HUD/panel bisa diklik — Mode Edit tetap aktif.
@@ -437,6 +478,18 @@ async function boot() {
     }
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
+
+    /* Tinggi dock diukur dari JS → variabel CSS --dock-h.
+       Dipakai untuk menaruh sheet panel & kontrol sentuh di bawah dock. */
+    const dock = document.getElementById("dock");
+    const syncDockHeight = () => {
+      const h = Math.round(dock?.getBoundingClientRect().height || 0);
+      if (h > 0) document.documentElement.style.setProperty("--dock-h", `${h}px`);
+    };
+    syncDockHeight();
+    if (dock && "ResizeObserver" in window) {
+      new ResizeObserver(syncDockHeight).observe(dock);
+    }
 
     // Ctrl/Cmd + scroll harus memperbesar DUNIA saja, bukan seluruh halaman —
     // panel HUD (dock, roster, kartu) tetap pada ukurannya.
@@ -483,6 +536,7 @@ async function boot() {
       rig.suppressDragPan = edit.dragging || !!edit.pressedItem || hud.modalOpen;
       rig.update(dt, input, player.active);
       fx.update(dt, elapsed);
+      touch.update(); // label tombol zoom ikut sinkron dengan kamera
 
       interaction.enabled = !hud.modalOpen && !edit.enabled;
       if (interaction.enabled) {
@@ -490,8 +544,10 @@ async function boot() {
         const click = input.consumeClick();
         if (click) {
           // inside a body, the first click grabs the mouse (mouse-look);
-          // once locked, clicks are just "interact with what I'm aiming at"
-          if (rig.firstPerson && !input.locked) input.requestLock();
+          // once locked, clicks are just "interact with what I'm aiming at".
+          // Di perangkat sentuh tidak ada pointer lock — tap LANGSUNG
+          // berinteraksi dengan yang ada di depan crosshair.
+          if (rig.firstPerson && !input.locked && !isTouchDevice) input.requestLock();
           else interaction.handleClick(click);
         }
         const dbl = input.consumeDoubleClick();
@@ -548,7 +604,9 @@ async function boot() {
     try { window.lucide?.createIcons?.(); } catch { /* lucide belum termuat */ }
     hud.setActive("time", "0");
     hud.setControlling(null);
-    hud.toggleRoster(true);
+    // Di layar sempit daftar Tim jadi sheet — jangan opened otomatis
+    // supaya tidak menutupi pandangan.
+    hud.toggleRoster(!hud.isMobile);
     hud.renderRoster(crew.roster());
     setTime(0, true);
 

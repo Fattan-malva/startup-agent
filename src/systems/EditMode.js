@@ -291,8 +291,9 @@ export class EditMode {
 
     const btn = this.hud.dom?.editBtn;
     if (btn) {
-      btn.classList.toggle("is-accent", next);
-      btn.textContent = next ? "Selesai Edit" : "Mode Edit";
+      // tombol dock berupa ikon — jangan ganti textContent (ikon hilang)
+      btn.classList.toggle("is-active", next);
+      btn.title = next ? "Selesai Edit" : "Mode Edit";
     }
 
     this.hud.toggleEditBar(next);

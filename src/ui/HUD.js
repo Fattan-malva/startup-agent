@@ -1,4 +1,5 @@
 import { SPECIES } from "../character/species.js";
+import { isTouchDevice } from "../systems/Device.js";
 
 function byId(id) {
   return document.getElementById(id);
@@ -37,6 +38,12 @@ export class HUD {
       rosterList: byId("roster-list"),
       editbar: byId("editbar"),
       editBtn: byId("btn-edit"),
+      dock: byId("dock"),
+      dockPops: {
+        camera: byId("pop-camera"),
+        time: byId("pop-time"),
+        more: byId("pop-more"),
+      },
       editTarget: byId("edit-target"),
       editSaveState: byId("edit-save-state"),
       editMats: byId("edit-mats"),
@@ -49,6 +56,7 @@ export class HUD {
       loaderBar: byId("loader-bar"),
       loaderLabel: byId("loader-label"),
       loaderPct: byId("loader-pct"),
+      loaderLog: byId("loader-log"),
       loaderError: byId("loader-error"),
       stats: {
         fps: byId("st-fps"),
@@ -67,6 +75,9 @@ export class HUD {
     this._lastMsg = null;
     this._fps = false;
     this._staffOpen = false;
+    this._logLines = [];
+    this._lastLogLabel = null;
+    this._dockMenu = null;
 
     this._buildSpeciesGrid();
     this._bind();
@@ -80,11 +91,49 @@ export class HUD {
       const { action, value } = node.dataset;
       e.preventDefault();
       this.onAction(action, value ?? "", node);
+      // aksi dari dock menutup daftar yang sedang terbuka
+      this.closeDockMenu();
+    });
+
+    // ikon dock → buka/tutup daftar mengambang di atas dock
+    document.addEventListener("click", (e) => {
+      const toggle = e.target.closest?.("[data-dock-toggle]");
+      if (!toggle) return;
+      e.preventDefault();
+      this.toggleDockMenu(toggle.dataset.dockToggle);
+    });
+
+    // klik di luar daftar/dock → tutup daftar mengambang
+    document.addEventListener("click", (e) => {
+      if (!this._dockMenu) return;
+      if (e.target.closest?.("[data-dock-menu]")) return;
+      this.closeDockMenu();
     });
 
     for (const el of document.querySelectorAll("#hud .panel, .modal")) {
       el.addEventListener("pointerdown", (e) => e.stopPropagation());
     }
+
+    /* Klik di luar kartu modal → tutup. Pengecualian: Manajemen Staf
+       (banyak isian, gampang kepencet) dan Mode Edit (panel, bukan modal). */
+    for (const modal of document.querySelectorAll(".modal")) {
+      if (modal.id === "staff-modal") continue;
+      if (modal.id === "editbar") continue; // panel edit harus tetap terbuka
+      modal.addEventListener("click", (e) => {
+        if (e.target !== modal) return; // klik di dalam kartu
+        const close = modal.querySelector("[data-action$='-close']");
+        if (close) this.onAction(close.dataset.action, "", close);
+        else modal.classList.remove("is-open");
+      });
+    }
+
+    /* Klik di area dunia (bukan panel/modal) → tutup panel detail karakter
+       dan daftar tim. Panel/modal punya stopPropagation pointerdown di atas,
+       jadi handler ini hanya menerima klik di luar UI. */
+    document.addEventListener("pointerdown", () => {
+      if (this.detailOpen) this.onAction("detail-close", "", null);
+      if (this._rosterOpen) this.toggleRoster(false);
+    });
 
     const nameInput = this.dom.spawnName;
     if (nameInput) {
@@ -92,6 +141,42 @@ export class HUD {
         if (e.key === "Enter") this.onAction("spawn-confirm", "", nameInput);
       });
     }
+  }
+
+  /* ------------------------------------------------------ dock dropdown */
+
+  /**
+   * Buka/tutup daftar mengambang di atas dock (kamera / suasana / menu).
+   * Hanya satu boleh terbuka; klik ikon yang sama menutupnya lagi.
+   */
+  toggleDockMenu(key) {
+    const same = this._dockMenu === key;
+    this.closeDockMenu();
+    if (same) return false;
+    const pop = this.dom.dockPops?.[key];
+    if (!pop) return false;
+    this._dockMenu = key;
+    pop.classList.add("is-open");
+    // toast disembunyikan supaya tidak tembus pandang di balik panel
+    this.dom.toast?.classList.remove("is-show");
+    const btn = document.querySelector(`[data-dock-toggle="${key}"]`);
+    btn?.classList.add("is-active");
+    btn?.setAttribute("aria-expanded", "true");
+    return true;
+  }
+
+  closeDockMenu() {
+    if (!this._dockMenu) return;
+    const pop = this.dom.dockPops?.[this._dockMenu];
+    pop?.classList.remove("is-open");
+    const btn = document.querySelector(`[data-dock-toggle="${this._dockMenu}"]`);
+    btn?.classList.remove("is-active");
+    btn?.setAttribute("aria-expanded", "false");
+    this._dockMenu = null;
+  }
+
+  get dockMenuOpen() {
+    return !!this._dockMenu;
   }
 
   _buildSpeciesGrid() {
@@ -136,6 +221,15 @@ export class HUD {
     return !!this.dom.detailPanel?.classList.contains("is-open");
   }
 
+  /** true kalau perangkat sentuh atau layarnya sempit (mode mobile). */
+  get isMobile() {
+    return (
+      document.documentElement.classList.contains("is-touch") ||
+      (typeof window !== "undefined" &&
+        window.matchMedia("(max-width: 820px)").matches)
+    );
+  }
+
   /* --------------------------------------------------------------- stats */
   setStats(s = {}) {
     const e = this.dom.stats;
@@ -160,8 +254,12 @@ export class HUD {
     this.dom.crosshair?.classList.remove("is-hot");
     this.setHint(
       this._fps
-        ? "Klik untuk mouse-look · WASD jalan · Shift lari · Space lompat · E sapa/pakai · B edit · Esc keluar"
-        : "Drag untuk geser · scroll untuk zoom · klik pegawai untuk detail",
+        ? (isTouchDevice
+          ? "Joystick kiri jalan · tombol Lari buat ngebut · kanan: zoom, lompat, gunakan · drag layar buat lihat sekeliling"
+          : "Klik untuk mouse-look · WASD jalan · Shift lari · Space lompat · E sapa/pakai · B edit · Esc keluar")
+        : (isTouchDevice
+          ? "1 jari geser peta · 2 jari cubit zoom · tap pegawai buat lihat detail"
+          : "Drag untuk geser · scroll untuk zoom · klik pegawai untuk detail"),
     );
   }
 
@@ -189,10 +287,12 @@ export class HUD {
     if (c) {
       this.dom.controlInfo.textContent = `${c.emoji} ${c.name}`;
       this.dom.controlInfo.classList.add("is-live");
+      this.dom.controlInfo.hidden = false;
       if (this.dom.btnRelease) this.dom.btnRelease.hidden = false;
     } else {
       this.dom.controlInfo.textContent = "Penonton";
       this.dom.controlInfo.classList.remove("is-live");
+      this.dom.controlInfo.hidden = true;
       if (this.dom.btnRelease) this.dom.btnRelease.hidden = true;
     }
   }
@@ -234,6 +334,7 @@ export class HUD {
       typeof force === "boolean" ? force : !this._editOpen;
     this._editOpen = open;
     this.dom.editbar?.classList.toggle("is-open", open);
+    this.dom.root?.classList.toggle("is-editing", open);
     return open;
   }
 
@@ -257,6 +358,12 @@ export class HUD {
   setViewCycle(text) {
     const label = document.getElementById("view-cycle-label");
     if (label && label.textContent !== text) label.textContent = text;
+    // tandai tombol arah aktif di daftar kamera
+    const m = /:\s*(\S+)\s*$/.exec(text || "");
+    const cur = m ? m[1] : "";
+    for (const b of document.querySelectorAll('[data-action="view"]')) {
+      b.classList.toggle("is-active", b.textContent.trim() === cur);
+    }
   }
 
   setEditSnap(on) {
@@ -351,6 +458,33 @@ export class HUD {
   }
 
   /* ------------------------------------------------------------- loader */
+
+  /**
+   * Tambah satu baris ke "build log" pada layar pemuatan.
+   * Baris lama digeser ke atas, yang baru muncul dengan animasi.
+   */
+  log(text, kind = "ok") {
+    const list = this.dom.loaderLog;
+    if (!list || !text) return;
+    const li = document.createElement("li");
+    li.className = `log-line log-line--${kind}`;
+    const mark = document.createElement("span");
+    mark.className = "log-mark";
+    mark.textContent = kind === "warn" ? "!" : kind === "err" ? "×" : "›";
+    const span = document.createElement("span");
+    span.className = "log-text";
+    span.textContent = text;
+    li.append(mark, span);
+    list.append(li);
+    this._logLines.push(li);
+    // sisakan maksimal 6 baris terakhir supaya loader tetap ringkas
+    while (this._logLines.length > 6) {
+      const old = this._logLines.shift();
+      old?.remove();
+    }
+    list.scrollTop = list.scrollHeight;
+  }
+
   setProgress(pct, label) {
     if (this.dom.loaderBar) {
       this.dom.loaderBar.style.width = `${Math.round(pct * 100)}%`;
@@ -358,6 +492,11 @@ export class HUD {
     if (this.dom.loaderLabel && label) this.dom.loaderLabel.textContent = label;
     if (this.dom.loaderPct) {
       this.dom.loaderPct.textContent = `${Math.round(pct * 100)}%`;
+    }
+    // build log: setiap label baru jadi satu baris
+    if (label && label !== this._lastLogLabel) {
+      this._lastLogLabel = label;
+      this.log(label);
     }
   }
 
